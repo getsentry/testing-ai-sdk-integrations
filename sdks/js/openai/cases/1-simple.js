@@ -64,7 +64,10 @@ async function runTest() {
     throw new Error("No completion returned from OpenAI");
   }
 
-  console.log(`    Response: ${text}`);
+  // Only show response in verbose mode
+  if (process.env.SENTRY_AI_TEST_VERBOSE === 'true') {
+    console.log(`    Response: ${text}`);
+  }
 }
 
 async function assertSentryCaptured() {

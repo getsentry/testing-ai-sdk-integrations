@@ -27,6 +27,26 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
   const fixture = loadFixture(specId, variant);
   const errors = [];
 
+  // Log captured spans in verbose mode
+  if (process.env.SENTRY_AI_TEST_VERBOSE === 'true') {
+    console.log('\n    === Captured Spans (Verbose) ===');
+    if (spans.length === 0) {
+      console.log('    No spans captured');
+    } else {
+      spans.forEach((span, index) => {
+        console.log(`    Span ${index + 1}:`);
+        console.log(`      op: ${span.op || 'N/A'}`);
+        console.log(`      description: ${span.description || 'N/A'}`);
+        console.log(`      span_id: ${span.span_id || 'N/A'}`);
+        console.log(`      parent_span_id: ${span.parent_span_id || 'N/A'}`);
+        if (span.data && Object.keys(span.data).length > 0) {
+          console.log(`      data keys: ${Object.keys(span.data).join(', ')}`);
+        }
+      });
+    }
+    console.log('    === End Captured Spans ===\n');
+  }
+
   // Validate transactions
   if (fixture.expectations.transactions) {
     const { min_count } = fixture.expectations.transactions;

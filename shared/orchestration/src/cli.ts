@@ -75,6 +75,7 @@ program
   .option('-s, --sdk <sdk>', 'Run tests for specific SDK or language (e.g., js/openai, js, py)')
   .option('-c, --case <case>', 'Run specific test case (e.g., G1)')
   .option('-a, --all', 'Run all tests')
+  .option('-v, --verbose', 'Show detailed output including LLM responses')
   .action(async (options) => {
     // Validate options
     if (!options.sdk && !options.case && !options.all) {
@@ -117,6 +118,11 @@ program
       console.log(chalk.cyan(`${sdk.path}`) + chalk.gray(` (${sdk.cases.map(c => c.id).join(', ')})`));
     }
     console.log('');
+
+    // Set verbose flag in environment for test runners
+    if (options.verbose) {
+      process.env.SENTRY_AI_TEST_VERBOSE = 'true';
+    }
 
     // Run tests
     const startTime = Date.now();

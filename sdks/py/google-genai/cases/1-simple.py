@@ -1,17 +1,21 @@
 """
 1-simple: Basic Completion
 
-Tests a simple agent completion request with OpenAI Agents SDK
+Tests a simple chat completion request with Google GenAI SDK
 and verifies that Sentry captures the appropriate spans and AI monitoring data.
 """
 
 import os
 import asyncio
 import sentry_sdk
-from agents import Agent, Runner
+from google import genai
 
-# Framework type for this SDK (determines which fixture variant to use)
-FRAMEWORK_TYPE = "agentic"
+# Framework type for this SDK (low-level: direct LLM calls)
+FRAMEWORK_TYPE = "low-level"
+
+# Model override: Google GenAI uses Gemini models, not OpenAI models
+# The fixture specifies 'gpt-4o-mini' but we need to use a Gemini model
+MODEL_OVERRIDE = "gemini-2.5-flash-lite"
 
 
 async def main():
@@ -40,26 +44,28 @@ async def run_test():
     from fixtures import load_fixture
 
     fixture = load_fixture("1-simple", FRAMEWORK_TYPE)
-    model = fixture["inputs"]["model"]
+    model = MODEL_OVERRIDE  # Use Gemini model instead of fixture's OpenAI model
     system = fixture["inputs"]["system"]
     prompt = fixture["inputs"]["prompt"]
 
-    # Create a simple math assistant agent
-    math_agent = Agent(
-        name="math_assistant",
-        instructions=system,
+    # Create Google GenAI client
+    client = genai.Client(api_key=os.getenv("GOOGLE_GENAI_API_KEY"))
+
+    # Make the request - combine system and prompt since GenAI doesn't have separate system parameter
+    # Format: system message followed by user prompt
+    contents = f"{system}\n\n{prompt}"
+
+    response = client.models.generate_content(
         model=model,
+        contents=contents,
     )
 
-    # Run the agent with a simple math question
-    result = await Runner.run(math_agent, prompt)
-
-    if not result.final_output:
-        raise Exception("No output returned from OpenAI Agents")
+    if not response.text:
+        raise Exception("No output returned from Google GenAI")
 
     # Only show response in verbose mode
     if os.getenv("SENTRY_AI_TEST_VERBOSE") == "true":
-        print(f"    Response: {result.final_output}")
+        print(f"    Response: {response.text}")
 
 
 async def assert_sentry_captured():
@@ -75,8 +81,6 @@ async def assert_sentry_captured():
     events = transport.get_events()
 
     print(f"    Captured: {len(spans)} spans, {len(transactions)} transactions, {len(events)} events")
-
-
 
     result = validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
 

@@ -192,6 +192,23 @@ def validate_fixture(
     fixture = load_fixture(spec_id, variant)
     errors = []
 
+    # Log captured spans in verbose mode
+    import os
+    if os.getenv("SENTRY_AI_TEST_VERBOSE") == "true":
+        print('\n    === Captured Spans (Verbose) ===')
+        if len(spans) == 0:
+            print('    No spans captured')
+        else:
+            for index, span in enumerate(spans):
+                print(f'    Span {index + 1}:')
+                print(f'      op: {span.get("op", "N/A")}')
+                print(f'      description: {span.get("description", "N/A")}')
+                print(f'      span_id: {span.get("span_id", "N/A")}')
+                print(f'      parent_span_id: {span.get("parent_span_id", "N/A")}')
+                if span.get("data") and len(span["data"]) > 0:
+                    print(f'      data keys: {", ".join(span["data"].keys())}')
+        print('    === End Captured Spans ===\n')
+
     # Validate transactions
     if "transactions" in fixture["expectations"]:
         min_count = fixture["expectations"]["transactions"].get("min_count")
