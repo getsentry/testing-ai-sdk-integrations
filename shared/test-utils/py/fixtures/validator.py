@@ -171,15 +171,17 @@ def validate_fixture(
     spans: List[Dict[str, Any]],
     transactions: List[Dict[str, Any]],
     events: List[Dict[str, Any]] = None,
+    variant: str = "agentic",
 ) -> Dict[str, Any]:
     """
     Validate captured Sentry data against a fixture
 
     Args:
-        spec_id: The spec ID (e.g., "G1")
+        spec_id: The spec ID (e.g., "1-simple")
         spans: Captured spans
         transactions: Captured transactions
         events: Captured events (optional)
+        variant: The fixture variant (e.g., "agentic", "low-level")
 
     Returns:
         Validation result dict with 'passed' and 'errors' keys
@@ -187,7 +189,7 @@ def validate_fixture(
     if events is None:
         events = []
 
-    fixture = load_fixture(spec_id)
+    fixture = load_fixture(spec_id, variant)
     errors = []
 
     # Validate transactions

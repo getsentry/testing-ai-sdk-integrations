@@ -22,15 +22,18 @@ ai-sdks-test/
 │   ├── js/                    # JavaScript SDK implementations
 │   │   ├── openai/           # Each SDK has its own directory
 │   │   │   ├── setup.js      # SDK-specific setup with lifecycle hooks
-│   │   │   └── cases/        # Test cases (G1.js, G2.js, etc.)
+│   │   │   └── cases/        # Test cases (1-simple.js, 2-simple-with-error.js, etc.)
 │   │   └── vercel/
 │   └── py/                    # Python SDK implementations
 │       └── openai-agents/
 │           ├── setup.py      # SDK-specific setup with lifecycle hooks
-│           └── cases/        # Test cases (G1.py, G2.py, etc.)
+│           └── cases/        # Test cases (1-simple.py, 2-simple-with-error.py, etc.)
 ├── shared/
-│   ├── fixtures/             # Language-agnostic test expectations (JSON)
-│   │   └── G1.json          # Defines what spans/events we expect
+│   ├── specs/                # Test specifications and expectations
+│   │   └── 1-simple/        # Each spec in its own folder
+│   │       ├── spec.md              # Test specification document
+│   │       ├── fixture-agentic.json # Expected spans for agentic frameworks
+│   │       └── fixture-low-level.json # Expected spans for low-level frameworks
 │   ├── test-utils/           # CRITICAL: Must stay in sync between JS/Python
 │   │   ├── js/
 │   │   │   ├── assertions.js      # Span query helpers
@@ -50,8 +53,127 @@ ai-sdks-test/
 │           ├── cli.ts         # Main CLI entry point
 │           ├── runner.ts      # Runs tests for both JS and Python
 │           └── discovery.ts   # Discovers SDKs and test cases
-└── spec/                      # Documentation (not implemented yet)
 ```
+
+## 📚 Documentation Navigation
+
+This is the main context file. For detailed guides, see:
+
+| Documentation | Purpose | Link |
+|---------------|---------|------|
+| **🔧 Adding SDKs** | Step-by-step guide for implementing new SDK tests with copy-paste templates | [sdks/README.md](sdks/README.md) |
+| **📋 Test Specifications** | Fixture format, framework types, and spec system | [shared/specs/README.md](shared/specs/README.md) |
+| **🧪 Test Utilities** | Mock transport, fixture validation, and JS/Python parity rules | [shared/test-utils/README.md](shared/test-utils/README.md) |
+| **⚙️ CLI & Orchestration** | Running tests, test discovery, and debugging execution | [shared/orchestration/README.md](shared/orchestration/README.md) |
+| **🐛 Troubleshooting** | Common pitfalls, error messages, and debugging tips | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+
+**Quick links:**
+- 🚀 Run all tests: `cd shared/orchestration && npm run cli run -- --all`
+- 📝 List available SDKs: `npm run cli list`
+- 🔍 Run specific SDK: `npm run cli run -- --sdk js/vercel`
+
+## Coding Standards & File Types
+
+### File Type Rules
+
+**JavaScript SDKs: Always use .js, NEVER .ts**
+
+- SDK implementations (`sdks/js/*/`) **must** use plain JavaScript files with `.js` extension
+- Use CommonJS module system (`require()` and `module.exports`)
+- **Reason:** Simplicity, compatibility, and to avoid TypeScript compilation complexity for SDK tests
+- **Note:** The orchestrator uses TypeScript, but SDK implementations do not
+
+**Python SDKs: Always use .py**
+
+- SDK implementations (`sdks/py/*/`) use standard Python files with `.py` extension
+- No type hints required (keep it simple)
+- Use snake_case for all functions and variables (Python convention)
+
+### Module System Rules
+
+**Which module system to use where:**
+
+| Location                      | Module System | Syntax                                    | File Extension |
+| ----------------------------- | ------------- | ----------------------------------------- | -------------- |
+| SDK test files (`sdks/*/`)    | **CommonJS**  | `const X = require('...')`, `module.exports` | `.js`          |
+| Orchestration (`shared/orchestration/`) | **ES Modules** | `import X from '...'`, `export`          | `.ts`          |
+| Test utilities (`shared/test-utils/js/`) | **CommonJS**  | `const X = require('...')`, `module.exports` | `.js`          |
+| Python files                  | **Standard**  | `import X`, `from X import Y`             | `.py`          |
+
+**Why these conventions?**
+
+- **CommonJS in SDKs:** Maximum compatibility and simplicity for contributors. No build step required, works directly with Node.js
+- **TypeScript only in orchestration:** Type safety where complexity lives (test discovery, running, reporting). SDK tests are simple enough to not need TypeScript
+- **Consistent patterns:** Makes copy-pasting templates easier and reduces cognitive load
+
+### File Naming Quick Reference
+
+| File Type          | Pattern                  | Example                | Location                        |
+| ------------------ | ------------------------ | ---------------------- | ------------------------------- |
+| Test spec          | `{number}-{description}` | `1-simple`             | `shared/specs/1-simple/`        |
+| JS test case       | `{spec-id}.js`           | `1-simple.js`          | `sdks/js/vercel/cases/`         |
+| Python test case   | `{spec-id}.py`           | `1-simple.py`          | `sdks/py/openai-agents/cases/`  |
+| JS SDK setup       | `setup.js`               | `setup.js`             | `sdks/js/vercel/`               |
+| Python SDK setup   | `setup.py`               | `setup.py`             | `sdks/py/openai-agents/`        |
+| Agentic fixture    | `fixture-agentic.json`   | `fixture-agentic.json` | `shared/specs/1-simple/`        |
+| Low-level fixture  | `fixture-low-level.json` | `fixture-low-level.json` | `shared/specs/1-simple/`      |
+
+### Import Paths & Module Resolution
+
+**JavaScript: Relative Paths**
+
+JavaScript test files use relative paths to import shared utilities. **Count directory levels carefully:**
+
+```javascript
+// From: sdks/js/vercel/cases/1-simple.js
+// To:   shared/test-utils/js/fixtures/
+
+const { loadFixture, validateFixture } = require("../../../../shared/test-utils/js/fixtures");
+//                                                  ^^^^
+//                                                  4 levels up: cases/ -> vercel/ -> js/ -> sdks/ -> root
+```
+
+**Path counting formula:**
+1. Start at your test file location
+2. Count `../` for each directory level up to repository root
+3. Then add the path down to the target
+
+**Common paths from SDK test cases:**
+
+| From                                  | To                                  | Path                                         |
+| ------------------------------------- | ----------------------------------- | -------------------------------------------- |
+| `sdks/js/{sdk}/cases/{test}.js`       | `shared/test-utils/js/fixtures/`    | `../../../../shared/test-utils/js/fixtures/` |
+| `sdks/js/{sdk}/setup.js`              | `shared/test-utils/js/`             | `../../../shared/test-utils/js/`             |
+| `sdks/py/{sdk}/cases/{test}.py`       | (uses sys.path, see below)          | N/A - import directly after sys.path setup   |
+
+**Python: sys.path Manipulation**
+
+Python SDKs must manually add the shared test utilities to `sys.path` because Python doesn't have a project-wide module resolution like Node.js.
+
+**Every Python SDK's `setup.py` MUST include this code:**
+
+```python
+import sys
+from pathlib import Path
+
+# Add shared test utils to path
+shared_path = Path(__file__).parent.parent.parent.parent / "shared" / "test-utils" / "py"
+sys.path.insert(0, str(shared_path))
+
+# Now you can import directly
+from mock_transport import create_mock_transport, get_mock_transport, clear_mock_transport
+```
+
+**Why this is needed:**
+- Python's import system doesn't traverse up directories by default
+- This adds the shared test utilities to the beginning of the module search path
+- Must be done in `setup.py` before any test imports
+- Test case files will inherit this path setup
+
+**When adding a new SDK:**
+- Copy the sys.path block from an existing Python SDK's `setup.py`
+- Adjust the `parent.parent` chain if your nesting level is different
+- Test by running `python -c "from fixtures import load_fixture"` in your SDK directory
 
 ## 🚨 CRITICAL: JavaScript/Python Parity Rule
 
@@ -96,31 +218,50 @@ ai-sdks-test/
 
 ### Test Parity Checklist
 
+When adding or modifying test-utils, verify:
+
 - [ ] Same function exists in both JS and Python
-- [ ] Same parameters (accounting for language differences)
+- [ ] Same parameters (accounting for language differences: camelCase vs snake_case)
 - [ ] Same error messages (word-for-word when possible)
 - [ ] Same return values/behavior
-- [ ] Both tested and working
+- [ ] Both implementations tested and working
+- [ ] Same validation logic produces identical results
+- [ ] Test with same fixture through both validators to confirm identical output
+
+### Current Parity Status
+
+| Component | JavaScript | Python | Status | Notes |
+| --------- | ---------- | ------ | ------ | ----- |
+| Mock Transport | `mock-transport.js` | `mock_transport.py` | ✅ Synced | Both capture envelopes correctly |
+| Fixture Loader | `fixtures/fixture-loader.js` | `fixtures/fixture_loader.py` | ✅ Synced | Support variant parameter |
+| Fixture Validator | `fixtures/validator.js` | `fixtures/validator.py` | ✅ Synced | Support variant parameter |
+| Assertions | `assertions.js` | `assertions.py` | ⚠️ **Partial** | Python missing some helpers |
+
+**Action Required:** Implement missing assertion helpers in Python to achieve full parity.
 
 ## Test Scenarios
 
 ### Current Test Cases
 
-Test cases are identified by spec ID (e.g., "G1", "G2"). Each has:
+Test cases are identified by spec ID (e.g., "1-simple", "2-simple-with-error"). Each has:
 
-- **JSON fixture** in `shared/fixtures/` defining expectations
+- **JSON fixture(s)** in `shared/specs/{spec-id}/` defining expectations
 - **JS implementation(s)** in `sdks/js/*/cases/`
 - **Python implementation(s)** in `sdks/py/*/cases/`
 
 **Implemented:**
 
-- **G1**: Basic Completion - Single prompt with system message
+- **1-simple**: Basic Completion - Single prompt with system message
 
 **Planned:**
 
-- **G2**: Streaming responses
-- **G3**: Function/tool calling
-- **G4**: Error scenarios (application errors, invalid inputs)
+- **2-simple-with-error**: Basic completion with application error
+- **3-multi-turn**: Multi-turn conversation
+- **4-streaming**: Basic streaming
+- **5-streaming-with-error**: Streaming with application error
+- **6-agent-success**: Agentic workflow - success path
+- **7-agent-llm-error**: Agentic workflow - error during LLM call
+- **8-agent-tool-error**: Agentic workflow - error during tool execution
 
 ### Sentry Features to Verify
 
@@ -130,91 +271,119 @@ Each test must verify that Sentry captures:
 2. **AI monitoring data** - Model name, token counts, prompts, completions
 3. **Error tracking** - Exceptions with context and stack traces (for error tests)
 
+### Framework Types & Fixture Variants
+
+AI SDKs fall into two categories based on the span hierarchy they produce:
+
+#### Agentic Frameworks
+
+Frameworks that wrap LLM calls in agent abstraction spans:
+
+- **Vercel AI SDK** (`js/vercel`) - Produces `gen_ai.invoke_agent` parent spans
+- **OpenAI Agents SDK** (`py/openai-agents`) - Produces agent workflow spans
+
+**Span hierarchy example:**
+```
+gen_ai.invoke_agent (parent)
+  └─ gen_ai.chat or gen_ai.generate_text (child)
+```
+
+#### Low-Level Frameworks
+
+Frameworks that directly produce LLM call spans without agent wrappers:
+
+- **OpenAI SDK** (both JS and Python) - Direct `gen_ai.chat` spans only
+- **Anthropic SDK** (both JS and Python) - Direct LLM call spans
+
+**Span hierarchy example:**
+```
+gen_ai.chat (no parent)
+```
+
+#### Using Fixture Variants
+
+Each test case folder contains multiple fixture files to handle both framework types:
+
+- `fixture-agentic.json` - Expects agent parent spans + LLM child spans
+- `fixture-low-level.json` - Expects only direct LLM call spans
+
+Test cases specify which variant to use via the `FRAMEWORK_TYPE` constant:
+
+**JavaScript:**
+```javascript
+// At top of test file
+const FRAMEWORK_TYPE = "agentic"; // or "low-level"
+
+// Load fixture with variant
+const fixture = loadFixture("1-simple", FRAMEWORK_TYPE);
+
+// Validate with same variant
+validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE);
+```
+
+**Python:**
+```python
+# At top of test file
+FRAMEWORK_TYPE = "agentic"  # or "low-level"
+
+# Load fixture with variant
+fixture = load_fixture("1-simple", FRAMEWORK_TYPE)
+
+# Validate with same variant
+validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
+```
+
+**Important:** Each SDK's test cases should all use the same `FRAMEWORK_TYPE` value. The framework type is determined by the SDK's architecture, not by individual test cases.
+
+#### SDK Framework Type Mapping
+
+**When adding a new SDK, determine its framework type first, then use the same type across all test cases for that SDK.**
+
+| SDK Path              | Framework Type | Reason                                      |
+| --------------------- | -------------- | ------------------------------------------- |
+| `js/vercel`           | `agentic`      | Produces `gen_ai.invoke_agent` parent spans |
+| `py/openai-agents`    | `agentic`      | Produces agent workflow spans               |
+| `js/openai` (future)  | `low-level`    | Direct `gen_ai.chat` spans only             |
+| `py/openai` (future)  | `low-level`    | Direct LLM call spans only                  |
+| `js/anthropic` (future) | `low-level`  | Direct LLM call spans only                  |
+| `py/anthropic` (future) | `low-level`  | Direct LLM call spans only                  |
+
+**How to determine framework type for a new SDK:**
+
+1. Run a simple test case with the SDK
+2. Examine the captured spans
+3. If you see agent/workflow wrapper spans → `agentic`
+4. If you only see direct LLM call spans → `low-level`
+
+
 ## How Tests Work
 
-### 1. Fixture Format (JSON)
+**Overview:** Tests run AI SDK code instrumented with Sentry, capture events in-memory, and validate against JSON fixtures.
 
-Fixtures define expected spans, transactions, and events in a language-agnostic way:
+**Test flow:**
+1. Load fixture defining expected behavior
+2. Run AI SDK code within Sentry transaction
+3. Mock transport captures spans/events
+4. Validator compares captured data vs fixture expectations
+5. Clear error messages show exactly what's missing
 
-```json
-{
-  "spec_id": "G1",
-  "name": "Basic Completion",
-  "expectations": {
-    "spans": {
-      "min_count": 3,
-      "items": [
-        {
-          "id": "invoke_agent",
-          "op": "gen_ai.invoke_agent",
-          "required_attributes": {
-            "gen_ai.response.model": "gpt-4o-mini",
-            "gen_ai.response.text": true,
-            "gen_ai.usage.input_tokens": true
-          }
-        },
-        {
-          "id": "generate_text",
-          "op": ["gen_ai.chat", "gen_ai.generate_text"],
-          "parent": "invoke_agent",
-          "required_attributes": {
-            "gen_ai.request.model": "gpt-4o-mini"
-          }
-        }
-      ]
-    },
-    "events": {
-      "error_count": 0
-    }
-  }
-}
-```
+**Key components:**
+- **Fixtures** (`shared/specs/*/fixture-*.json`) - Define expected spans and attributes
+- **Mock transport** - Captures Sentry data in-memory instead of sending to server
+- **Validator** - Compares actual vs expected, shows clear diffs
 
-**Key features:**
-
-- `op` can be string or array (matches any of the ops)
-- `required_attributes` with `true` = just check presence
-- `required_attributes` with value = check exact match
-- `parent` = verifies span hierarchy
-- `min_count` = minimum spans (allows extra spans from SDK)
-
-### 2. Validation Flow
-
-1. Test runs AI SDK code within Sentry instrumentation
-2. Mock transport captures spans/transactions/events
-3. Validator compares captured data against fixture
-4. Clear error messages show exactly what's missing
-
-### 3. Error Message Format
-
-When validation fails, show:
-
-- **No span found:** List available span ops
-- **Span found but missing attributes:** Show required vs actual attributes
-- **Multiple spans found:** List matching spans with IDs
-
-**Example error message:**
-
-```
-Found span with op="gen_ai.chat or gen_ai.generate_text" but missing required attributes
-  Required attributes:
-    - gen_ai.operation.type: "ai_client"
-    - gen_ai.request.model: "gpt-4o-mini"
-    - gen_ai.response.text: (any value)
-  Span's actual attributes:
-    - gen_ai.request.model: "gpt-4o-mini"
-    - gen_ai.system: "openai"
-```
+For details, see:
+- [shared/specs/README.md](shared/specs/README.md) - Fixture format
+- [shared/test-utils/README.md](shared/test-utils/README.md) - Mock transport and validation
 
 ## Supported AI SDKs
 
 ### Currently Implemented
 
-| Language | SDK               | Status     | Notes                      |
-| -------- | ----------------- | ---------- | -------------------------- |
-| JS       | `openai`          | ⚠️ Partial | G1 test exists but failing |
-| JS       | `vercel` (AI SDK) | ⚠️ Partial | G1 test exists but failing |
-| Python   | `openai-agents`   | ⚠️ Partial | G1 test exists but failing |
+| Language | SDK               | Status     | Notes                              |
+| -------- | ----------------- | ---------- | ---------------------------------- |
+| JS       | `vercel` (AI SDK) | ✅ Working | 1-simple test passing              |
+| Python   | `openai-agents`   | ⚠️ Partial | 1-simple test exists but may fail  |
 
 ### Planned SDKs
 
@@ -223,50 +392,18 @@ Found span with op="gen_ai.chat or gen_ai.generate_text" but missing required at
 
 **Note:** Not all SDKs support all features (streaming, function calling, etc.)
 
+
 ## Adding a New SDK
 
-### 1. Create SDK Directory Structure
+For detailed step-by-step guides on implementing new SDK tests, see:
+- **[sdks/README.md](sdks/README.md)** - Complete templates and instructions for JavaScript and Python SDKs
 
-```bash
-sdks/{js|py}/{sdk-name}/
-  ├── setup.{js|py}      # Lifecycle hooks
-  ├── cases/             # Test case implementations
-  │   ├── G1.{js|py}
-  │   └── G2.{js|py}
-  └── .env               # API keys (gitignored)
-```
+**Quick start:**
+1. Determine framework type (agentic vs low-level)
+2. Copy template from sdks/README.md
+3. Implement test cases
+4. Run: `npm run cli run -- --sdk {language}/{your-sdk}`
 
-### 2. Implement setup.{js|py}
-
-Must export these lifecycle hooks:
-
-- `beforeAll()` - Initialize Sentry with mock transport
-- `beforeEach()` - Reset test state
-- `afterEach()` - Clean up after test
-- `afterAll()` - Tear down Sentry
-
-### 3. Implement Test Cases
-
-Each test case (e.g., G1.js, G1.py):
-
-1. Imports fixture validator
-2. Runs AI SDK code within Sentry transaction
-3. Captures spans/transactions/events from mock transport
-4. Validates against fixture using `validateFixture(specId, spans, transactions, events)`
-5. Throws error if validation fails
-
-### 4. Test Your Implementation
-
-```bash
-# Run specific SDK and case
-npm run cli run -- --sdk js/your-sdk --case G1
-
-# Run all cases for an SDK
-npm run cli run -- --sdk js/your-sdk
-
-# Run specific case across all SDKs
-npm run cli run -- --case G1
-```
 
 ## Current Status
 
@@ -281,180 +418,53 @@ npm run cli run -- --case G1
 - ✅ Lifecycle hooks (beforeAll, afterEach, etc.)
 - ✅ Centralized configuration (root .env, fixture inputs)
 
+
 ## Implementation Guidelines
 
-### File Naming Conventions
+### Centralized Configuration
 
-- **Test cases:** `G1.{js|py}`, `G2.{js|py}`, etc. (matches spec ID)
-- **Fixtures:** `G1.json`, `G2.json`, etc. in `shared/fixtures/`
-- **Setup:** `setup.{js|py}` in each SDK directory
-
-### Environment Variables
-
-**Centralized Configuration:** All API keys are stored in a single root `.env` file.
-
+**Environment variables:** All API keys in root `.env` file (gitignored):
 ```bash
 # .env (at repository root)
 OPENAI_API_KEY=sk-...
-# ANTHROPIC_API_KEY=sk-ant-...
-# SENTRY_DSN=https://...
+ANTHROPIC_API_KEY=sk-ant-...
+SENTRY_DSN=https://...
 ```
 
-**How it works:**
-- Orchestrator loads root `.env` on startup
-- JS tests inherit via `process.env`
-- Python tests inherit via subprocess environment
-- **No per-SDK .env files needed** ✅
-
-**Note:** `.env` is gitignored - never commit API keys
-
-### Test Inputs (Prompts, Models)
-
-**Centralized in Fixtures:** Test inputs are defined in fixture JSON files.
-
+**Test inputs:** Defined in fixture JSON files (`shared/specs/*/fixture-*.json`):
 ```json
-// shared/fixtures/G1.json
 {
-  "spec_id": "G1",
+  "spec_id": "1-simple",
   "inputs": {
     "model": "gpt-4o-mini",
-    "system": "You are a helpful math assistant.",
-    "prompt": "What is 69 + 96?"
-  },
-  "expectations": { ... }
+    "system": "You are a helpful assistant.",
+    "prompt": "What is 2+2?"
+  }
 }
 ```
 
-**Test cases load inputs from fixtures:**
+This keeps tests language-agnostic - same fixtures work for JS and Python.
 
-**JavaScript:**
-```javascript
-const { loadFixture } = require("../../../../shared/test-utils/js/fixtures");
-
-const fixture = loadFixture("G1");
-const { model, system, prompt } = fixture.inputs;
-```
-
-**Python:**
-```python
-from fixtures import load_fixture
-
-fixture = load_fixture("G1")
-model = fixture["inputs"]["model"]
-system = fixture["inputs"]["system"]
-prompt = fixture["inputs"]["prompt"]
-```
-
-**Benefits:**
-- Change model/prompt once → all SDKs update
-- Clear contract: G1 always uses same inputs
-- Easy to add G2, G3 with different inputs
-
-### Mock Transport Usage
-
-**JavaScript:**
-
-```javascript
-const { getMockSentryTransport } = require("../setup");
-
-// After test runs
-const transport = getMockSentryTransport();
-const spans = transport.getSpans();
-const transactions = transport.getTransactions();
-const events = transport.getEvents();
-```
-
-**Python:**
-
-```python
-from setup import get_mock_sentry_transport
-
-# After test runs
-transport = get_mock_sentry_transport()
-spans = transport.get_spans()
-transactions = transport.get_transactions()
-events = transport.get_events()
-```
-
-### Fixture Validation
-
-**JavaScript:**
-
-```javascript
-const {
-  validateFixture,
-} = require("../../../../shared/test-utils/js/fixtures");
-
-const result = validateFixture("G1", spans, transactions, events);
-if (!result.passed) {
-  console.log("Validation failed:");
-  result.errors.forEach((error) => console.log(`  - ${error}`));
-  throw new Error(`Fixture validation failed`);
-}
-```
-
-**Python:**
-
-```python
-from shared.test_utils.py.fixtures.validator import validate_fixture
-
-result = validate_fixture("G1", spans, transactions, events)
-if not result["passed"]:
-    print("Validation failed:")
-    for error in result["errors"]:
-        print(f"  - {error}")
-    raise Exception(f"Fixture validation failed")
-```
-
-### Test Success Criteria
+### Success Criteria
 
 A test passes when:
-
 1. ✅ Test code runs without exceptions
 2. ✅ Sentry captures all expected spans (minimum count met)
 3. ✅ Required attributes present on each span
 4. ✅ Span hierarchy correct (parent-child relationships)
 5. ✅ Expected number of errors/events captured
 
-## Debugging Tips
+## Debugging & Troubleshooting
 
-### View Captured Spans
+For common issues, error messages, and debugging tips, see:
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Complete troubleshooting guide with solutions to 8 common pitfalls
 
-Both JS and Python tests print debug output showing captured spans:
-
-```
-Captured: 12 spans, 1 transactions, 0 events
-DEBUG: Spans:
-  1. op="gen_ai.invoke_agent"
-     data: { "gen_ai.system": "openai", ... }
-  2. op="gen_ai.chat"
-     data: { "gen_ai.request.model": "gpt-4o-mini", ... }
-```
-
-### Common Issues
-
-**1. "No span found with op=..."**
-
-- SDK didn't create expected span
-- Check if Sentry integration is enabled
-- Verify SDK version is supported
-
-**2. "Found span but missing required attributes"**
-
-- Sentry captured span but without expected data
-- Check SDK instrumentation code
-- May need to adjust fixture expectations
-
-**3. "Found 2 spans matching op=..., expected exactly 1"**
-
-- Multiple spans with same operation name
-- Add `required_attributes` to distinguish them
-- Or fixture may be incorrect
-
-**4. "Python test exited with code 1"**
-
-- Old error - should now show actual error message
-- If you see this, rebuild orchestration: `cd shared/orchestration && npm run build`
+**Quick diagnostic checklist:**
+- Did you create a `.venv` and install requirements (Python)?
+- Are relative import paths correct? (count `../` carefully)
+- Is `sys.path.insert(0, ...)` present in Python setup.py?
+- Are you using `.js` files (not `.ts`) for SDK tests?
+- Is `FRAMEWORK_TYPE` set correctly for your SDK?
 
 ## References
 
@@ -474,10 +484,11 @@ DEBUG: Spans:
 
 2. **Adding a new test case?**
 
-   - Create JSON fixture in `shared/fixtures/`
+   - Create folder in `shared/specs/{number}-{description}/`
+   - Add `spec.md` (specification) and `fixture.json` (inputs + expectations)
    - Implement in at least one JS SDK
    - Implement in at least one Python SDK
-   - Run: `npm run cli run -- --case G<N>`
+   - Run: `npm run cli run -- --case {number}-{description}`
 
 3. **Adding a new SDK?**
 

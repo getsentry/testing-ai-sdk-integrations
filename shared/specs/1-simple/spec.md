@@ -1,4 +1,4 @@
-# G1: Basic Completion
+# 1-simple: Basic Completion
 
 ## Level & Category
 - **Level**: 1 (Basic)

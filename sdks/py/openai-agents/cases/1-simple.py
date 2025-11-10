@@ -1,5 +1,5 @@
 """
-G1: Basic Completion
+1-simple: Basic Completion
 
 Tests a simple agent completion request with OpenAI Agents SDK
 and verifies that Sentry captures the appropriate spans and AI monitoring data.
@@ -10,10 +10,13 @@ import asyncio
 import sentry_sdk
 from agents import Agent, Runner
 
+# Framework type for this SDK (determines which fixture variant to use)
+FRAMEWORK_TYPE = "agentic"
+
 
 async def main():
     """Main test case entry point - runs the test logic only"""
-    print("    Running G1: Basic Completion")
+    print("    Running 1-simple: Basic Completion")
 
     # Run the actual test
     await run_test()
@@ -28,7 +31,7 @@ async def assert_sentry():
 
     await assert_sentry_captured()
 
-    print("    ✓ G1 validation passed")
+    print("    ✓ 1-simple validation passed")
 
 
 async def run_test():
@@ -36,7 +39,7 @@ async def run_test():
     # Load test inputs from fixture
     from fixtures import load_fixture
 
-    fixture = load_fixture("G1")
+    fixture = load_fixture("1-simple", FRAMEWORK_TYPE)
     model = fixture["inputs"]["model"]
     system = fixture["inputs"]["system"]
     prompt = fixture["inputs"]["prompt"]
@@ -68,12 +71,12 @@ async def assert_sentry_captured():
     spans = transport.get_spans()
     transactions = transport.get_transactions()
     events = transport.get_events()
-    
+
     print(f"    Captured: {len(spans)} spans, {len(transactions)} transactions, {len(events)} events")
 
 
 
-    result = validate_fixture("G1", spans, transactions, events)
+    result = validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
 
     if not result["passed"]:
         print("    ✗ Validation failed:")

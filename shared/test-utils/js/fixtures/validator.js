@@ -16,14 +16,15 @@ const {
 /**
  * Validate captured Sentry data against a fixture
  *
- * @param {string} specId - The spec ID (e.g., "G1")
+ * @param {string} specId - The spec ID (e.g., "1-simple")
  * @param {Array} spans - Captured spans
  * @param {Array} transactions - Captured transactions
  * @param {Array} events - Captured events (optional)
+ * @param {string} variant - The fixture variant (e.g., "agentic", "low-level")
  * @returns {Object} Validation result with { passed, errors }
  */
-function validateFixture(specId, spans, transactions, events = []) {
-  const fixture = loadFixture(specId);
+function validateFixture(specId, spans, transactions, events = [], variant = "agentic") {
+  const fixture = loadFixture(specId, variant);
   const errors = [];
 
   // Validate transactions

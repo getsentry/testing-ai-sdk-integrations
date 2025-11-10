@@ -1,5 +1,5 @@
 {
-  "spec_id": "G1",
+  "spec_id": "1-simple",
   "name": "Basic Completion",
   "description": "Single prompt with system message - most basic LLM interaction",
   "inputs": {

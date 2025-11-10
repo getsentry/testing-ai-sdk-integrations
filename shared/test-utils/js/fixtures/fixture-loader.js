@@ -6,18 +6,19 @@ const fs = require("fs");
 const path = require("path");
 
 /**
- * Load a fixture by spec ID
+ * Load a fixture by spec ID and variant
  *
- * @param {string} specId - The spec ID (e.g., "G1", "G2", "S1")
+ * @param {string} specId - The spec ID (e.g., "1-simple", "2-simple-with-error")
+ * @param {string} variant - The fixture variant (e.g., "agentic", "low-level")
  * @returns {Object} The parsed fixture object
  * @throws {Error} If fixture file not found
  */
-function loadFixture(specId) {
-  // Fixtures are in shared/fixtures/ (language-agnostic)
-  const fixturePath = path.join(__dirname, "../../../fixtures", `${specId}.json`);
+function loadFixture(specId, variant = "agentic") {
+  // Fixtures are in shared/specs/{specId}/fixture-{variant}.json
+  const fixturePath = path.join(__dirname, "../../../specs", specId, `fixture-${variant}.json`);
 
   if (!fs.existsSync(fixturePath)) {
-    throw new Error(`Fixture not found: ${specId}.json at ${fixturePath}`);
+    throw new Error(`Fixture not found: ${specId} (variant: ${variant}) at ${fixturePath}`);
   }
 
   const content = fs.readFileSync(fixturePath, "utf-8");
