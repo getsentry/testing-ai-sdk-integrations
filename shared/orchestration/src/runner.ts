@@ -66,9 +66,7 @@ function runJavaScriptTest(filePath: string): Promise<void> {
 
     let stderrData = '';
     node.stderr?.on('data', (data) => {
-      // Write to console in real-time
-      process.stderr.write(data);
-      // Also capture for error message
+      // Only capture for error message (don't print raw stderr)
       stderrData += data.toString();
     });
 
@@ -76,9 +74,28 @@ function runJavaScriptTest(filePath: string): Promise<void> {
       if (code === 0) {
         resolve();
       } else {
-        // Extract the error message from stderr (last line starting with "✗ Test failed:")
-        const errorMatch = stderrData.match(/✗ Test failed: (.+)$/m);
-        const errorMsg = errorMatch ? errorMatch[1] : `JavaScript test exited with code ${code}`;
+        // Extract the error message from stderr (line starting with "✗ Test failed:")
+        // and collect everything after it until the stack trace (Error:) starts
+        const lines = stderrData.split('\n');
+        let errorMsg = '';
+        let capturing = false;
+
+        for (const line of lines) {
+          if (line.startsWith('✗ Test failed:')) {
+            errorMsg = line.replace('✗ Test failed: ', '');
+            capturing = true;
+          } else if (capturing && line.startsWith('Error:')) {
+            // Stop at stack trace
+            break;
+          } else if (capturing && line.trim()) {
+            errorMsg += '\n' + line;
+          }
+        }
+
+        if (!errorMsg) {
+          errorMsg = `JavaScript test exited with code ${code}`;
+        }
+
         reject(new Error(errorMsg));
       }
     });
@@ -112,9 +129,7 @@ function runPythonTest(filePath: string): Promise<void> {
 
     let stderrData = '';
     python.stderr?.on('data', (data) => {
-      // Write to console in real-time
-      process.stderr.write(data);
-      // Also capture for error message
+      // Only capture for error message (don't print raw stderr)
       stderrData += data.toString();
     });
 
@@ -122,9 +137,28 @@ function runPythonTest(filePath: string): Promise<void> {
       if (code === 0) {
         resolve();
       } else {
-        // Extract the error message from stderr (last line starting with "✗ Test failed:")
-        const errorMatch = stderrData.match(/✗ Test failed: (.+)$/m);
-        const errorMsg = errorMatch ? errorMatch[1] : `Python test exited with code ${code}`;
+        // Extract the error message from stderr (line starting with "✗ Test failed:")
+        // and collect everything after it until the traceback starts
+        const lines = stderrData.split('\n');
+        let errorMsg = '';
+        let capturing = false;
+
+        for (const line of lines) {
+          if (line.startsWith('✗ Test failed:')) {
+            errorMsg = line.replace('✗ Test failed: ', '');
+            capturing = true;
+          } else if (capturing && (line.startsWith('Traceback') || line.startsWith('  File'))) {
+            // Stop at traceback
+            break;
+          } else if (capturing && line.trim()) {
+            errorMsg += '\n' + line;
+          }
+        }
+
+        if (!errorMsg) {
+          errorMsg = `Python test exited with code ${code}`;
+        }
+
         reject(new Error(errorMsg));
       }
     });

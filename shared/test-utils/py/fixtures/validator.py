@@ -115,23 +115,45 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
             raise ValueError(error_msg)
         else:
             # Spans with that op exist, but don't match required attributes
+            import os
+            is_verbose = os.getenv("SENTRY_AI_TEST_VERBOSE") == "true"
             error_msg = f'Found span with op="{op_desc}" but missing required attributes'
 
             if required_attributes:
-                error_msg += '\n  Required attributes:'
-                for attr, val in required_attributes.items():
-                    val_str = "(any value)" if val is True else repr(val)
-                    error_msg += f'\n    - {attr}: {val_str}'
-
-                # Show what the span actually has
                 span = spans_with_op[0]
-                error_msg += '\n  Span\'s actual attributes:'
                 span_data = span.get("data", {})
-                if span_data:
-                    for key, value in span_data.items():
-                        error_msg += f'\n    - {key}: {repr(value)}'
+
+                # Concise mode: Just show what's missing/mismatched
+                if not is_verbose:
+                    missing = []
+                    mismatched = []
+
+                    for attr, expected_val in required_attributes.items():
+                        actual_val = get_attribute(span, attr)
+
+                        if actual_val is None:
+                            missing.append(attr)
+                        elif expected_val is not True and actual_val != expected_val:
+                            mismatched.append(f'{attr} (expected: {repr(expected_val)}, got: {repr(actual_val)})')
+
+                    if missing:
+                        error_msg += f'\n  Missing: {", ".join(missing)}'
+                    if mismatched:
+                        error_msg += f'\n  Mismatched: {", ".join(mismatched)}'
+                    error_msg += '\n  (run with --verbose for full details)'
                 else:
-                    error_msg += '\n    (no attributes)'
+                    # Verbose mode: Show everything
+                    error_msg += '\n  Required attributes:'
+                    for attr, val in required_attributes.items():
+                        val_str = "(any value)" if val is True else repr(val)
+                        error_msg += f'\n    - {attr}: {val_str}'
+
+                    error_msg += '\n  Span\'s actual attributes:'
+                    if span_data:
+                        for key, value in span_data.items():
+                            error_msg += f'\n    - {key}: {repr(value)}'
+                    else:
+                        error_msg += '\n    (no attributes)'
 
             raise ValueError(error_msg)
 
@@ -233,40 +255,88 @@ def validate_fixture(
         # Validate individual spans and relationships
         if items:
             span_map = {}  # id -> span object
+            span_errors = {}  # op -> { missing: [], mismatched: [] }
 
             for item_expectation in items:
+                op_key = " or ".join(item_expectation["op"]) if isinstance(item_expectation["op"], list) else item_expectation["op"]
+
                 try:
                     # Get span by operation and attributes
                     required_attrs = item_expectation.get("required_attributes")
                     span = get_span(spans, item_expectation["op"], required_attrs)
                     span_map[item_expectation["id"]] = span
 
-                    # Validate required attributes (they were already used to find the span,
-                    # but we still need to check individual ones for error messages)
+                    # Validate required attributes and collect errors
                     if required_attrs:
-                        if not contains_attributes(span, required_attrs):
-                            # Build detailed error with span info
-                            span_desc = f'Span with op="{span.get("op")}" (span_id={span.get("span_id", "?")[:8]}...)'
-                            span_data = span.get("data", {})
+                        if op_key not in span_errors:
+                            span_errors[op_key] = {"missing": [], "mismatched": []}
 
-                            # Get detailed error about which attribute failed
-                            for attr, expected_value in required_attrs.items():
-                                if expected_value is True:
-                                    if not has_attribute(span, attr):
-                                        errors.append(
-                                            f'{span_desc} missing attribute: {attr}\n'
-                                            f'  Available attributes: {", ".join(span_data.keys())}'
-                                        )
-                                else:
-                                    if not attribute_matches(span, attr, expected_value):
-                                        actual_value = get_attribute(span, attr)
-                                        errors.append(
-                                            f'{span_desc} attribute "{attr}" mismatch:\n'
-                                            f'  Expected: {repr(expected_value)}\n'
-                                            f'  Got: {repr(actual_value)}'
-                                        )
+                        span_error = span_errors[op_key]
+
+                        for attr, expected_value in required_attrs.items():
+                            if expected_value is True:
+                                if not has_attribute(span, attr):
+                                    span_error["missing"].append(attr)
+                            else:
+                                if not attribute_matches(span, attr, expected_value):
+                                    actual_value = get_attribute(span, attr)
+                                    span_error["mismatched"].append({
+                                        "attr": attr,
+                                        "expected": expected_value,
+                                        "actual": actual_value
+                                    })
                 except Exception as e:
-                    errors.append(str(e))
+                    error_msg = str(e)
+                    # getSpan threw an error - check if it's about missing attributes or missing span
+                    if "but missing required attributes" in error_msg:
+                        # Span exists but has attribute issues - extract the details
+                        required_attrs = item_expectation.get("required_attributes")
+                        if required_attrs:
+                            # Find the span by op only (without attribute filtering)
+                            op_list = item_expectation["op"] if isinstance(item_expectation["op"], list) else [item_expectation["op"]]
+                            matching_span = next((s for s in spans if s.get("op") in op_list), None)
+
+                            if matching_span:
+                                if op_key not in span_errors:
+                                    span_errors[op_key] = {"missing": [], "mismatched": []}
+
+                                span_error = span_errors[op_key]
+
+                                # Check each attribute
+                                for attr, expected_value in required_attrs.items():
+                                    if expected_value is True:
+                                        if not has_attribute(matching_span, attr):
+                                            span_error["missing"].append(attr)
+                                    else:
+                                        if not attribute_matches(matching_span, attr, expected_value):
+                                            actual_value = get_attribute(matching_span, attr)
+                                            span_error["mismatched"].append({
+                                                "attr": attr,
+                                                "expected": expected_value,
+                                                "actual": actual_value
+                                            })
+                    elif "No span found with op=" in error_msg:
+                        # Span doesn't exist at all
+                        if op_key not in span_errors:
+                            span_errors[op_key] = {"missing": [], "mismatched": [], "not_found": True}
+                    else:
+                        # Other error - just append it
+                        errors.append(error_msg)
+
+            # Format span errors in a structured way
+            for op, error_details in span_errors.items():
+                if error_details.get("not_found"):
+                    errors.append(f"    {op}: span not found")
+                elif error_details["missing"] or error_details["mismatched"]:
+                    error_msg = f"    {op}:"
+
+                    for attr in error_details["missing"]:
+                        error_msg += f"\n       {attr}: missing"
+
+                    for mismatch in error_details["mismatched"]:
+                        error_msg += f'\n       {mismatch["attr"]}: mismatch (expected: {repr(mismatch["expected"])}, got: {repr(mismatch["actual"])})'
+
+                    errors.append(error_msg)
 
             # Validate parent-child relationships
             for item_expectation in items:

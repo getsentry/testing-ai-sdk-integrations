@@ -71,46 +71,104 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
     // Validate individual spans and relationships
     if (items && Array.isArray(items)) {
       const spanMap = new Map(); // id -> span object
+      const spanErrors = new Map(); // op -> { missing: [], mismatched: [] }
 
       for (const itemExpectation of items) {
+        const opKey = Array.isArray(itemExpectation.op) ? itemExpectation.op.join(" or ") : itemExpectation.op;
+
         try {
           // Get span by operation and attributes
           const requiredAttrs = itemExpectation.required_attributes;
           const span = getSpan(spans, itemExpectation.op, requiredAttrs);
           spanMap.set(itemExpectation.id, span);
 
-          // Validate required attributes (they were already used to find the span,
-          // but we still need to check individual ones for error messages)
+          // Validate required attributes and collect errors
           if (requiredAttrs) {
-            if (!containsAttributes(span, requiredAttrs)) {
-              // Build detailed error with span info
-              const spanDesc = `Span with op="${span.op}" (span_id=${(span.span_id || '?').substring(0, 8)}...)`;
-              const spanData = span.data || {};
+            if (!spanErrors.has(opKey)) {
+              spanErrors.set(opKey, { missing: [], mismatched: [] });
+            }
+            const spanError = spanErrors.get(opKey);
 
-              // Get detailed error about which attribute failed
-              for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
-                if (expectedValue === true) {
-                  if (!hasAttribute(span, attr)) {
-                    errors.push(
-                      `${spanDesc} missing attribute: ${attr}\n` +
-                      `  Available attributes: ${Object.keys(spanData).join(', ')}`
-                    );
-                  }
-                } else {
-                  if (!attributeMatches(span, attr, expectedValue)) {
-                    const actualValue = getAttribute(span, attr);
-                    errors.push(
-                      `${spanDesc} attribute "${attr}" mismatch:\n` +
-                      `  Expected: ${JSON.stringify(expectedValue)}\n` +
-                      `  Got: ${JSON.stringify(actualValue)}`
-                    );
-                  }
+            for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
+              if (expectedValue === true) {
+                if (!hasAttribute(span, attr)) {
+                  spanError.missing.push(attr);
+                }
+              } else {
+                if (!attributeMatches(span, attr, expectedValue)) {
+                  const actualValue = getAttribute(span, attr);
+                  spanError.mismatched.push({
+                    attr,
+                    expected: expectedValue,
+                    actual: actualValue
+                  });
                 }
               }
             }
           }
         } catch (error) {
-          errors.push(error.message);
+          // getSpan threw an error - check if it's about missing attributes or missing span
+          if (error.message.includes('but missing required attributes')) {
+            // Span exists but has attribute issues - extract the details
+            const requiredAttrs = itemExpectation.required_attributes;
+            if (requiredAttrs) {
+              // Find the span by op only (without attribute filtering)
+              const opList = Array.isArray(itemExpectation.op) ? itemExpectation.op : [itemExpectation.op];
+              const matchingSpan = spans.find((s) => opList.includes(s.op));
+
+              if (matchingSpan) {
+                if (!spanErrors.has(opKey)) {
+                  spanErrors.set(opKey, { missing: [], mismatched: [] });
+                }
+                const spanError = spanErrors.get(opKey);
+
+                // Check each attribute
+                for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
+                  if (expectedValue === true) {
+                    if (!hasAttribute(matchingSpan, attr)) {
+                      spanError.missing.push(attr);
+                    }
+                  } else {
+                    if (!attributeMatches(matchingSpan, attr, expectedValue)) {
+                      const actualValue = getAttribute(matchingSpan, attr);
+                      spanError.mismatched.push({
+                        attr,
+                        expected: expectedValue,
+                        actual: actualValue
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          } else if (error.message.includes('No span found with op=')) {
+            // Span doesn't exist at all
+            if (!spanErrors.has(opKey)) {
+              spanErrors.set(opKey, { missing: [], mismatched: [], notFound: true });
+            }
+          } else {
+            // Other error - just append it
+            errors.push(error.message);
+          }
+        }
+      }
+
+      // Format span errors in a structured way
+      for (const [op, errorDetails] of spanErrors) {
+        if (errorDetails.notFound) {
+          errors.push(`    ${op}: span not found`);
+        } else if (errorDetails.missing.length > 0 || errorDetails.mismatched.length > 0) {
+          let errorMsg = `    ${op}:`;
+
+          for (const attr of errorDetails.missing) {
+            errorMsg += `\n       ${attr}: missing`;
+          }
+
+          for (const mismatch of errorDetails.mismatched) {
+            errorMsg += `\n       ${mismatch.attr}: mismatch (expected: ${JSON.stringify(mismatch.expected)}, got: ${JSON.stringify(mismatch.actual)})`;
+          }
+
+          errors.push(errorMsg);
         }
       }
 

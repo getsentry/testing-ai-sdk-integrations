@@ -186,9 +186,16 @@ function printResults(results: TestResult[], totalDuration: number) {
       console.log(`  ${statusIcon} ${result.caseId} ${duration}`);
 
       if (result.error) {
+        // Format error message with proper indentation
         const errorLines = result.error.message.split('\n');
         for (const line of errorLines) {
-          console.log(chalk.red(`    ${line}`));
+          // Lines starting with "    " are span-level errors, keep their indentation
+          // Other lines get standard error indentation
+          if (line.startsWith('    ')) {
+            console.log(chalk.red(line));
+          } else {
+            console.log(chalk.red(`    ${line}`));
+          }
         }
       }
     }

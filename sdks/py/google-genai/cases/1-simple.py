@@ -88,7 +88,10 @@ async def assert_sentry_captured():
         print("    ✗ Validation failed:")
         for error in result["errors"]:
             print(f"      - {error}")
-        raise Exception(f"Fixture validation failed with {len(result['errors'])} error(s)")
+
+        # Build error message with all details
+        error_msg = "Fixture validation failed:\n" + "\n".join(result["errors"])
+        raise Exception(error_msg)
 
     print("    ✓ All fixture validations passed")
 

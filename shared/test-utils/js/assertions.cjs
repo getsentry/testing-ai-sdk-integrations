@@ -42,25 +42,51 @@ function getSpan(spans, op, requiredAttributes) {
       throw new Error(errorMsg);
     } else {
       // Spans with that op exist, but don't match required attributes
+      const isVerbose = process.env.SENTRY_AI_TEST_VERBOSE === 'true';
       let errorMsg = `Found span with op="${opDesc}" but missing required attributes`;
 
       if (requiredAttributes) {
-        errorMsg += `\n  Required attributes:`;
-        for (const [attr, val] of Object.entries(requiredAttributes)) {
-          errorMsg += `\n    - ${attr}: ${val === true ? "(any value)" : JSON.stringify(val)}`;
-        }
-
-        // Show what the span actually has
         const span = spansWithOp[0];
-        errorMsg += `\n  Span's actual attributes:`;
         const spanData = span.data || {};
-        const dataKeys = Object.keys(spanData);
-        if (dataKeys.length > 0) {
-          dataKeys.forEach((key) => {
-            errorMsg += `\n    - ${key}: ${JSON.stringify(spanData[key])}`;
-          });
+
+        // Concise mode: Just show what's missing/mismatched
+        if (!isVerbose) {
+          const missing = [];
+          const mismatched = [];
+
+          for (const [attr, expectedVal] of Object.entries(requiredAttributes)) {
+            const actualVal = getAttribute(span, attr);
+
+            if (actualVal === undefined) {
+              missing.push(attr);
+            } else if (expectedVal !== true && actualVal !== expectedVal) {
+              mismatched.push(`${attr} (expected: ${JSON.stringify(expectedVal)}, got: ${JSON.stringify(actualVal)})`);
+            }
+          }
+
+          if (missing.length > 0) {
+            errorMsg += `\n  Missing: ${missing.join(', ')}`;
+          }
+          if (mismatched.length > 0) {
+            errorMsg += `\n  Mismatched: ${mismatched.join(', ')}`;
+          }
+          errorMsg += `\n  (run with --verbose for full details)`;
         } else {
-          errorMsg += `\n    (no attributes)`;
+          // Verbose mode: Show everything
+          errorMsg += `\n  Required attributes:`;
+          for (const [attr, val] of Object.entries(requiredAttributes)) {
+            errorMsg += `\n    - ${attr}: ${val === true ? "(any value)" : JSON.stringify(val)}`;
+          }
+
+          errorMsg += `\n  Span's actual attributes:`;
+          const dataKeys = Object.keys(spanData);
+          if (dataKeys.length > 0) {
+            dataKeys.forEach((key) => {
+              errorMsg += `\n    - ${key}: ${JSON.stringify(spanData[key])}`;
+            });
+          } else {
+            errorMsg += `\n    (no attributes)`;
+          }
         }
       }
 
