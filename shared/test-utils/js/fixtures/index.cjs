@@ -7,8 +7,8 @@
  *   assert(result.passed, result.errors.join('\n'));
  */
 
-const { loadFixture } = require("./fixture-loader");
-const { validateFixture } = require("./validator");
+const { loadFixture } = require("./fixture-loader.cjs");
+const { validateFixture } = require("./validator.cjs");
 
 module.exports = {
   loadFixture,

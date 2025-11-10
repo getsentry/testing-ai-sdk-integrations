@@ -11,7 +11,7 @@ const { getMockSentryTransport } = require("../setup");
 const {
   validateFixture,
   loadFixture,
-} = require("../../../../shared/test-utils/js/fixtures");
+} = require("../../../../shared/test-utils/js/fixtures/index.cjs");
 
 // Framework type for this SDK (low-level: direct LLM calls without agent wrappers)
 const FRAMEWORK_TYPE = "low-level";

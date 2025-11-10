@@ -12,7 +12,7 @@ const { getMockSentryTransport } = require("../setup");
 const {
   validateFixture,
   loadFixture,
-} = require("../../../../shared/test-utils/js/fixtures");
+} = require("../../../../shared/test-utils/js/fixtures/index.cjs");
 
 // Framework type for this SDK (determines which fixture variant to use)
 const FRAMEWORK_TYPE = "agentic";

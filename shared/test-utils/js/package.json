@@ -3,14 +3,11 @@
   "version": "1.0.0",
   "description": "Shared test utilities for JavaScript SDK tests",
   "type": "module",
-  "main": "./mock-transport.ts",
+  "main": "./mock-transport.cjs",
   "exports": {
-    ".": "./mock-transport.ts"
+    ".": "./mock-transport.cjs"
   },
   "dependencies": {
     "@sentry/core": "^10.22.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.3"
   }
 }

@@ -15,7 +15,7 @@ const {
   createMockTransport,
   getMockTransport,
   clearMockTransport,
-} = require("../../../shared/test-utils/js/mock-transport.js");
+} = require("../../../shared/test-utils/js/mock-transport.cjs");
 
 /**
  * Runs once before all test cases

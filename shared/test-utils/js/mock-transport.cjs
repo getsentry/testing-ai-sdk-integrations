@@ -5,35 +5,31 @@
  * Provides helpers to query and verify captured events.
  */
 
-import { createTransport } from "@sentry/core";
-import type { Transport, Envelope, BaseTransportOptions } from "@sentry/core";
-
-interface EnvelopeItem {
-  headers: Record<string, any>;
-  payload: string | Uint8Array;
-}
+const { createTransport } = require("@sentry/core");
 
 class MockTransportCapture {
-  private envelopes: Envelope[] = [];
+  constructor() {
+    this.envelopes = [];
+  }
 
   /**
    * Capture an envelope
    */
-  capture(envelope: Envelope): void {
+  capture(envelope) {
     this.envelopes.push(envelope);
   }
 
   /**
    * Clear all captured envelopes
    */
-  clear(): void {
+  clear() {
     this.envelopes = [];
   }
 
   /**
    * Get all captured envelopes
    */
-  getEnvelopes(): Envelope[] {
+  getEnvelopes() {
     return this.envelopes;
   }
 
@@ -47,10 +43,7 @@ class MockTransportCapture {
    * Line 5: Item 2 payload (JSON)
    * etc.
    */
-  private parseEnvelopeBody(body: string): {
-    headers: any;
-    items: Array<{ headers: any; payload: any }>;
-  } {
+  parseEnvelopeBody(body) {
     const lines = body.split("\n").filter((line) => line.trim());
 
     if (lines.length === 0) {
@@ -59,7 +52,7 @@ class MockTransportCapture {
 
     // First line is envelope headers
     const headers = JSON.parse(lines[0]);
-    const items: Array<{ headers: any; payload: any }> = [];
+    const items = [];
 
     // Remaining lines are pairs of item headers + item payload
     for (let i = 1; i < lines.length; i += 2) {
@@ -76,11 +69,11 @@ class MockTransportCapture {
   /**
    * Get all captured transactions
    */
-  getTransactions(): any[] {
-    const transactions: any[] = [];
+  getTransactions() {
+    const transactions = [];
 
     for (const envelope of this.envelopes) {
-      const body = (envelope as any).body;
+      const body = envelope.body;
       if (typeof body !== "string") continue;
 
       const parsed = this.parseEnvelopeBody(body);
@@ -98,8 +91,8 @@ class MockTransportCapture {
   /**
    * Get all captured spans (extracted from transactions)
    */
-  getSpans(): any[] {
-    const spans: any[] = [];
+  getSpans() {
+    const spans = [];
 
     for (const transaction of this.getTransactions()) {
       if (transaction.spans && Array.isArray(transaction.spans)) {
@@ -113,11 +106,11 @@ class MockTransportCapture {
   /**
    * Get all captured events (errors, messages, etc.)
    */
-  getEvents(): any[] {
-    const events: any[] = [];
+  getEvents() {
+    const events = [];
 
     for (const envelope of this.envelopes) {
-      const body = (envelope as any).body;
+      const body = envelope.body;
       if (typeof body !== "string") continue;
 
       const parsed = this.parseEnvelopeBody(body);
@@ -133,17 +126,17 @@ class MockTransportCapture {
   }
 }
 
-let mockTransportCapture: MockTransportCapture | null = null;
+let mockTransportCapture = null;
 
 /**
  * Create a mock transport factory (to be passed to Sentry.init)
  */
-export function createMockTransport(options: BaseTransportOptions): Transport {
+function createMockTransport(options) {
   // Initialize capture instance
   mockTransportCapture = new MockTransportCapture();
 
   // Create transport using Sentry's createTransport helper
-  return createTransport(options, (envelope: Envelope) => {
+  return createTransport(options, (envelope) => {
     // Capture the envelope
     if (mockTransportCapture) {
       mockTransportCapture.capture(envelope);
@@ -160,7 +153,7 @@ export function createMockTransport(options: BaseTransportOptions): Transport {
 /**
  * Get the current mock transport capture instance
  */
-export function getMockTransport(): MockTransportCapture {
+function getMockTransport() {
   if (!mockTransportCapture) {
     throw new Error(
       "Mock transport not initialized. Did you call Sentry.init with createMockTransport?"
@@ -172,8 +165,14 @@ export function getMockTransport(): MockTransportCapture {
 /**
  * Clear all captured events
  */
-export function clearMockTransport(): void {
+function clearMockTransport() {
   if (mockTransportCapture) {
     mockTransportCapture.clear();
   }
 }
+
+module.exports = {
+  createMockTransport,
+  getMockTransport,
+  clearMockTransport,
+};

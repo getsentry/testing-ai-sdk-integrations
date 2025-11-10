@@ -2,7 +2,7 @@
  * Fixture validator - validates captured Sentry data against fixtures
  */
 
-const { loadFixture } = require("./fixture-loader");
+const { loadFixture } = require("./fixture-loader.cjs");
 const {
   getSpan,
   getSpans,
@@ -11,7 +11,7 @@ const {
   getAttribute,
   attributeMatches,
   hasAttribute,
-} = require("../assertions");
+} = require("../assertions.cjs");
 
 /**
  * Validate captured Sentry data against a fixture
