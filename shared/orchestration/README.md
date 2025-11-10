@@ -44,6 +44,82 @@ Total: 2 SDKs, 2 test cases
 ✓ = has setup.js/setup.py file
 ```
 
+#### `setup` - Install all dependencies
+
+Install dependencies for the orchestration and all SDKs in the repository.
+
+```bash
+npm run cli setup
+```
+
+**What it does:**
+- Installs orchestration dependencies (`npm install` in `shared/orchestration`)
+- For each JavaScript SDK: runs `npm install`
+- For each Python SDK: creates `.venv` (if needed) and runs `pip install -r requirements.txt`
+
+**Output:**
+```
+🔧 Setting up Sentry AI SDK Test Repository
+
+Orchestration
+  ✓ Installing dependencies... done
+
+JavaScript SDKs
+  ✓ js/openai - Installing dependencies... done
+  ✓ js/vercel - Installing dependencies... done
+
+Python SDKs
+  ✓ py/openai-agents - Creating venv... done
+  ✓ py/openai-agents - Installing dependencies... done
+
+✓ Setup complete! 7 steps successful
+```
+
+#### `upgrade` - Upgrade a package across all SDKs
+
+Upgrade a specific package to a new version across all SDKs that use it.
+
+```bash
+npm run cli upgrade <package> <version>
+```
+
+**Examples:**
+
+Upgrade Sentry JavaScript SDK:
+```bash
+npm run cli upgrade @sentry/node 10.25.0
+```
+
+Upgrade Sentry Python SDK:
+```bash
+npm run cli upgrade sentry-sdk 2.15.0
+```
+
+Upgrade OpenAI package:
+```bash
+npm run cli upgrade openai 6.9.0
+```
+
+**What it does:**
+1. Detects if package is JavaScript (starts with `@`) or Python
+2. Finds all SDKs using that package
+3. Updates `package.json` or `requirements.txt` with exact version
+4. Runs `npm install` or `pip install` to apply changes
+
+**Output:**
+```
+📦 Upgrading @sentry/node to 10.25.0
+
+Detected as JavaScript package
+
+  ✓ js/openai - Updating package.json... done
+  ✓ js/openai - Installing dependencies... done
+  ✓ js/vercel - Updating package.json... done
+  ✓ js/vercel - Installing dependencies... done
+
+✓ Upgraded 2 SDK(s) successfully
+```
+
 #### `run` - Execute tests
 
 **Run all tests:**

@@ -13,6 +13,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { discoverSDKs, filterSDKs } from './discovery.js';
 import { runTests } from './runner.js';
+import { setup } from './setup.js';
+import { upgrade } from './upgrade.js';
 import type { TestResult } from './types.js';
 
 // Load root .env file
@@ -127,6 +129,26 @@ program
     // Exit with error code if any tests failed
     const hasFailures = results.some(r => r.status === 'failed');
     process.exit(hasFailures ? 1 : 0);
+  });
+
+/**
+ * Setup command - Install all dependencies
+ */
+program
+  .command('setup')
+  .description('Install all dependencies across the repository')
+  .action(async () => {
+    await setup();
+  });
+
+/**
+ * Upgrade command - Upgrade a package across all SDKs
+ */
+program
+  .command('upgrade <package> <version>')
+  .description('Upgrade a package to a specific version across all SDKs')
+  .action(async (packageName: string, version: string) => {
+    await upgrade(packageName, version);
   });
 
 /**
