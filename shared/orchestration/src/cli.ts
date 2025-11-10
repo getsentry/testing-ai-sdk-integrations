@@ -70,7 +70,7 @@ program
 program
   .command('run')
   .description('Run test cases')
-  .option('-s, --sdk <sdk>', 'Run tests for specific SDK (e.g., js/openai)')
+  .option('-s, --sdk <sdk>', 'Run tests for specific SDK or language (e.g., js/openai, js, py)')
   .option('-c, --case <case>', 'Run specific test case (e.g., G1)')
   .option('-a, --all', 'Run all tests')
   .action(async (options) => {
@@ -78,8 +78,10 @@ program
     if (!options.sdk && !options.case && !options.all) {
       console.log(chalk.red('Error: You must specify --sdk, --case, or --all'));
       console.log(chalk.gray('Examples:'));
-      console.log(chalk.gray('  sentry-ai-test run --sdk js/openai'));
-      console.log(chalk.gray('  sentry-ai-test run --case G1'));
+      console.log(chalk.gray('  sentry-ai-test run --sdk js/openai  (specific SDK)'));
+      console.log(chalk.gray('  sentry-ai-test run --sdk js         (all JS SDKs)'));
+      console.log(chalk.gray('  sentry-ai-test run --sdk py         (all Python SDKs)'));
+      console.log(chalk.gray('  sentry-ai-test run --case 1-simple'));
       console.log(chalk.gray('  sentry-ai-test run --all'));
       process.exit(1);
     }

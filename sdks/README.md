@@ -37,16 +37,35 @@ touch sdks/js/{sdk-name}/package.json
 
 ### Step 3: Create package.json
 
+**IMPORTANT: Always use exact latest versions (no ^ or ~)**
+
+To get the latest versions, run:
+```bash
+npm view @sentry/node version
+npm view {your-ai-sdk} version
+npm view dotenv version
+```
+
+Create `package.json` with **exact versions** (no semver ranges):
+
 ```json
 {
   "name": "@sentry-ai-sdks/{sdk-name}",
   "version": "1.0.0",
+  "description": "{SDK Name} integration tests for Sentry",
   "dependencies": {
-    "@sentry/node": "^8.0.0",
-    "{your-ai-sdk}": "^x.x.x"
+    "@sentry/node": "10.24.0",
+    "{your-ai-sdk}": "x.x.x",
+    "dotenv": "16.4.7"
   }
 }
 ```
+
+**Why exact versions?**
+- Ensures reproducible builds
+- Makes it clear when dependencies need updating
+- Prevents unexpected breaking changes
+- Easier to track which versions are being tested
 
 Run `npm install` in the SDK directory.
 
@@ -193,11 +212,28 @@ touch sdks/py/{sdk-name}/requirements.txt
 
 ### Step 3: Create requirements.txt
 
+**IMPORTANT: Always use exact latest versions (use == not >=)**
+
+To get the latest versions, run:
+```bash
+pip index versions sentry-sdk
+pip index versions {your-ai-sdk}
+pip index versions python-dotenv
 ```
-sentry-sdk>=2.0.0
-{your-ai-sdk}>=x.x.x
-python-dotenv>=1.0.0
+
+Create `requirements.txt` with **exact versions**:
+
 ```
+sentry-sdk==2.x.x
+{your-ai-sdk}==x.x.x
+python-dotenv==1.x.x
+```
+
+**Why exact versions?**
+- Ensures reproducible builds
+- Makes it clear when dependencies need updating
+- Prevents unexpected breaking changes
+- Easier to track which versions are being tested
 
 Create virtual environment and install:
 ```bash

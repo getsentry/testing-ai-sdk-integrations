@@ -1,0 +1,10 @@
+{
+  "name": "@sentry-ai-sdks/openai",
+  "version": "1.0.0",
+  "description": "OpenAI SDK integration tests for Sentry",
+  "dependencies": {
+    "@sentry/node": "10.24.0",
+    "openai": "6.8.1",
+    "dotenv": "17.2.3"
+  }
+}

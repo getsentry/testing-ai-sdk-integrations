@@ -51,6 +51,16 @@ Total: 2 SDKs, 2 test cases
 npm run cli run -- --all
 ```
 
+**Run all JavaScript SDKs:**
+```bash
+npm run cli run -- --sdk js
+```
+
+**Run all Python SDKs:**
+```bash
+npm run cli run -- --sdk py
+```
+
 **Run specific SDK:**
 ```bash
 npm run cli run -- --sdk js/vercel
@@ -62,10 +72,25 @@ npm run cli run -- --sdk py/openai-agents
 npm run cli run -- --case 1-simple
 ```
 
+**Run specific test case for all JavaScript SDKs:**
+```bash
+npm run cli run -- --sdk js --case 1-simple
+```
+
 **Run specific test case for specific SDK:**
 ```bash
 npm run cli run -- --sdk js/vercel --case 1-simple
 ```
+
+**Available options:**
+- `--all` - Run all tests
+- `--sdk <path>` - Run specific SDK or all SDKs in a language
+  - `js` - All JavaScript SDKs
+  - `py` - All Python SDKs
+  - `js/openai` - Specific SDK
+- `--case <id>` - Run specific test case (e.g., 1-simple)
+
+**Note:** `--sdk` can target a language (js/py) or a specific SDK (js/openai).
 
 **Output example:**
 ```

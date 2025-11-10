@@ -88,9 +88,15 @@ export async function discoverSDKs(): Promise<SDK[]> {
 export function filterSDKs(sdks: SDK[], options: { sdk?: string, case?: string }): SDK[] {
   let filtered = sdks;
 
-  // Filter by SDK
+  // Filter by SDK or language
   if (options.sdk) {
-    filtered = filtered.filter(sdk => sdk.path === options.sdk);
+    // Check if it's a language-only filter (e.g., "js" or "py")
+    if (options.sdk === 'js' || options.sdk === 'py') {
+      filtered = filtered.filter(sdk => sdk.language === options.sdk);
+    } else {
+      // Otherwise, filter by exact SDK path (e.g., "js/openai")
+      filtered = filtered.filter(sdk => sdk.path === options.sdk);
+    }
   }
 
   // Filter by case
