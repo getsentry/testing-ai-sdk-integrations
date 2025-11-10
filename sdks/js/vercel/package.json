@@ -6,9 +6,9 @@
     "test": "echo \"Use the CLI: npm run cli run --sdk js/vercel\""
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.62",
+    "@ai-sdk/openai": "2.0.62",
     "@sentry/node": "10.24.0",
-    "ai": "^5.0.87",
-    "dotenv": "^17.2.3"
+    "ai": "5.0.87",
+    "dotenv": "17.2.3"
   }
 }
