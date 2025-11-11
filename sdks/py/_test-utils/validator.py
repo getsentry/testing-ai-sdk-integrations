@@ -1,10 +1,16 @@
 """
 Fixture validator - validates captured Sentry data against fixtures
+
+Includes assertion helpers for querying and verifying spans
 """
 
 from typing import List, Dict, Any
-from .fixture_loader import load_fixture
+from fixture_loader import load_fixture
 
+
+# ============================================================================
+# ASSERTION HELPERS
+# ============================================================================
 
 def get_attribute(span: Dict[str, Any], attribute_name: str) -> Any:
     """
@@ -223,6 +229,20 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
     return matching[0]
 
 
+def get_spans(spans: List[Dict[str, Any]], op: str) -> List[Dict[str, Any]]:
+    """
+    Get all spans matching an operation name
+
+    Args:
+        spans: List of span objects
+        op: Operation name to search for
+
+    Returns:
+        List of matching spans (may be empty)
+    """
+    return [s for s in spans if s.get("op") == op]
+
+
 def is_child_of(child_span: Dict[str, Any], parent_span: Dict[str, Any]) -> bool:
     """
     Check if one span is a child of another
@@ -239,6 +259,10 @@ def is_child_of(child_span: Dict[str, Any], parent_span: Dict[str, Any]) -> bool
 
     return child_span.get("parent_span_id") == parent_span.get("span_id")
 
+
+# ============================================================================
+# VALIDATOR
+# ============================================================================
 
 def validate_fixture(
     spec_id: str,

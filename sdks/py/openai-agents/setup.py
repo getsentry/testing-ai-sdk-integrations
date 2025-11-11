@@ -1,35 +1,41 @@
 """
 Setup file for OpenAI Agents SDK tests
 
-This file contains lifecycle hooks that run before/after tests.
-Using consolidated sdk_helpers to eliminate boilerplate.
+Initializes Sentry with OpenAI Agents-specific integrations.
 """
 
+import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 from sentry_sdk.integrations.openai import OpenAIIntegration
 from sentry_sdk.integrations.openai_agents import OpenAIAgentsIntegration
+import sentry_sdk
 
 # Add test utils to path
 test_utils_path = Path(__file__).parent.parent / "_test-utils"
 sys.path.insert(0, str(test_utils_path))
 
-from sdk_helpers import create_sdk_setup
+from mock_transport import create_mock_transport, MockTransportCapture
+import mock_transport as mt
 
-module_exports = create_sdk_setup(
-    sdk_name="OpenAI Agents",
-    env_path=".env",
-    sentry_options={
-        'integrations': [
-            OpenAIAgentsIntegration(),
-        ],
-        'disabled_integrations': [OpenAIIntegration()],
-    }
+# Load environment variables
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# Pre-initialize mock transport (required for Python)
+mt._mock_transport_capture = MockTransportCapture()
+
+mock_transport_instance = create_mock_transport(
+    options={"dsn": os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1")}
 )
 
-# Export functions for test runner
-before_all = module_exports['before_all']
-before_each = module_exports['before_each']
-after_each = module_exports['after_each']
-after_all = module_exports['after_all']
-get_mock_sentry_transport = module_exports['get_mock_sentry_transport']
+# Initialize Sentry with OpenAI Agents integration
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1"),
+    traces_sample_rate=1.0,
+    transport=mock_transport_instance,
+    send_default_pii=True,
+    integrations=[OpenAIAgentsIntegration()],
+    disabled_integrations=[OpenAIIntegration()],
+)

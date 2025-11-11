@@ -1,5 +1,5 @@
 /**
- * Fixture loader - loads JSON test fixtures from shared/fixtures/
+ * Fixture loader - loads JSON test fixtures from shared/specs/
  */
 
 const fs = require("fs");
@@ -54,8 +54,8 @@ function applyOverrides(fixture, overrides) {
  */
 function loadFixture(specId, variant = "agentic", overrides = null) {
   // Fixtures are in shared/specs/{specId}/fixture-{variant}.json
-  // Path from sdks/js/_test-utils/fixtures/ to shared/specs/
-  const fixturePath = path.join(__dirname, "../../../../shared/specs", specId, `fixture-${variant}.json`);
+  // Path from sdks/js/_test-utils/ to shared/specs/
+  const fixturePath = path.join(__dirname, "../../../shared/specs", specId, `fixture-${variant}.json`);
 
   if (!fs.existsSync(fixturePath)) {
     throw new Error(`Fixture not found: ${specId} (variant: ${variant}) at ${fixturePath}`);

@@ -1,5 +1,5 @@
 """
-Fixture loader - loads JSON test fixtures from shared/fixtures/
+Fixture loader - loads JSON test fixtures from shared/specs/
 """
 
 import json
@@ -60,9 +60,9 @@ def load_fixture(spec_id: str, variant: str = "agentic", overrides: Optional[Dic
         FileNotFoundError: If fixture file not found
     """
     # Fixtures are in shared/specs/{spec_id}/fixture-{variant}.json
-    # Path from sdks/py/_test-utils/fixtures/ to shared/specs/
+    # Path from sdks/py/_test-utils/ to shared/specs/
     current_dir = Path(__file__).parent
-    fixture_path = current_dir / "../../../../shared/specs" / spec_id / f"fixture-{variant}.json"
+    fixture_path = current_dir / "../../../shared/specs" / spec_id / f"fixture-{variant}.json"
     fixture_path = fixture_path.resolve()
 
     if not fixture_path.exists():

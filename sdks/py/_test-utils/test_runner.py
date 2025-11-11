@@ -1,0 +1,94 @@
+"""
+Test runner helper - orchestrates test execution with minimal boilerplate
+"""
+
+import asyncio
+import sentry_sdk
+from fixture_loader import load_fixture
+from validator import validate_fixture
+from mock_transport import get_mock_transport
+
+
+def run_test_case(spec_id, framework_type, test_logic):
+    """
+    Run a test case with automatic fixture loading, span wrapping, and validation
+
+    Args:
+        spec_id: Test spec ID (e.g., "1-simple")
+        framework_type: Framework type ("agentic" or "low-level")
+        test_logic: Async function containing SDK-specific test logic
+
+    Returns:
+        Dict with main() and assert_sentry() functions for test runner
+    """
+
+    async def main():
+        """Main test case entry point"""
+        print(f"    Running {spec_id}: {get_test_description(spec_id)}")
+
+        # Load config overrides from environment
+        import os
+        import json
+        overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
+        overrides = json.loads(overrides_json) if overrides_json else None
+
+        # Load fixture inputs with overrides applied
+        fixture = load_fixture(spec_id, framework_type, overrides)
+
+        # Run test logic
+        await test_logic(fixture["inputs"])
+
+    async def assert_sentry():
+        """Verify Sentry captured the expected data"""
+        # Flush and wait for transport
+        sentry_sdk.flush(timeout=2.0)
+        await asyncio.sleep(0.05)
+
+        # Load config overrides from environment
+        import os
+        import json
+        overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
+        overrides = json.loads(overrides_json) if overrides_json else None
+
+        # Get transport data
+        transport = get_mock_transport()
+        spans = transport.get_spans()
+        transactions = transport.get_transactions()
+        events = transport.get_events()
+
+        print(
+            f"    Captured: {len(spans)} spans, {len(transactions)} transactions, {len(events)} events"
+        )
+
+        # Validate with overrides
+        result = validate_fixture(
+            spec_id, spans, transactions, events, framework_type, overrides
+        )
+
+        if not result["passed"]:
+            print("    ✗ Validation failed:")
+            for error in result["errors"]:
+                print(f"      - {error}")
+            raise Exception(
+                f"Fixture validation failed:\n" + "\n".join(result["errors"])
+            )
+
+        print("    ✓ All fixture validations passed")
+        print(f"    ✓ {spec_id} completed")
+
+    return {"main": main, "assert_sentry": assert_sentry}
+
+
+def get_test_description(spec_id):
+    """Gets human-readable description for a test spec"""
+    descriptions = {
+        "1-simple": "Basic Completion",
+        "2-simple-with-error": "Basic Completion with Error",
+        "3-multi-turn": "Multi-turn Conversation",
+        "4-streaming": "Basic Streaming",
+        "5-streaming-with-error": "Streaming with Error",
+        "6-agent-success": "Agent Success Path",
+        "7-agent-llm-error": "Agent LLM Error",
+        "8-agent-tool-error": "Agent Tool Error",
+    }
+    return descriptions.get(spec_id, spec_id)
