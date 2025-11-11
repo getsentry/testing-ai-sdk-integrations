@@ -11,46 +11,54 @@ When a test fails, check these first:
 - [ ] Are relative import paths correct? (count `../` carefully)
 - [ ] Is `sys.path.insert(0, ...)` present in Python setup.py?
 - [ ] Are you using `.js` files (not `.ts`) for SDK tests?
-- [ ] Is `FRAMEWORK_TYPE` set correctly for your SDK?
+- [ ] Is `framework_type` in `config.json` set correctly for your SDK?
 - [ ] Did you call `await Sentry.flush()` before assertions (JavaScript)?
 
 ## Common Pitfalls
 
-### Pitfall #1: Exporting frameworkType from setup.js breaks tests
+### Pitfall #1: Missing or incorrect config.json
 
 **Symptoms:**
-- Error: "Mock transport not initialized"
-- TypeError: Cannot read property 'getSpans' of undefined
+- Error: "Framework type not specified"
+- Error: "Cannot find config.json"
+- Test uses wrong fixture variant
 
 **Problem:**
-```javascript
-// ❌ BAD - breaks module loading
-module.exports = {
-  frameworkType: "agentic",  // This causes issues
-  beforeAll,
-  beforeEach,
-  afterEach,
-  afterAll,
-  getMockSentryTransport,
-};
-```
-
-**Why it breaks:** Importing `frameworkType` from setup creates module loading race conditions where the mock transport singleton isn't properly shared between setup and test files.
+- Missing `config.json` in SDK directory
+- `framework_type` field not set
+- Wrong framework type specified
 
 **Solution:**
-```javascript
-// ✅ GOOD - use constant in test case
-// In: sdks/js/vercel/cases/1-simple.js
-const FRAMEWORK_TYPE = "agentic";  // Define in test file
+```json
+// ✅ GOOD - create config.json in SDK directory
+// In: sdks/js/vercel/config.json
+{
+  "sdk_name": "vercel",
+  "framework_type": "agentic",
+  "overrides": {}
+}
+```
 
-const fixture = loadFixture("1-simple", FRAMEWORK_TYPE);
-const result = validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE);
+**For low-level SDKs:**
+```json
+{
+  "sdk_name": "openai",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "gpt-4o-mini",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "gen_ai.response.model": "gpt-4o-mini"
+    }
+  }
+}
 ```
 
 **Additional notes:**
-- Each test case should define its own `FRAMEWORK_TYPE` constant
-- All test cases in an SDK should use the same framework type
-- Don't try to centralize this in setup.js
+- Every SDK must have a `config.json` file
+- Framework type is determined by the SDK's architecture (see CLAUDE.md)
+- All test cases in an SDK use the same framework type from config
+- Use `overrides` to customize model names per test case
 
 ---
 
@@ -97,7 +105,8 @@ module.exports = async function () {
 
 **Symptoms:**
 - ModuleNotFoundError: No module named 'mock_transport'
-- ModuleNotFoundError: No module named 'fixtures'
+- ModuleNotFoundError: No module named 'test_runner'
+- ModuleNotFoundError: No module named 'fixture_loader'
 
 **Problem:**
 ```python

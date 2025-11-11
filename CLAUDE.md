@@ -21,40 +21,66 @@ ai-sdks-test/
 ├── sdks/
 │   ├── js/                    # JavaScript SDK implementations
 │   │   ├── _test-utils/      # JS test utilities (CRITICAL: Keep in sync with py/)
-│   │   │   ├── sdk-helpers.cjs     # Setup factory, test orchestration
-│   │   │   ├── assertions.cjs      # Span query helpers
-│   │   │   ├── mock-transport.cjs  # Captures Sentry data in-memory
-│   │   │   └── fixtures/
-│   │   │       ├── fixture-loader.cjs  # Loads JSON fixtures
-│   │   │       └── validator.cjs       # Validates captured data
-│   │   ├── openai/           # Each SDK has its own directory
-│   │   │   ├── setup.js      # SDK-specific setup with lifecycle hooks
-│   │   │   └── cases/        # Test cases (1-simple.js, 2-simple-with-error.js, etc.)
-│   │   └── vercel/
+│   │   │   ├── test-runner.cjs      # Orchestrates test execution
+│   │   │   ├── fixture-loader.cjs   # Loads JSON fixtures with overrides
+│   │   │   ├── validator.cjs        # Validates captured spans against fixtures
+│   │   │   └── mock-transport.cjs   # Captures Sentry data in-memory
+│   │   ├── vercel/           # Each SDK has its own directory
+│   │   │   ├── setup.js      # SDK-specific setup
+│   │   │   ├── config.json   # SDK configuration (framework type, overrides)
+│   │   │   └── cases/        # Test cases (1-simple.js, etc.)
+│   │   ├── openai/
+│   │   │   ├── setup.js
+│   │   │   ├── config.json
+│   │   │   └── cases/
+│   │   └── anthropic/
+│   │       ├── setup.js
+│   │       ├── config.json
+│   │       └── cases/
 │   └── py/                    # Python SDK implementations
 │       ├── _test-utils/      # Python test utilities (CRITICAL: Keep in sync with js/)
-│       │   ├── sdk_helpers.py      # Setup factory, test orchestration
-│       │   ├── assertions.py       # MUST match js/assertions.cjs
-│       │   ├── mock_transport.py   # MUST match js/mock-transport.cjs
-│       │   └── fixtures/
-│       │       ├── fixture_loader.py  # MUST match js/fixture-loader.cjs
-│       │       └── validator.py       # MUST match js/validator.cjs
+│       │   ├── test_runner.py       # Orchestrates test execution
+│       │   ├── fixture_loader.py    # Loads JSON fixtures with overrides
+│       │   ├── validator.py         # Validates captured spans against fixtures
+│       │   └── mock_transport.py    # Captures Sentry data in-memory
 │       ├── openai-agents/
-│       │   ├── setup.py      # SDK-specific setup with lifecycle hooks
-│       │   └── cases/        # Test cases (1-simple.py, 2-simple-with-error.py, etc.)
+│       │   ├── setup.py      # SDK-specific setup
+│       │   ├── config.json   # SDK configuration (framework type, overrides)
+│       │   └── cases/        # Test cases (1-simple.py, etc.)
 │       └── google-genai/
+│           ├── setup.py
+│           ├── config.json
+│           └── cases/
 ├── shared/
 │   ├── specs/                # Test specifications and expectations
-│   │   └── 1-simple/        # Each spec in its own folder
-│   │       ├── spec.md              # Test specification document
-│   │       ├── fixture-agentic.json # Expected spans for agentic frameworks
-│   │       └── fixture-low-level.json # Expected spans for low-level frameworks
+│   │   ├── sdk-config-schema.json  # Schema for SDK config.json files
+│   │   ├── 1-simple/        # Each spec in its own folder
+│   │   │   ├── spec.md              # Test specification document
+│   │   │   ├── fixture-agentic.json # Expected spans for agentic frameworks
+│   │   │   └── fixture-low-level.json # Expected spans for low-level frameworks
+│   │   ├── 2-simple-with-error/
+│   │   │   └── spec.md       # (fixture files not yet created)
+│   │   └── ... (specs 3-8)   # Additional specs (fixtures not yet created)
 │   └── orchestration/        # Test runner (TypeScript)
-│       ├── python-test-runner.py  # Wrapper for Python tests
-│       └── src/
-│           ├── cli.ts         # Main CLI entry point
-│           ├── runner.ts      # Runs tests for both JS and Python
-│           └── discovery.ts   # Discovers SDKs and test cases
+│       ├── js-test-runner.cjs     # Runner for JS tests
+│       ├── python-test-runner.py  # Runner for Python tests
+│       ├── tsconfig.json          # TypeScript configuration
+│       ├── src/              # TypeScript source files (ES modules)
+│       │   ├── cli.ts         # Main CLI entry point
+│       │   ├── runner.ts      # Runs tests for both JS and Python
+│       │   ├── discovery.ts   # Discovers SDKs and test cases
+│       │   ├── setup.ts       # Setup utilities
+│       │   ├── upgrade.ts     # Upgrade utilities
+│       │   ├── types.ts       # Type definitions
+│       │   └── reporters/     # Test result reporting
+│       │       ├── console-printer.ts
+│       │       ├── ctrf-generator.ts
+│       │       └── html-generator.ts
+│       ├── dist/             # Compiled JavaScript (ES modules)
+│       │   └── ...
+│       └── test-results/     # Generated test reports
+│           ├── ctrf-report.json
+│           └── test-report.html
 ```
 
 ## 📚 Documentation Navigation
@@ -145,8 +171,8 @@ const { runTestCase } = require("../../_test-utils/sdk-helpers.cjs");
 
 | From                                  | To                                  | Path                                         |
 | ------------------------------------- | ----------------------------------- | -------------------------------------------- |
-| `sdks/js/{sdk}/cases/{test}.js`       | `sdks/js/_test-utils/`              | `../../_test-utils/sdk-helpers.cjs`          |
-| `sdks/js/{sdk}/setup.js`              | `sdks/js/_test-utils/`              | `../_test-utils/sdk-helpers.cjs`             |
+| `sdks/js/{sdk}/cases/{test}.js`       | `sdks/js/_test-utils/`              | `../../_test-utils/test-runner.cjs`          |
+| `sdks/js/{sdk}/setup.js`              | `sdks/js/_test-utils/`              | `../_test-utils/mock-transport.cjs`          |
 | `sdks/py/{sdk}/cases/{test}.py`       | (uses sys.path, see below)          | N/A - import directly after sys.path setup   |
 
 **Python: sys.path Manipulation**
@@ -164,7 +190,7 @@ test_utils_path = Path(__file__).parent.parent / "_test-utils"
 sys.path.insert(0, str(test_utils_path))
 
 # Now you can import directly
-from sdk_helpers import create_sdk_setup
+from test_runner import run_test_case
 from mock_transport import create_mock_transport, get_mock_transport, clear_mock_transport
 ```
 
@@ -177,7 +203,7 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 **When adding a new SDK:**
 - Copy the sys.path block from an existing Python SDK's `setup.py`
 - Path is always `Path(__file__).parent.parent / "_test-utils"` (2 levels up)
-- Test by running `python -c "from fixtures import load_fixture"` in your SDK directory
+- Test by running `python -c "from fixture_loader import load_fixture"` in your SDK directory
 
 ## 🚨 CRITICAL: JavaScript/Python Parity Rule
 
@@ -194,17 +220,17 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 
 **ALWAYS update both JS and Python versions together:**
 
-1. **If you modify `js/assertions.js`:**
+1. **If you modify `js/_test-utils/validator.cjs`:**
 
-   - Update `py/assertions.py` with equivalent logic
-   - Test both implementations
-   - Verify error messages match
-
-2. **If you modify `js/fixtures/validator.js`:**
-
-   - Update `py/fixtures/validator.py` with equivalent logic
+   - Update `py/_test-utils/validator.py` with equivalent logic
    - Run same fixture through both validators
    - Confirm identical error output
+
+2. **If you modify `js/_test-utils/test-runner.cjs`:**
+
+   - Update `py/_test-utils/test_runner.py` with equivalent logic
+   - Test both implementations
+   - Verify error messages match
 
 3. **If you add a new helper function:**
    - Implement in both languages
@@ -215,11 +241,10 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 
 | JavaScript                                | Python                                  | Purpose                                 |
 | ----------------------------------------- | --------------------------------------- | --------------------------------------- |
-| `sdks/js/_test-utils/sdk-helpers.cjs`    | `sdks/py/_test-utils/sdk_helpers.py`   | Setup factory, test orchestration       |
-| `sdks/js/_test-utils/assertions.cjs`     | `sdks/py/_test-utils/assertions.py`    | Span query and assertion helpers        |
-| `sdks/js/_test-utils/mock-transport.cjs` | `sdks/py/_test-utils/mock_transport.py`| Capture Sentry events in-memory         |
-| `sdks/js/_test-utils/fixtures/fixture-loader.cjs` | `sdks/py/_test-utils/fixtures/fixture_loader.py` | Load JSON fixtures     |
-| `sdks/js/_test-utils/fixtures/validator.cjs` | `sdks/py/_test-utils/fixtures/validator.py` | Validate captured data against fixtures |
+| `sdks/js/_test-utils/test-runner.cjs`    | `sdks/py/_test-utils/test_runner.py`   | Orchestrates test execution             |
+| `sdks/js/_test-utils/fixture-loader.cjs` | `sdks/py/_test-utils/fixture_loader.py`| Loads JSON fixtures with overrides      |
+| `sdks/js/_test-utils/validator.cjs`      | `sdks/py/_test-utils/validator.py`     | Validates captured data against fixtures|
+| `sdks/js/_test-utils/mock-transport.cjs` | `sdks/py/_test-utils/mock_transport.py`| Captures Sentry events in-memory        |
 
 ### Test Parity Checklist
 
@@ -237,12 +262,10 @@ When adding or modifying test-utils, verify:
 
 | Component | JavaScript | Python | Status | Notes |
 | --------- | ---------- | ------ | ------ | ----- |
-| Mock Transport | `mock-transport.js` | `mock_transport.py` | ✅ Synced | Both capture envelopes correctly |
-| Fixture Loader | `fixtures/fixture-loader.js` | `fixtures/fixture_loader.py` | ✅ Synced | Support variant parameter |
-| Fixture Validator | `fixtures/validator.js` | `fixtures/validator.py` | ✅ Synced | Support variant parameter |
-| Assertions | `assertions.js` | `assertions.py` | ⚠️ **Partial** | Python missing some helpers |
-
-**Action Required:** Implement missing assertion helpers in Python to achieve full parity.
+| Test Runner | `test-runner.cjs` | `test_runner.py` | ✅ Synced | Both orchestrate tests correctly |
+| Mock Transport | `mock-transport.cjs` | `mock_transport.py` | ✅ Synced | Both capture envelopes correctly |
+| Fixture Loader | `fixture-loader.cjs` | `fixture_loader.py` | ✅ Synced | Both support config overrides |
+| Fixture Validator | `validator.cjs` | `validator.py` | ✅ Synced | Both validate with same logic |
 
 ## Test Scenarios
 
@@ -297,48 +320,62 @@ gen_ai.invoke_agent (parent)
 
 Frameworks that directly produce LLM call spans without agent wrappers:
 
-- **OpenAI SDK** (both JS and Python) - Direct `gen_ai.chat` spans only
-- **Anthropic SDK** (both JS and Python) - Direct LLM call spans
+- **OpenAI SDK** (`js/openai`) - Direct `gen_ai.chat` spans only
+- **Anthropic SDK** (`js/anthropic`) - Direct LLM call spans
+- **Google GenAI SDK** (`py/google-genai`) - Direct LLM call spans
 
 **Span hierarchy example:**
 ```
 gen_ai.chat (no parent)
 ```
 
-#### Using Fixture Variants
+#### Using Fixture Variants and SDK Config
 
 Each test case folder contains multiple fixture files to handle both framework types:
 
 - `fixture-agentic.json` - Expects agent parent spans + LLM child spans
 - `fixture-low-level.json` - Expects only direct LLM call spans
 
-Test cases specify which variant to use via the `FRAMEWORK_TYPE` constant:
+**Framework type is configured per SDK in `config.json`:**
+
+```json
+{
+  "sdk_name": "vercel",
+  "framework_type": "agentic",
+  "overrides": {}
+}
+```
+
+Test cases automatically use the framework type from their SDK's `config.json`:
 
 **JavaScript:**
 ```javascript
-// At top of test file
-const FRAMEWORK_TYPE = "agentic"; // or "low-level"
+const { runTestCase } = require("../../_test-utils/test-runner.cjs");
+const { Sentry } = require("../setup");
 
-// Load fixture with variant
-const fixture = loadFixture("1-simple", FRAMEWORK_TYPE);
+async function testLogic(inputs) {
+  // Your test implementation
+}
 
-// Validate with same variant
-validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE);
+// Framework type loaded from config.json automatically
+module.exports = runTestCase("1-simple", testLogic, Sentry);
 ```
 
 **Python:**
 ```python
-# At top of test file
-FRAMEWORK_TYPE = "agentic"  # or "low-level"
+from test_runner import run_test_case
 
-# Load fixture with variant
-fixture = load_fixture("1-simple", FRAMEWORK_TYPE)
+async def test_logic(inputs):
+    # Your test implementation
+    pass
 
-# Validate with same variant
-validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
+# Framework type loaded from config.json automatically
+test_case = run_test_case("1-simple", test_logic)
+main = test_case["main"]
+assert_sentry = test_case["assert_sentry"]
 ```
 
-**Important:** Each SDK's test cases should all use the same `FRAMEWORK_TYPE` value. The framework type is determined by the SDK's architecture, not by individual test cases.
+**Important:** Each SDK's `config.json` defines its framework type. All test cases in that SDK use the same framework type.
 
 #### SDK Framework Type Mapping
 
@@ -347,11 +384,10 @@ validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
 | SDK Path              | Framework Type | Reason                                      |
 | --------------------- | -------------- | ------------------------------------------- |
 | `js/vercel`           | `agentic`      | Produces `gen_ai.invoke_agent` parent spans |
+| `js/openai`           | `low-level`    | Direct `gen_ai.chat` spans only             |
+| `js/anthropic`        | `low-level`    | Direct LLM call spans only                  |
 | `py/openai-agents`    | `agentic`      | Produces agent workflow spans               |
-| `js/openai` (future)  | `low-level`    | Direct `gen_ai.chat` spans only             |
-| `py/openai` (future)  | `low-level`    | Direct LLM call spans only                  |
-| `js/anthropic` (future) | `low-level`  | Direct LLM call spans only                  |
-| `py/anthropic` (future) | `low-level`  | Direct LLM call spans only                  |
+| `py/google-genai`     | `low-level`    | Direct LLM call spans only                  |
 
 **How to determine framework type for a new SDK:**
 
@@ -385,14 +421,17 @@ For details, see:
 
 ### Currently Implemented
 
-| Language | SDK               | Status     | Notes                              |
-| -------- | ----------------- | ---------- | ---------------------------------- |
-| JS       | `vercel` (AI SDK) | ✅ Working | 1-simple test passing              |
-| Python   | `openai-agents`   | ⚠️ Partial | 1-simple test exists but may fail  |
+| Language   | SDK               | Framework Type | Status     | Test Cases     |
+| ---------- | ----------------- | -------------- | ---------- | -------------- |
+| JavaScript | `vercel`          | agentic        | ✅ Working | 1-simple       |
+| JavaScript | `openai`          | low-level      | ✅ Working | 1-simple       |
+| JavaScript | `anthropic`       | low-level      | ✅ Working | 1-simple       |
+| Python     | `openai-agents`   | agentic        | ✅ Working | 1-simple       |
+| Python     | `google-genai`    | low-level      | ✅ Working | 1-simple       |
 
 ### Planned SDKs
 
-- JavaScript: OpenAI SDK, Anthropic, LangChain, LlamaIndex
+- JavaScript: LangChain, LlamaIndex
 - Python: LangChain, Anthropic, OpenAI, LlamaIndex
 
 **Note:** Not all SDKs support all features (streaming, function calling, etc.)
@@ -412,7 +451,7 @@ For detailed step-by-step guides on implementing new SDK tests, see:
 
 ## Current Status
 
-**Status:** Foundation complete, initial SDKs implemented but tests failing
+**Status:** Foundation complete, 5 SDKs implemented with 1-simple test passing
 
 **What's Working:**
 
@@ -420,8 +459,14 @@ For detailed step-by-step guides on implementing new SDK tests, see:
 - ✅ Mock transports (JS and Python)
 - ✅ Fixture validation (JS and Python in sync)
 - ✅ Clear error messages showing missing attributes
-- ✅ Lifecycle hooks (beforeAll, afterEach, etc.)
+- ✅ SDK configuration with overrides (config.json)
 - ✅ Centralized configuration (root .env, fixture inputs)
+- ✅ Test reporting (console, CTRF JSON, HTML)
+
+**What's Next:**
+
+- Implement test cases 2-8 (error handling, streaming, multi-turn, agentic workflows)
+- Add more SDKs (LangChain, LlamaIndex, etc.)
 
 
 ## Implementation Guidelines
@@ -490,16 +535,18 @@ For common issues, error messages, and debugging tips, see:
 2. **Adding a new test case?**
 
    - Create folder in `shared/specs/{number}-{description}/`
-   - Add `spec.md` (specification) and `fixture.json` (inputs + expectations)
+   - Add `spec.md` (specification)
+   - Add `fixture-agentic.json` and `fixture-low-level.json` (inputs + expectations)
    - Implement in at least one JS SDK
    - Implement in at least one Python SDK
    - Run: `npm run cli run -- --case {number}-{description}`
 
 3. **Adding a new SDK?**
 
-   - Create directory structure
-   - Implement setup with lifecycle hooks
-   - Implement test cases (start with G1)
+   - Create directory structure (see sdks/README.md for templates)
+   - Create `config.json` with framework type and overrides
+   - Implement `setup.js` or `setup.py` with Sentry initialization
+   - Implement test cases in `cases/` directory (start with 1-simple)
    - Run: `npm run cli run -- --sdk {js|py}/your-sdk`
 
 4. **Debugging test failures?**

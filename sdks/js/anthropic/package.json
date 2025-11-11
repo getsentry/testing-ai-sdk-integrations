@@ -1,0 +1,13 @@
+{
+  "name": "@sentry-ai-sdks/anthropic",
+  "version": "1.0.0",
+  "description": "Sentry integration tests for Anthropic AI SDK",
+  "scripts": {
+    "test": "echo \"Use the CLI: npm run cli run --sdk js/anthropic\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.68.0",
+    "@sentry/node": "10.24.0",
+    "dotenv": "17.2.3"
+  }
+}

@@ -6,14 +6,14 @@ This directory contains Python testing utilities for SDK implementations.
 
 ```
 sdks/py/_test-utils/
-├── sdk_helpers.py          # Consolidated SDK test helpers (setup, orchestration)
-├── assertions.py           # Span query helpers
+├── test_runner.py          # Orchestrates test execution (main helper)
+├── fixture_loader.py       # Loads JSON fixtures with config overrides
+├── validator.py            # Validates captured data against fixtures
 ├── mock_transport.py       # Captures Sentry data in-memory
-└── fixtures/
-    ├── __init__.py         # Fixture exports
-    ├── fixture_loader.py   # Loads JSON fixtures from shared/specs/
-    └── validator.py        # Validates captured data against fixtures
+└── README.md              # This file
 ```
+
+**Note:** All files use `.py` extension with snake_case naming.
 
 ## 🚨 CRITICAL: JavaScript/Python Parity Rule
 
@@ -30,74 +30,153 @@ sdks/py/_test-utils/
 
 **ALWAYS update both JS and Python versions together:**
 
-1. **If you modify `assertions.py`:**
-   - Update `sdks/js/_test-utils/assertions.cjs` with equivalent logic
-   - Test both implementations
-   - Verify error messages match
-
-2. **If you modify `fixtures/validator.py`:**
-   - Update `sdks/js/_test-utils/fixtures/validator.cjs` with equivalent logic
+1. **If you modify `validator.py`:**
+   - Update `sdks/js/_test-utils/validator.cjs` with equivalent logic
    - Run same fixture through both validators
    - Confirm identical error output
+
+2. **If you modify `test_runner.py`:**
+   - Update `sdks/js/_test-utils/test-runner.cjs` with equivalent logic
+   - Test both implementations
+   - Verify error messages match
 
 3. **If you add a new helper function:**
    - Implement in both languages
    - Keep function signatures equivalent (account for camelCase vs snake_case)
    - Document any language-specific differences
 
-## SDK Helpers
+## Core Components
 
-The `sdk_helpers.py` module provides utilities to eliminate boilerplate:
+### test_runner.py
 
-- **`create_sdk_setup()`** - Factory for lifecycle hooks (before_all, after_each, etc.)
-- **`run_test_case()`** - Orchestrates test execution with validation
-- **`load_config_override()`** - Reads config overrides from environment
-- **`assert_sentry_fixture()`** - Validates captured Sentry data
+The main helper that orchestrates test execution. Provides:
 
-See the file for detailed documentation and examples.
+- **`run_test_case(testCaseId, testLogic)`** - Main test orchestration function
+  - Loads SDK config from `config.json`
+  - Loads fixture with config overrides applied
+  - Wraps test logic in Sentry span
+  - Validates captured data against fixture
+  - Returns dict with `main()` and `assert_sentry()` functions
+
+### fixture_loader.py
+
+Loads JSON fixtures from `shared/specs/` with SDK-specific overrides:
+
+- **`load_fixture(test_case_id, framework_type, config_overrides)`**
+  - Reads fixture from `shared/specs/{test_case_id}/fixture-{framework_type}.json`
+  - Applies config overrides (model names, span attributes)
+  - Returns fixture with all overrides applied
+
+### validator.py
+
+Validates captured Sentry data against fixture expectations:
+
+- **`validate_fixture(test_case_id, spans, transactions, events, framework_type, config_overrides)`**
+  - Compares actual spans/transactions/events vs fixture expectations
+  - Checks span counts, attributes, hierarchy
+  - Returns validation result with detailed error messages
+
+### mock_transport.py
+
+In-memory Sentry transport for testing:
+
+- **`create_mock_transport(options)`** - Factory for mock transport
+- **`get_mock_transport()`** - Get current transport instance
+- **`clear_mock_transport()`** - Clear captured data
 
 ## Usage
 
-### In SDK Setup Files
+### In SDK Setup Files (setup.py)
 
 ```python
+import os
 import sys
+import sentry_sdk
 from pathlib import Path
-from sentry_sdk.integrations.your_integration import YourIntegration
+from dotenv import load_dotenv
 
 # Add test utils to path (CRITICAL - DO NOT FORGET)
 test_utils_path = Path(__file__).parent.parent / "_test-utils"
 sys.path.insert(0, str(test_utils_path))
 
-from sdk_helpers import create_sdk_setup
+from mock_transport import create_mock_transport, get_mock_transport, clear_mock_transport
 
-module_exports = create_sdk_setup(
-    sdk_name="Your SDK",
-    env_path="../../../../.env",
-    sentry_options={
-        'integrations': [
-            YourIntegration(include_prompts=True),
+
+def before_all():
+    """Initialize Sentry with mock transport"""
+    print("🔧 Setting up {Your SDK} tests...")
+
+    # Load environment variables
+    env_path = Path(__file__).parent.parent.parent.parent / ".env"
+    load_dotenv(dotenv_path=env_path)
+
+    # Pre-initialize mock transport
+    from mock_transport import MockTransportCapture
+    import mock_transport as mt
+    mt._mock_transport_capture = MockTransportCapture()
+
+    mock_transport_instance = create_mock_transport(
+        options={"dsn": os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1")}
+    )
+
+    # Initialize Sentry
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1"),
+        traces_sample_rate=1.0,
+        transport=mock_transport_instance,
+        integrations=[
+            # Your SDK's Sentry integration here
         ],
-    }
-)
+    )
 
-# Export functions for test runner
-before_all = module_exports['before_all']
-before_each = module_exports['before_each']
-after_each = module_exports['after_each']
-after_all = module_exports['after_all']
-get_mock_sentry_transport = module_exports['get_mock_sentry_transport']
+    print("  ✓ Sentry initialized with mock transport")
+
+
+def before_each():
+    """Reset test state"""
+    print("  ↻ Resetting test state...")
+    clear_mock_transport()
+
+
+def after_each():
+    """Clean up after test"""
+    print("  ✓ Cleaning up...")
+
+
+def after_all():
+    """Teardown Sentry"""
+    print("🧹 Tearing down {Your SDK} tests...")
+    sentry_sdk.flush(timeout=2.0)
+
+
+def get_mock_sentry_transport():
+    """Helper to get mock transport for assertions"""
+    return get_mock_transport()
 ```
 
-### In Test Case Files
+### In SDK Config Files (config.json)
+
+```json
+{
+  "sdk_name": "your-sdk",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "your-model-name",
+      "gen_ai.request.model": "your-model-name",
+      "gen_ai.response.model": "your-model-name"
+    }
+  }
+}
+```
+
+### In Test Case Files (cases/1-simple.py)
 
 ```python
 import os
 from your_sdk import YourClient
-from sdk_helpers import run_test_case
-from setup import get_mock_sentry_transport
+from test_runner import run_test_case
 
-FRAMEWORK_TYPE = "low-level"  # or "agentic"
 
 async def test_logic(inputs):
     """The actual test logic"""
@@ -109,12 +188,19 @@ async def test_logic(inputs):
     client = YourClient(api_key=os.getenv("YOUR_API_KEY"))
     response = client.generate(model=model, system=system, prompt=prompt)
 
+    if not response.text:
+        raise Exception("No output returned")
+
+    if os.getenv("SENTRY_AI_TEST_VERBOSE") == "true":
+        print(f"    Response: {response.text}")
+
     return response.text
 
-# Export test case functions
-test_case = run_test_case("1-simple", FRAMEWORK_TYPE, test_logic, get_mock_sentry_transport)
-main = test_case['main']
-assert_sentry = test_case['assert_sentry']
+
+# Framework type is loaded from config.json automatically
+test_case = run_test_case("1-simple", test_logic)
+main = test_case["main"]
+assert_sentry = test_case["assert_sentry"]
 ```
 
 ## Important Notes
@@ -135,12 +221,16 @@ Test case files will automatically inherit this path setup.
 
 ## Parity Status
 
-| Component | Python | JavaScript | Status |
-|-----------|--------|------------|--------|
-| SDK Helpers | `sdk_helpers.py` | `sdk-helpers.cjs` | ✅ Synced |
-| Mock Transport | `mock_transport.py` | `mock-transport.cjs` | ✅ Synced |
-| Fixture Loader | `fixtures/fixture_loader.py` | `fixtures/fixture-loader.cjs` | ✅ Synced |
-| Fixture Validator | `fixtures/validator.py` | `fixtures/validator.cjs` | ✅ Synced |
-| Assertions | `assertions.py` | `assertions.cjs` | ⚠️ Partial |
+| Component | Python | JavaScript | Status | Notes |
+|-----------|--------|------------|--------|-------|
+| Test Runner | `test_runner.py` | `test-runner.cjs` | ✅ Synced | Both orchestrate tests correctly |
+| Mock Transport | `mock_transport.py` | `mock-transport.cjs` | ✅ Synced | Both capture envelopes correctly |
+| Fixture Loader | `fixture_loader.py` | `fixture-loader.cjs` | ✅ Synced | Both support config overrides |
+| Fixture Validator | `validator.py` | `validator.cjs` | ✅ Synced | Both validate with same logic |
 
-**Action Required:** Implement missing assertion helpers in Python to achieve full parity with JavaScript.
+## See Also
+
+- [JavaScript Test Utilities](../../js/_test-utils/README.md) - JavaScript equivalent of these utilities
+- [Adding SDKs Guide](../README.md) - Step-by-step SDK implementation guide
+- [Test Specifications](../../../shared/specs/README.md) - Fixture format & framework types
+- [Main Documentation](../../../CLAUDE.md) - Project overview & critical rules

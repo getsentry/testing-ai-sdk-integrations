@@ -1,0 +1,15 @@
+{
+  "sdk_name": "anthropic",
+  "framework_type": "low-level",
+  "metadata": {
+    "description": "Anthropic AI SDK for JavaScript - Low-level API client",
+    "notes": "Direct Claude API calls without agent wrappers"
+  },
+  "overrides": {
+    "1-simple": {
+      "model": "claude-haiku-4-5",
+      "gen_ai.request.model": "claude-haiku-4-5",
+      "gen_ai.response.model": "claude-haiku-4-5*"
+    }
+  }
+}

@@ -2,16 +2,31 @@
 
 This guide covers how to add new SDK implementations to the testing framework.
 
+## Quick Reference Checklist
+
+When adding a new SDK, ensure you:
+
+- [ ] Create `config.json` with framework type and model overrides
+- [ ] Pin **exact versions** in `package.json` or `requirements.txt` (no `^`, `~`, or `>=`)
+- [ ] Use `runTestCase` helper from `test-runner.cjs` (JS) or `test_runner.py` (Python)
+- [ ] **Never hardcode model mappings** - use config.json overrides
+- [ ] Find correct Sentry integration name (use the node/python command in docs)
+- [ ] Follow existing SDK patterns (`vercel`, `anthropic` for JS; `google-genai` for Python)
+- [ ] Test with `npm run cli run -- --sdk {language}/{sdk-name}`
+
 ## Currently Implemented
 
-| Language | SDK               | Status     | Notes                              |
-| -------- | ----------------- | ---------- | ---------------------------------- |
-| JS       | `vercel` (AI SDK) | ✅ Working | 1-simple test passing              |
-| Python   | `openai-agents`   | ⚠️ Partial | 1-simple test exists but may fail  |
+| Language   | SDK               | Framework Type | Status     | Test Cases     |
+| ---------- | ----------------- | -------------- | ---------- | -------------- |
+| JavaScript | `vercel`          | agentic        | ✅ Working | 1-simple       |
+| JavaScript | `openai`          | low-level      | ✅ Working | 1-simple       |
+| JavaScript | `anthropic`       | low-level      | ✅ Working | 1-simple       |
+| Python     | `openai-agents`   | agentic        | ✅ Working | 1-simple       |
+| Python     | `google-genai`    | low-level      | ✅ Working | 1-simple       |
 
 ## Planned SDKs
 
-- JavaScript: OpenAI SDK, Anthropic, LangChain, LlamaIndex
+- JavaScript: LangChain, LlamaIndex
 - Python: LangChain, Anthropic, OpenAI, LlamaIndex
 
 **Note:** Not all SDKs support all features (streaming, function calling, etc.)
@@ -173,141 +188,110 @@ Run `npm install` in the SDK directory.
 
 ### Step 4: Implement setup.js (Copy-Paste Template)
 
+**CRITICAL: Follow this exact pattern - check existing SDKs like `vercel` or `anthropic` for current examples**
+
 ```javascript
 /**
  * Setup file for {SDK Name} tests
+ *
+ * Initializes Sentry with {SDK Name}-specific integrations.
  */
 
 const Sentry = require("@sentry/node");
 const { config } = require("dotenv");
 const { resolve } = require("path");
-const {
-  createMockTransport,
-  getMockTransport,
-  clearMockTransport,
-} = require("../_test-utils/mock-transport.cjs");
+const { createMockTransport } = require("../_test-utils/mock-transport.cjs");
 
-async function beforeAll() {
-  console.log("🔧 Setting up {SDK Name} tests...");
+// Load environment variables
+config({ path: resolve(__dirname, ".env") });
 
-  // Load environment variables from .env file
-  config({ path: resolve(__dirname, ".env") });
+// Initialize Sentry with your SDK's integration
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || "https://public@127.0.0.1/1",
+  tracesSampleRate: 1.0,
+  transport: createMockTransport,
+  sendDefaultPii: true,
+  integrations: [
+    // Find the correct integration name for your SDK
+    // Examples:
+    // - Sentry.vercelAIIntegration({ recordInputs: true, recordOutputs: true })
+    // - Sentry.anthropicAIIntegration({ recordInputs: true, recordOutputs: true })
+    // - Sentry.openAIIntegration({ recordInputs: true, recordOutputs: true })
+  ],
+});
 
-  // Initialize Sentry with mock transport
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN || "https://public@127.0.0.1/1",
-    tracesSampleRate: 1.0,
-    transport: createMockTransport,
-    integrations: [
-      // Add your SDK's Sentry integration here
-      // Sentry.yourSDKIntegration(),
-    ],
-  });
+module.exports = { Sentry };
+```
 
-  console.log("  ✓ Sentry initialized with mock transport");
-}
-
-async function beforeEach() {
-  console.log("  ↻ Resetting test state...");
-  clearMockTransport();
-}
-
-async function afterEach() {
-  console.log("  ✓ Cleaning up...");
-}
-
-async function afterAll() {
-  console.log("🧹 Tearing down {SDK Name} tests...");
-  await Sentry.close();
-}
-
-function getMockSentryTransport() {
-  return getMockTransport();
-}
-
-module.exports = {
-  beforeAll,
-  beforeEach,
-  afterEach,
-  afterAll,
-  getMockSentryTransport,
-};
+**How to find the correct integration name:**
+```bash
+node -e "const Sentry = require('@sentry/node'); console.log(Object.keys(Sentry).filter(k => k.toLowerCase().includes('ai')).join('\n'))"
 ```
 
 ### Step 5: Implement Test Case (e.g., 1-simple.js)
 
+**CRITICAL: Use the `runTestCase` helper from test-runner.cjs**
+
+The framework type is loaded automatically from `config.json`, so you don't need to specify it in test cases.
+
 ```javascript
-const Sentry = require("@sentry/node");
-const { getMockSentryTransport } = require("../setup");
-const {
-  validateFixture,
-  loadFixture,
-} = require("../../_test-utils/fixtures");
+/**
+ * 1-simple: Basic Completion
+ *
+ * Tests a simple chat completion request with {Your SDK}
+ * and verifies that Sentry captures the appropriate spans and AI monitoring data.
+ */
 
-// Set framework type based on your SDK
-const FRAMEWORK_TYPE = "agentic"; // or "low-level"
+const { Sentry } = require("../setup");
+const YourSDK = require("your-sdk-package");
+const { runTestCase } = require("../../_test-utils/test-runner.cjs");
 
-module.exports = async function () {
-  console.log("    Running 1-simple: Basic Completion");
+async function testLogic(inputs) {
+  const { model, system, prompt } = inputs;
 
-  await Sentry.startSpan(
-    { name: "1-simple-basic-completion", op: "test" },
-    async () => {
-      await runTest();
-    }
-  );
+  // Your SDK-specific code here
+  // Example for Anthropic:
+  const client = new YourSDK({
+    apiKey: process.env.YOUR_API_KEY,
+  });
 
-  await Sentry.flush(2000);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  const response = await client.yourMethod({
+    model: model,  // model is already overridden via config.json
+    system: system,
+    messages: [{ role: "user", content: prompt }],
+  });
 
-  await assertSentryCaptured();
-
-  console.log("    ✓ 1-simple completed");
-};
-
-async function runTest() {
-  // Get SDK config overrides from environment (set by test runner)
-  const configOverrides = process.env.SDK_CONFIG_OVERRIDES
-    ? JSON.parse(process.env.SDK_CONFIG_OVERRIDES)
-    : null;
-
-  // Load fixture with overrides applied
-  const fixture = loadFixture("1-simple", FRAMEWORK_TYPE, configOverrides);
-  const { model, system, prompt } = fixture.inputs;
-
-  // TODO: Implement your SDK's API call here
-  // const response = await yourSDK.generateText({ model, system, prompt });
-}
-
-async function assertSentryCaptured() {
-  const transport = getMockSentryTransport();
-  const spans = transport.getSpans();
-  const transactions = transport.getTransactions();
-  const events = transport.getEvents();
-
-  // Get SDK config overrides for validation
-  const configOverrides = process.env.SDK_CONFIG_OVERRIDES
-    ? JSON.parse(process.env.SDK_CONFIG_OVERRIDES)
-    : null;
-
-  // Validate with overrides applied
-  const result = validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE, configOverrides);
-
-  if (!result.passed) {
-    console.log("    ✗ Validation failed:");
-    result.errors.forEach((error) => console.log(`      - ${error}`));
-    throw new Error(`Fixture validation failed:\n${result.errors.join("\n")}`);
+  // Validate response
+  if (!response) {
+    throw new Error("No completion returned");
   }
 
-  console.log("    ✓ All fixture validations passed");
+  // Optional: Log for debugging
+  if (process.env.SENTRY_AI_TEST_VERBOSE === "true") {
+    console.log(`    Response: ${JSON.stringify(response)}`);
+  }
 }
+
+// Framework type is loaded from config.json automatically
+module.exports = runTestCase("1-simple", testLogic, Sentry);
 ```
+
+**IMPORTANT: Key Points**
+1. **Never hardcode model mappings** in test files - always use config.json overrides
+2. **Pin exact versions** in package.json (no `^` or `~`)
+3. **Use the runTestCase helper** - don't manually handle fixtures/validation
+4. **Check existing SDKs** (`vercel`, `anthropic`) for current patterns before implementing
+5. **Find correct integration name** using the node command shown above
 
 ### Step 6: Test Your Implementation
 
 ```bash
+# Run your SDK's tests
 cd shared/orchestration
-npm run cli -- run --sdk js/{your-sdk}
+npm run cli run -- --sdk js/{your-sdk}
+
+# Run all tests to see your SDK in the matrix
+npm run cli run -- --all
 ```
 
 ## Adding a New Python SDK
@@ -437,81 +421,52 @@ def get_mock_sentry_transport():
 
 ### Step 5: Implement Test Case (e.g., 1-simple.py)
 
+**CRITICAL: Use the `run_test_case` helper from test_runner.py**
+
+The framework type is loaded automatically from `config.json`, so you don't need to specify it in test cases.
+
 ```python
 """
 1-simple: Basic Completion
+
+Tests a simple chat completion request with {Your SDK}
+and verifies that Sentry captures the appropriate spans and AI monitoring data.
 """
 
-import asyncio
-
-# Set framework type based on your SDK
-FRAMEWORK_TYPE = "agentic"  # or "low-level"
-
-
-async def main():
-    """Entry point - runs test logic only"""
-    print("    Running 1-simple: Basic Completion")
-    await run_test()
-    print("    ✓ Test logic completed")
+import os
+from your_sdk import YourSDKClient
+from test_runner import run_test_case
 
 
-async def assert_sentry():
-    """Validation - checks Sentry captured data"""
-    await asyncio.sleep(0.1)  # Buffer for transport
-    await assert_sentry_captured()
-    print("    ✓ 1-simple validation passed")
+async def test_logic(inputs):
+    """The actual test logic"""
+    model = inputs["model"]
+    system = inputs["system"]
+    prompt = inputs["prompt"]
+
+    # Your SDK-specific code here
+    client = YourSDKClient(api_key=os.getenv("YOUR_API_KEY"))
+
+    response = client.generate(
+        model=model,  # model is already overridden via config.json
+        system=system,
+        prompt=prompt,
+    )
+
+    if not response.text:
+        raise Exception("No output returned from {Your SDK}")
+
+    # Optional: Log for debugging
+    if os.getenv("SENTRY_AI_TEST_VERBOSE") == "true":
+        print(f"    Response: {response.text}")
+
+    return response.text
 
 
-async def run_test():
-    """The actual test implementation"""
-    import os
-    import json
-    from fixtures import load_fixture
-
-    # Get SDK config overrides from environment (set by test runner)
-    config_overrides = None
-    overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
-    if overrides_json:
-        config_overrides = json.loads(overrides_json)
-
-    # Load fixture with overrides applied
-    fixture = load_fixture("1-simple", FRAMEWORK_TYPE, config_overrides)
-    model = fixture["inputs"]["model"]
-    system = fixture["inputs"]["system"]
-    prompt = fixture["inputs"]["prompt"]
-
-    # TODO: Implement your SDK's API call here
-    # response = await your_sdk.generate_text(model=model, system=system, prompt=prompt)
-
-
-async def assert_sentry_captured():
-    """Verify Sentry captured the expected data"""
-    import os
-    import json
-    from fixtures import validate_fixture
-    from setup import get_mock_sentry_transport
-
-    transport = get_mock_sentry_transport()
-    spans = transport.get_spans()
-    transactions = transport.get_transactions()
-    events = transport.get_events()
-
-    # Get SDK config overrides for validation
-    config_overrides = None
-    overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
-    if overrides_json:
-        config_overrides = json.loads(overrides_json)
-
-    # Validate with overrides applied
-    result = validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE, config_overrides)
-
-    if not result["passed"]:
-        print("    ✗ Validation failed:")
-        for error in result["errors"]:
-            print(f"      - {error}")
-        raise Exception(f"Fixture validation failed with {len(result['errors'])} error(s)")
-
-    print("    ✓ All fixture validations passed")
+# Framework type is loaded from config.json automatically
+test_case = run_test_case("1-simple", test_logic)
+main = test_case["main"]
+assert_sentry = test_case["assert_sentry"]
 ```
 
 ### Step 6: Test Your Implementation

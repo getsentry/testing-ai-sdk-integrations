@@ -68,8 +68,9 @@ gen_ai.invoke_agent (parent)
 
 Frameworks that directly produce LLM call spans without agent wrappers:
 
-- **OpenAI SDK** (both JS and Python) - Direct `gen_ai.chat` spans only
-- **Anthropic SDK** (both JS and Python) - Direct LLM call spans
+- **OpenAI SDK** (`js/openai`) - Direct `gen_ai.chat` spans only
+- **Anthropic SDK** (`js/anthropic`) - Direct LLM call spans
+- **Google GenAI SDK** (`py/google-genai`) - Direct LLM call spans
 
 **Span hierarchy example:**
 ```
@@ -83,33 +84,45 @@ Each test case folder contains multiple fixture files to handle both framework t
 - `fixture-agentic.json` - Expects agent parent spans + LLM child spans
 - `fixture-low-level.json` - Expects only direct LLM call spans
 
-Test cases specify which variant to use via the `FRAMEWORK_TYPE` constant:
+Framework type is configured per SDK in `config.json`, not in individual test files:
 
-**JavaScript:**
+**SDK Config (config.json):**
+```json
+{
+  "sdk_name": "vercel",
+  "framework_type": "agentic",
+  "overrides": {}
+}
+```
+
+**JavaScript Test Case:**
 ```javascript
-// At top of test file
-const FRAMEWORK_TYPE = "agentic"; // or "low-level"
+const { runTestCase } = require("../../_test-utils/test-runner.cjs");
+const { Sentry } = require("../setup");
 
-// Load fixture with variant
-const fixture = loadFixture("1-simple", FRAMEWORK_TYPE);
+async function testLogic(inputs) {
+  // Your test logic
+}
 
-// Validate with same variant
-validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE);
+// Framework type loaded from config.json automatically
+module.exports = runTestCase("1-simple", testLogic, Sentry);
 ```
 
-**Python:**
+**Python Test Case:**
 ```python
-# At top of test file
-FRAMEWORK_TYPE = "agentic"  # or "low-level"
+from test_runner import run_test_case
 
-# Load fixture with variant
-fixture = load_fixture("1-simple", FRAMEWORK_TYPE)
+async def test_logic(inputs):
+    # Your test logic
+    pass
 
-# Validate with same variant
-validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
+# Framework type loaded from config.json automatically
+test_case = run_test_case("1-simple", test_logic)
+main = test_case["main"]
+assert_sentry = test_case["assert_sentry"]
 ```
 
-**Important:** Each SDK's test cases should all use the same `FRAMEWORK_TYPE` value. The framework type is determined by the SDK's architecture, not by individual test cases.
+**Important:** Each SDK's `config.json` defines its framework type. All test cases in that SDK use the same framework type automatically.
 
 ### SDK Framework Type Mapping
 
@@ -118,11 +131,10 @@ When adding a new SDK, determine its framework type first, then use the same typ
 | SDK Path              | Framework Type | Reason                                      |
 | --------------------- | -------------- | ------------------------------------------- |
 | `js/vercel`           | `agentic`      | Produces `gen_ai.invoke_agent` parent spans |
+| `js/openai`           | `low-level`    | Direct `gen_ai.chat` spans only             |
+| `js/anthropic`        | `low-level`    | Direct LLM call spans only                  |
 | `py/openai-agents`    | `agentic`      | Produces agent workflow spans               |
-| `js/openai` (future)  | `low-level`    | Direct `gen_ai.chat` spans only             |
-| `py/openai` (future)  | `low-level`    | Direct LLM call spans only                  |
-| `js/anthropic` (future) | `low-level`  | Direct LLM call spans only                  |
-| `py/anthropic` (future) | `low-level`  | Direct LLM call spans only                  |
+| `py/google-genai`     | `low-level`    | Direct LLM call spans only                  |
 
 **How to determine framework type for a new SDK:**
 
