@@ -27,7 +27,109 @@ First, determine if your SDK is "agentic" or "low-level":
 
 See [../shared/specs/README.md](../shared/specs/README.md) for framework type definitions.
 
-### Step 2: Create Directory Structure
+### Step 2: Create SDK Configuration
+
+**IMPORTANT:** Every SDK must have a `config.json` file to define its framework type and any fixture overrides.
+
+#### Why Config Files Are Required
+
+The test framework uses JSON fixtures to define expected behavior. However, different SDKs have different requirements:
+
+- **Model names**: OpenAI SDKs use `gpt-4o-mini`, Google GenAI uses `gemini-2.5-flash-lite`, Anthropic uses `claude-3-5-sonnet-20241022`
+- **Span attributes**: Some SDKs may capture different attributes or use different attribute names
+- **Per-test-case variation**: Some tests may need different models (e.g., use a more capable model for complex agentic workflows)
+
+The config.json file allows per-SDK parametrization of test fixtures without duplicating fixture files.
+
+#### Config File Format
+
+Create `sdks/{language}/{sdk-name}/config.json`:
+
+```json
+{
+  "sdk_name": "your-sdk",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "your-model-name",
+      "gen_ai.request.model": "your-model-name",
+      "gen_ai.response.model": "your-model-name"
+    }
+  }
+}
+```
+
+**Schema:**
+- `sdk_name` (required): Unique identifier for your SDK
+- `framework_type` (required): Either `"agentic"` or `"low-level"`
+- `overrides` (optional): Per-test-case overrides for fixture values
+
+**Overrides Format:**
+- Key = test case ID (e.g., `"1-simple"`, `"2-simple-with-error"`)
+- Value = object with attribute overrides
+- Special key `"model"` automatically overrides `inputs.model`
+- Other keys override `expectations.spans[].required_attributes` with matching keys
+
+#### Examples
+
+**OpenAI SDK (no overrides needed):**
+```json
+{
+  "sdk_name": "openai",
+  "framework_type": "low-level",
+  "overrides": {}
+}
+```
+
+**Google GenAI SDK (different model):**
+```json
+{
+  "sdk_name": "google-genai",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "gemini-2.5-flash-lite",
+      "gen_ai.request.model": "gemini-2.5-flash-lite",
+      "gen_ai.response.model": "gemini-2.5-flash-lite"
+    }
+  }
+}
+```
+
+**Anthropic SDK (different model):**
+```json
+{
+  "sdk_name": "anthropic",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "claude-3-5-sonnet-20241022",
+      "gen_ai.request.model": "claude-3-5-sonnet-20241022",
+      "gen_ai.response.model": "claude-3-5-sonnet-20241022"
+    }
+  }
+}
+```
+
+**Per-Test-Case Variation:**
+```json
+{
+  "sdk_name": "openai",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "gpt-4o-mini"
+    },
+    "3-multi-turn": {
+      "model": "gpt-4o"
+    }
+  }
+}
+```
+
+See [../shared/specs/sdk-config-schema.json](../shared/specs/sdk-config-schema.json) for the complete JSON schema.
+
+### Step 3: Create Directory Structure
 
 ```bash
 mkdir -p sdks/js/{sdk-name}/cases
@@ -83,7 +185,7 @@ const {
   createMockTransport,
   getMockTransport,
   clearMockTransport,
-} = require("../../../shared/test-utils/js/mock-transport.js");
+} = require("../_test-utils/mock-transport.cjs");
 
 async function beforeAll() {
   console.log("🔧 Setting up {SDK Name} tests...");
@@ -140,7 +242,7 @@ const { getMockSentryTransport } = require("../setup");
 const {
   validateFixture,
   loadFixture,
-} = require("../../../../shared/test-utils/js/fixtures");
+} = require("../../_test-utils/fixtures");
 
 // Set framework type based on your SDK
 const FRAMEWORK_TYPE = "agentic"; // or "low-level"
@@ -164,7 +266,13 @@ module.exports = async function () {
 };
 
 async function runTest() {
-  const fixture = loadFixture("1-simple", FRAMEWORK_TYPE);
+  // Get SDK config overrides from environment (set by test runner)
+  const configOverrides = process.env.SDK_CONFIG_OVERRIDES
+    ? JSON.parse(process.env.SDK_CONFIG_OVERRIDES)
+    : null;
+
+  // Load fixture with overrides applied
+  const fixture = loadFixture("1-simple", FRAMEWORK_TYPE, configOverrides);
   const { model, system, prompt } = fixture.inputs;
 
   // TODO: Implement your SDK's API call here
@@ -177,7 +285,13 @@ async function assertSentryCaptured() {
   const transactions = transport.getTransactions();
   const events = transport.getEvents();
 
-  const result = validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE);
+  // Get SDK config overrides for validation
+  const configOverrides = process.env.SDK_CONFIG_OVERRIDES
+    ? JSON.parse(process.env.SDK_CONFIG_OVERRIDES)
+    : null;
+
+  // Validate with overrides applied
+  const result = validateFixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE, configOverrides);
 
   if (!result.passed) {
     console.log("    ✗ Validation failed:");
@@ -202,7 +316,13 @@ npm run cli -- run --sdk js/{your-sdk}
 
 Same as JavaScript - determine if "agentic" or "low-level".
 
-### Step 2: Create Directory Structure
+### Step 2: Create SDK Configuration
+
+**Same as JavaScript Step 2** - Create `config.json` with framework type and overrides.
+
+See examples in the JavaScript section above.
+
+### Step 3: Create Directory Structure
 
 ```bash
 mkdir -p sdks/py/{sdk-name}/cases
@@ -256,9 +376,9 @@ import sentry_sdk
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Add shared test utils to path (CRITICAL - DO NOT FORGET)
-shared_path = Path(__file__).parent.parent.parent.parent / "shared" / "test-utils" / "py"
-sys.path.insert(0, str(shared_path))
+# Add test utils to path (CRITICAL - DO NOT FORGET)
+test_utils_path = Path(__file__).parent.parent / "_test-utils"
+sys.path.insert(0, str(test_utils_path))
 
 from mock_transport import create_mock_transport, get_mock_transport, clear_mock_transport
 
@@ -344,9 +464,18 @@ async def assert_sentry():
 
 async def run_test():
     """The actual test implementation"""
+    import os
+    import json
     from fixtures import load_fixture
 
-    fixture = load_fixture("1-simple", FRAMEWORK_TYPE)
+    # Get SDK config overrides from environment (set by test runner)
+    config_overrides = None
+    overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
+    if overrides_json:
+        config_overrides = json.loads(overrides_json)
+
+    # Load fixture with overrides applied
+    fixture = load_fixture("1-simple", FRAMEWORK_TYPE, config_overrides)
     model = fixture["inputs"]["model"]
     system = fixture["inputs"]["system"]
     prompt = fixture["inputs"]["prompt"]
@@ -357,6 +486,8 @@ async def run_test():
 
 async def assert_sentry_captured():
     """Verify Sentry captured the expected data"""
+    import os
+    import json
     from fixtures import validate_fixture
     from setup import get_mock_sentry_transport
 
@@ -365,7 +496,14 @@ async def assert_sentry_captured():
     transactions = transport.get_transactions()
     events = transport.get_events()
 
-    result = validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE)
+    # Get SDK config overrides for validation
+    config_overrides = None
+    overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
+    if overrides_json:
+        config_overrides = json.loads(overrides_json)
+
+    # Validate with overrides applied
+    result = validate_fixture("1-simple", spans, transactions, events, FRAMEWORK_TYPE, config_overrides)
 
     if not result["passed"]:
         print("    ✗ Validation failed:")

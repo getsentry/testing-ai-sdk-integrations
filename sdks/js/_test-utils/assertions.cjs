@@ -181,16 +181,73 @@ function hasAttribute(span, attributeName) {
 }
 
 /**
+ * Check if a value matches a pattern with wildcard support
+ *
+ * Wildcard patterns:
+ * - "foo*" matches any string that begins with "foo"
+ * - "*foo" matches any string that ends with "foo"
+ * - "*foo*" matches any string that contains "foo"
+ * - "foo" matches exactly "foo" (no wildcards)
+ *
+ * @param {*} actualValue - The actual value to test
+ * @param {*} pattern - The expected value or pattern (may contain wildcards)
+ * @returns {boolean} True if the value matches the pattern
+ */
+function matchesPattern(actualValue, pattern) {
+  // If pattern is not a string, use strict equality
+  if (typeof pattern !== "string") {
+    return actualValue === pattern;
+  }
+
+  // Convert actual value to string for pattern matching
+  const actualStr = String(actualValue);
+
+  // Check for wildcard patterns
+  if (pattern.includes("*")) {
+    // *foo* - contains
+    if (pattern.startsWith("*") && pattern.endsWith("*")) {
+      const substring = pattern.slice(1, -1);
+      // If substring is empty (pattern is "*" or "**"), no match
+      if (substring === "" || substring === "*") {
+        return false;
+      }
+      return actualStr.includes(substring);
+    }
+    // foo* - starts with
+    else if (pattern.endsWith("*")) {
+      const prefix = pattern.slice(0, -1);
+      // If prefix is empty (pattern is just "*"), no match
+      if (prefix === "") {
+        return false;
+      }
+      return actualStr.startsWith(prefix);
+    }
+    // *foo - ends with
+    else if (pattern.startsWith("*")) {
+      const suffix = pattern.slice(1);
+      // If suffix is empty (pattern is just "*"), no match
+      if (suffix === "") {
+        return false;
+      }
+      return actualStr.endsWith(suffix);
+    }
+  }
+
+  // No wildcards, use strict equality
+  return actualValue === pattern;
+}
+
+/**
  * Check if a span has an attribute with a specific value
  *
  * @param {Object} span - The span to check
  * @param {string} attributeName - Name of the attribute (can use dot notation for nested, e.g., "data.ai.model")
- * @param {*} value - Expected value (uses strict equality)
+ * @param {*} value - Expected value (uses strict equality or wildcard pattern matching)
  * @returns {boolean} True if attribute exists and matches value
  */
 function attributeMatches(span, attributeName, value) {
   const attrValue = getAttribute(span, attributeName);
-  return attrValue !== undefined && attrValue === value;
+  return attrValue !== undefined && matchesPattern(attrValue, value);
 }
 
 /**
@@ -234,5 +291,6 @@ module.exports = {
   getAttribute,
   hasAttribute,
   attributeMatches,
+  matchesPattern,
   containsAttributes,
 };

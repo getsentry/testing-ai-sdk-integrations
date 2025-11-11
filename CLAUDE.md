@@ -20,33 +20,35 @@ This repository contains a comprehensive testing framework for Sentry's AI SDK i
 ai-sdks-test/
 ├── sdks/
 │   ├── js/                    # JavaScript SDK implementations
+│   │   ├── _test-utils/      # JS test utilities (CRITICAL: Keep in sync with py/)
+│   │   │   ├── sdk-helpers.cjs     # Setup factory, test orchestration
+│   │   │   ├── assertions.cjs      # Span query helpers
+│   │   │   ├── mock-transport.cjs  # Captures Sentry data in-memory
+│   │   │   └── fixtures/
+│   │   │       ├── fixture-loader.cjs  # Loads JSON fixtures
+│   │   │       └── validator.cjs       # Validates captured data
 │   │   ├── openai/           # Each SDK has its own directory
 │   │   │   ├── setup.js      # SDK-specific setup with lifecycle hooks
 │   │   │   └── cases/        # Test cases (1-simple.js, 2-simple-with-error.js, etc.)
 │   │   └── vercel/
 │   └── py/                    # Python SDK implementations
-│       └── openai-agents/
-│           ├── setup.py      # SDK-specific setup with lifecycle hooks
-│           └── cases/        # Test cases (1-simple.py, 2-simple-with-error.py, etc.)
+│       ├── _test-utils/      # Python test utilities (CRITICAL: Keep in sync with js/)
+│       │   ├── sdk_helpers.py      # Setup factory, test orchestration
+│       │   ├── assertions.py       # MUST match js/assertions.cjs
+│       │   ├── mock_transport.py   # MUST match js/mock-transport.cjs
+│       │   └── fixtures/
+│       │       ├── fixture_loader.py  # MUST match js/fixture-loader.cjs
+│       │       └── validator.py       # MUST match js/validator.cjs
+│       ├── openai-agents/
+│       │   ├── setup.py      # SDK-specific setup with lifecycle hooks
+│       │   └── cases/        # Test cases (1-simple.py, 2-simple-with-error.py, etc.)
+│       └── google-genai/
 ├── shared/
 │   ├── specs/                # Test specifications and expectations
 │   │   └── 1-simple/        # Each spec in its own folder
 │   │       ├── spec.md              # Test specification document
 │   │       ├── fixture-agentic.json # Expected spans for agentic frameworks
 │   │       └── fixture-low-level.json # Expected spans for low-level frameworks
-│   ├── test-utils/           # CRITICAL: Must stay in sync between JS/Python
-│   │   ├── js/
-│   │   │   ├── assertions.js      # Span query helpers
-│   │   │   ├── mock-transport.js  # Captures Sentry data in-memory
-│   │   │   └── fixtures/
-│   │   │       ├── fixture-loader.js  # Loads JSON fixtures
-│   │   │       └── validator.js       # Validates captured data against fixtures
-│   │   └── py/
-│   │       ├── assertions.py      # MUST match js/assertions.js
-│   │       ├── mock_transport.py  # MUST match js/mock-transport.js
-│   │       └── fixtures/
-│   │           ├── fixture_loader.py  # MUST match js/fixture-loader.js
-│   │           └── validator.py       # MUST match js/validator.js
 │   └── orchestration/        # Test runner (TypeScript)
 │       ├── python-test-runner.py  # Wrapper for Python tests
 │       └── src/
@@ -63,7 +65,8 @@ This is the main context file. For detailed guides, see:
 |---------------|---------|------|
 | **🔧 Adding SDKs** | Step-by-step guide for implementing new SDK tests with copy-paste templates | [sdks/README.md](sdks/README.md) |
 | **📋 Test Specifications** | Fixture format, framework types, and spec system | [shared/specs/README.md](shared/specs/README.md) |
-| **🧪 Test Utilities** | Mock transport, fixture validation, and JS/Python parity rules | [shared/test-utils/README.md](shared/test-utils/README.md) |
+| **🧪 Test Utilities (JS)** | Mock transport, fixture validation, SDK helpers | [sdks/js/_test-utils/README.md](sdks/js/_test-utils/README.md) |
+| **🧪 Test Utilities (Python)** | Mock transport, fixture validation, SDK helpers | [sdks/py/_test-utils/README.md](sdks/py/_test-utils/README.md) |
 | **⚙️ CLI & Orchestration** | Running tests, test discovery, and debugging execution | [shared/orchestration/README.md](shared/orchestration/README.md) |
 | **🐛 Troubleshooting** | Common pitfalls, error messages, and debugging tips | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 
@@ -97,7 +100,7 @@ This is the main context file. For detailed guides, see:
 | ----------------------------- | ------------- | ----------------------------------------- | -------------- |
 | SDK test files (`sdks/*/`)    | **CommonJS**  | `const X = require('...')`, `module.exports` | `.js`          |
 | Orchestration (`shared/orchestration/`) | **ES Modules** | `import X from '...'`, `export`          | `.ts`          |
-| Test utilities (`shared/test-utils/js/`) | **CommonJS**  | `const X = require('...')`, `module.exports` | `.js`          |
+| Test utilities (`sdks/js/_test-utils/`) | **CommonJS**  | `const X = require('...')`, `module.exports` | `.cjs`          |
 | Python files                  | **Standard**  | `import X`, `from X import Y`             | `.py`          |
 
 **Why these conventions?**
@@ -122,33 +125,33 @@ This is the main context file. For detailed guides, see:
 
 **JavaScript: Relative Paths**
 
-JavaScript test files use relative paths to import shared utilities. **Count directory levels carefully:**
+JavaScript test files use relative paths to import test utilities. **Count directory levels carefully:**
 
 ```javascript
 // From: sdks/js/vercel/cases/1-simple.js
-// To:   shared/test-utils/js/fixtures/
+// To:   sdks/js/_test-utils/
 
-const { loadFixture, validateFixture } = require("../../../../shared/test-utils/js/fixtures");
-//                                                  ^^^^
-//                                                  4 levels up: cases/ -> vercel/ -> js/ -> sdks/ -> root
+const { runTestCase } = require("../../_test-utils/sdk-helpers.cjs");
+//                                  ^^
+//                                  2 levels up: cases/ -> vercel/ -> js/_test-utils/
 ```
 
 **Path counting formula:**
 1. Start at your test file location
-2. Count `../` for each directory level up to repository root
-3. Then add the path down to the target
+2. Count `../` for each directory level up
+3. Then add the path to the target
 
-**Common paths from SDK test cases:**
+**Common paths from SDK files:**
 
 | From                                  | To                                  | Path                                         |
 | ------------------------------------- | ----------------------------------- | -------------------------------------------- |
-| `sdks/js/{sdk}/cases/{test}.js`       | `shared/test-utils/js/fixtures/`    | `../../../../shared/test-utils/js/fixtures/` |
-| `sdks/js/{sdk}/setup.js`              | `shared/test-utils/js/`             | `../../../shared/test-utils/js/`             |
+| `sdks/js/{sdk}/cases/{test}.js`       | `sdks/js/_test-utils/`              | `../../_test-utils/sdk-helpers.cjs`          |
+| `sdks/js/{sdk}/setup.js`              | `sdks/js/_test-utils/`              | `../_test-utils/sdk-helpers.cjs`             |
 | `sdks/py/{sdk}/cases/{test}.py`       | (uses sys.path, see below)          | N/A - import directly after sys.path setup   |
 
 **Python: sys.path Manipulation**
 
-Python SDKs must manually add the shared test utilities to `sys.path` because Python doesn't have a project-wide module resolution like Node.js.
+Python SDKs must manually add the test utilities to `sys.path` because Python doesn't have a project-wide module resolution like Node.js.
 
 **Every Python SDK's `setup.py` MUST include this code:**
 
@@ -156,28 +159,29 @@ Python SDKs must manually add the shared test utilities to `sys.path` because Py
 import sys
 from pathlib import Path
 
-# Add shared test utils to path
-shared_path = Path(__file__).parent.parent.parent.parent / "shared" / "test-utils" / "py"
-sys.path.insert(0, str(shared_path))
+# Add test utils to path
+test_utils_path = Path(__file__).parent.parent / "_test-utils"
+sys.path.insert(0, str(test_utils_path))
 
 # Now you can import directly
+from sdk_helpers import create_sdk_setup
 from mock_transport import create_mock_transport, get_mock_transport, clear_mock_transport
 ```
 
 **Why this is needed:**
 - Python's import system doesn't traverse up directories by default
-- This adds the shared test utilities to the beginning of the module search path
+- This adds the test utilities to the beginning of the module search path
 - Must be done in `setup.py` before any test imports
 - Test case files will inherit this path setup
 
 **When adding a new SDK:**
 - Copy the sys.path block from an existing Python SDK's `setup.py`
-- Adjust the `parent.parent` chain if your nesting level is different
+- Path is always `Path(__file__).parent.parent / "_test-utils"` (2 levels up)
 - Test by running `python -c "from fixtures import load_fixture"` in your SDK directory
 
 ## 🚨 CRITICAL: JavaScript/Python Parity Rule
 
-**The files in `shared/test-utils/` MUST be kept perfectly synchronized between JavaScript and Python.**
+**The files in `sdks/js/_test-utils/` and `sdks/py/_test-utils/` MUST be kept perfectly synchronized.**
 
 ### Why This Matters
 
@@ -209,12 +213,13 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 
 ### Files That Must Stay in Sync
 
-| JavaScript                      | Python                          | Purpose                                 |
-| ------------------------------- | ------------------------------- | --------------------------------------- |
-| `js/assertions.js`              | `py/assertions.py`              | Span query and assertion helpers        |
-| `js/mock-transport.js`          | `py/mock_transport.py`          | Capture Sentry events in-memory         |
-| `js/fixtures/fixture-loader.js` | `py/fixtures/fixture_loader.py` | Load JSON fixtures                      |
-| `js/fixtures/validator.js`      | `py/fixtures/validator.py`      | Validate captured data against fixtures |
+| JavaScript                                | Python                                  | Purpose                                 |
+| ----------------------------------------- | --------------------------------------- | --------------------------------------- |
+| `sdks/js/_test-utils/sdk-helpers.cjs`    | `sdks/py/_test-utils/sdk_helpers.py`   | Setup factory, test orchestration       |
+| `sdks/js/_test-utils/assertions.cjs`     | `sdks/py/_test-utils/assertions.py`    | Span query and assertion helpers        |
+| `sdks/js/_test-utils/mock-transport.cjs` | `sdks/py/_test-utils/mock_transport.py`| Capture Sentry events in-memory         |
+| `sdks/js/_test-utils/fixtures/fixture-loader.cjs` | `sdks/py/_test-utils/fixtures/fixture_loader.py` | Load JSON fixtures     |
+| `sdks/js/_test-utils/fixtures/validator.cjs` | `sdks/py/_test-utils/fixtures/validator.py` | Validate captured data against fixtures |
 
 ### Test Parity Checklist
 

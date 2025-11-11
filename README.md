@@ -31,12 +31,19 @@ ai-sdks-test/
 │       ├── anthropic/
 │       ├── langchain/
 │       └── llamaindex/
+├── sdks/
+│   ├── js/
+│   │   ├── _test-utils/           # JS test utilities (mock transport, fixtures, SDK helpers)
+│   │   ├── openai/
+│   │   └── vercel/
+│   └── py/
+│       ├── _test-utils/           # Python test utilities (mock transport, fixtures, SDK helpers)
+│       ├── google-genai/
+│       └── openai-agents/
 ├── shared/
-│   ├── test-utils/                # Shared testing utilities
-│   │   ├── js/                    # Mock Sentry transport for JS
-│   │   └── py/                    # Mock Sentry transport for Python
-│   └── orchestration/
-│       └── run-tests.sh           # Run all or individual tests
+│   ├── specs/                     # Test specifications and fixtures
+│   └── orchestration/             # Test runner
+│       └── src/                   # CLI for running tests
 └── .env.example                   # Template for required credentials
 ```
 

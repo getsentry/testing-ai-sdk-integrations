@@ -64,7 +64,7 @@ const result = validateFixture("1-simple", spans, transactions, events, FRAMEWOR
 ```javascript
 // ❌ BAD - causes "Cannot use import statement outside a module"
 import Sentry from "@sentry/node";
-import { loadFixture } from "../../../../shared/test-utils/js/fixtures";
+import { loadFixture } from "../../_test-utils/fixtures";
 
 export default async function() {
   // ...
@@ -77,7 +77,7 @@ export default async function() {
 ```javascript
 // ✅ GOOD - use CommonJS require/module.exports
 const Sentry = require("@sentry/node");
-const { loadFixture } = require("../../../../shared/test-utils/js/fixtures");
+const { loadFixture } = require("../../_test-utils/fixtures");
 
 module.exports = async function () {
   // test implementation
@@ -89,7 +89,7 @@ module.exports = async function () {
 |----------|---------------|--------|
 | `sdks/js/*/` | CommonJS | `require()`, `module.exports` |
 | `shared/orchestration/` | ES Modules | `import`, `export` |
-| `shared/test-utils/js/` | CommonJS | `require()`, `module.exports` |
+| `sdks/js/_test-utils/` | CommonJS | `require()`, `module.exports` |
 
 ---
 
@@ -118,7 +118,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Add shared test utils to path (CRITICAL - DO NOT FORGET)
-shared_path = Path(__file__).parent.parent.parent.parent / "shared" / "test-utils" / "py"
+shared_path = Path(__file__).parent.parent.parent.parent / "_test-utils"
 sys.path.insert(0, str(shared_path))
 
 # Now imports work
@@ -130,7 +130,7 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 Path(__file__)                    # /path/to/sdks/py/your-sdk/setup.py
 .parent                            # /path/to/sdks/py/your-sdk/
 .parent.parent.parent.parent       # /path/to/ (repo root)
-/ "shared" / "test-utils" / "py"  # /path/to/shared/test-utils/py/
+/ "_test-utils"  # /path/to/shared/test-utils/py/
 ```
 
 ---
@@ -138,13 +138,13 @@ Path(__file__)                    # /path/to/sdks/py/your-sdk/setup.py
 ### Pitfall #4: Wrong relative path counts in JavaScript
 
 **Symptoms:**
-- Error: Cannot find module '../../../../shared/test-utils/js/fixtures'
-- Module not found: Can't resolve '../../../shared/test-utils/js/mock-transport'
+- Error: Cannot find module '../../_test-utils/fixtures'
+- Module not found: Can't resolve '../_test-utils/mock-transport'
 
 **Problem:**
 ```javascript
 // ❌ BAD - wrong number of ../
-const { loadFixture } = require("../../../shared/test-utils/js/fixtures");
+const { loadFixture } = require("../_test-utils/fixtures");
 // Too few levels up!
 ```
 
@@ -154,8 +154,8 @@ const { loadFixture } = require("../../../shared/test-utils/js/fixtures");
 ```javascript
 // ✅ GOOD - count levels carefully
 // From: sdks/js/vercel/cases/1-simple.js (4 levels deep from root)
-// To:   shared/test-utils/js/fixtures/
-const { loadFixture } = require("../../../../shared/test-utils/js/fixtures");
+// To:   sdks/js/_test-utils/fixtures/
+const { loadFixture } = require("../../_test-utils/fixtures");
 //                                  ^^^^
 //                                  4 levels: cases/ -> vercel/ -> js/ -> sdks/ -> root
 ```
@@ -169,12 +169,12 @@ const { loadFixture } = require("../../../../shared/test-utils/js/fixtures");
 **Common paths from test cases:**
 ```javascript
 // From sdks/js/{sdk}/cases/{test}.js:
-require("../../../../shared/test-utils/js/mock-transport.js");
-require("../../../../shared/test-utils/js/fixtures");
+require("../../_test-utils/mock-transport.js");
+require("../../_test-utils/fixtures");
 require("../setup");  // SDK's setup.js
 
 // From sdks/js/{sdk}/setup.js:
-require("../../../shared/test-utils/js/mock-transport.js");
+require("../_test-utils/mock-transport.js");
 ```
 
 ---
@@ -443,6 +443,7 @@ If you're still stuck after checking this guide:
 ## See Also
 
 - [Adding SDKs Guide](../sdks/README.md) - Step-by-step SDK implementation
-- [Test Utilities](../shared/test-utils/README.md) - Mock transport and fixtures
+- [Test Utilities (JS)](../sdks/js/_test-utils/README.md) - Mock transport and fixtures
+- [Test Utilities (Python)](../sdks/py/_test-utils/README.md) - Mock transport and fixtures
 - [CLI Documentation](../shared/orchestration/README.md) - Running tests
 - [Main Documentation](../CLAUDE.md) - Project overview

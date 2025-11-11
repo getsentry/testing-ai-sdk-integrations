@@ -21,10 +21,11 @@ const {
  * @param {Array} transactions - Captured transactions
  * @param {Array} events - Captured events (optional)
  * @param {string} variant - The fixture variant (e.g., "agentic", "low-level")
+ * @param {Object} overrides - Optional SDK config overrides to apply to fixture expectations
  * @returns {Object} Validation result with { passed, errors }
  */
-function validateFixture(specId, spans, transactions, events = [], variant = "agentic") {
-  const fixture = loadFixture(specId, variant);
+function validateFixture(specId, spans, transactions, events = [], variant = "agentic", overrides = null) {
+  const fixture = loadFixture(specId, variant, overrides);
   const errors = [];
 
   // Log captured spans in verbose mode

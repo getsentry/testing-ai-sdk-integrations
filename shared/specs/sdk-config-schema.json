@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SDK Configuration Schema",
+  "description": "Configuration schema for AI SDK test parametrization. Allows per-SDK overrides of fixture expectations.",
+  "type": "object",
+  "required": ["sdk_name", "framework_type"],
+  "properties": {
+    "sdk_name": {
+      "type": "string",
+      "description": "Unique identifier for the SDK (e.g., 'google-genai', 'vercel', 'openai-agents')",
+      "examples": ["google-genai", "vercel", "openai-agents"]
+    },
+    "framework_type": {
+      "type": "string",
+      "enum": ["agentic", "low-level"],
+      "description": "Framework type determines which fixture variant to use"
+    },
+    "overrides": {
+      "type": "object",
+      "description": "Per-test-case overrides for fixture inputs and expectations",
+      "patternProperties": {
+        "^[0-9]+-[a-z-]+$": {
+          "type": "object",
+          "description": "Overrides for a specific test case (e.g., '1-simple', '2-simple-with-error')",
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "Model name to use in inputs.model (shorthand for common case)"
+            }
+          },
+          "additionalProperties": {
+            "description": "Additional attribute overrides using dot notation paths (e.g., 'gen_ai.request.model', 'gen_ai.response.model')"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional metadata about the SDK",
+      "properties": {
+        "sdk_version": {
+          "type": "string",
+          "description": "SDK version being tested"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the SDK"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes or quirks about this SDK"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "sdk_name": "google-genai",
+      "framework_type": "low-level",
+      "overrides": {
+        "1-simple": {
+          "model": "gemini-2.5-flash-lite",
+          "gen_ai.request.model": "gemini-2.5-flash-lite",
+          "gen_ai.response.model": "gemini-2.5-flash-lite"
+        },
+        "3-multi-turn": {
+          "model": "gemini-1.5-pro",
+          "gen_ai.request.model": "gemini-1.5-pro",
+          "gen_ai.response.model": "gemini-1.5-pro"
+        }
+      },
+      "metadata": {
+        "sdk_version": "0.9.0",
+        "description": "Google Generative AI SDK",
+        "notes": "Uses Gemini models instead of OpenAI models"
+      }
+    }
+  ]
+}

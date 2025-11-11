@@ -8,6 +8,17 @@ export interface TestCase {
   sdkPath: string;      // e.g., "js/openai"
 }
 
+export interface SDKConfig {
+  sdk_name: string;
+  framework_type: 'agentic' | 'low-level';
+  overrides?: Record<string, Record<string, any>>;  // Per-test-case overrides
+  metadata?: {
+    sdk_version?: string;
+    description?: string;
+    notes?: string;
+  };
+}
+
 export interface SDK {
   language: 'js' | 'py';
   name: string;         // e.g., "openai", "langchain"
@@ -15,6 +26,7 @@ export interface SDK {
   absolutePath: string; // Full file system path
   cases: TestCase[];
   hasSetup: boolean;    // Whether setup.ts/setup.py exists
+  config?: SDKConfig;   // SDK configuration (if config.json exists)
 }
 
 export interface LifecycleHooks {

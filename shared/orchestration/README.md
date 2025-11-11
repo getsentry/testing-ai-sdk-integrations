@@ -461,6 +461,7 @@ Each test case should be independent:
 
 - [Adding SDKs](../../sdks/README.md) - How to implement test cases
 - [Test Specifications](../specs/README.md) - Fixture format
-- [Test Utilities](../test-utils/README.md) - Mock transport & validation
+- [Test Utilities (JS)](../../sdks/js/_test-utils/README.md) - Mock transport & validation
+- [Test Utilities (Python)](../../sdks/py/_test-utils/README.md) - Mock transport & validation
 - [Troubleshooting](../../docs/TROUBLESHOOTING.md) - Common pitfalls
 - [Main Documentation](../../CLAUDE.md) - Project overview

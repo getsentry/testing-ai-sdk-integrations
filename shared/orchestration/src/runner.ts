@@ -6,7 +6,7 @@ import { spawn } from 'child_process';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import type { SDK, TestCase, TestResult, LifecycleHooks } from './types.js';
+import type { SDK, TestCase, TestResult, LifecycleHooks, SDKConfig } from './types.js';
 import { loadSetupHooks } from './discovery.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,7 +15,7 @@ const __dirname = dirname(__filename);
 /**
  * Run a single test case
  */
-async function runTestCase(testCase: TestCase, hooks: LifecycleHooks): Promise<TestResult> {
+async function runTestCase(testCase: TestCase, hooks: LifecycleHooks, sdk: SDK): Promise<TestResult> {
   const startTime = Date.now();
 
   try {
@@ -24,10 +24,10 @@ async function runTestCase(testCase: TestCase, hooks: LifecycleHooks): Promise<T
 
     if (isPython) {
       // Run Python test using subprocess
-      await runPythonTest(testCase.filePath);
+      await runPythonTest(testCase.filePath, testCase.id, sdk.config);
     } else {
       // Run JS/TS test using subprocess for isolation
-      await runJavaScriptTest(testCase.filePath);
+      await runJavaScriptTest(testCase.filePath, testCase.id, sdk.config);
     }
 
     return {
@@ -50,7 +50,7 @@ async function runTestCase(testCase: TestCase, hooks: LifecycleHooks): Promise<T
 /**
  * Run a JavaScript test file
  */
-function runJavaScriptTest(filePath: string): Promise<void> {
+function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig): Promise<void> {
   return new Promise((resolve, reject) => {
     // Get the SDK directory (2 levels up from test file)
     const sdkDir = dirname(dirname(filePath));
@@ -58,10 +58,16 @@ function runJavaScriptTest(filePath: string): Promise<void> {
     // Use the JavaScript test runner wrapper to handle lifecycle hooks
     const runnerScript = join(dirname(__dirname), 'js-test-runner.cjs');
 
+    // Prepare environment with SDK config overrides for this test case
+    const env = { ...process.env } as NodeJS.ProcessEnv;
+    if (config?.overrides && config.overrides[caseId]) {
+      env.SDK_CONFIG_OVERRIDES = JSON.stringify(config.overrides[caseId]);
+    }
+
     const node = spawn('node', [runnerScript, sdkDir, filePath], {
       stdio: ['inherit', 'inherit', 'pipe'],  // Capture stderr
       cwd: sdkDir,
-      env: process.env as NodeJS.ProcessEnv  // Pass parent env (includes root .env vars)
+      env  // Pass parent env with SDK config overrides
     });
 
     let stderrData = '';
@@ -109,7 +115,7 @@ function runJavaScriptTest(filePath: string): Promise<void> {
 /**
  * Run a Python test file
  */
-function runPythonTest(filePath: string): Promise<void> {
+function runPythonTest(filePath: string, caseId: string, config?: SDKConfig): Promise<void> {
   return new Promise((resolve, reject) => {
     // Get the SDK directory (2 levels up from test file)
     const sdkDir = dirname(dirname(filePath));
@@ -121,10 +127,16 @@ function runPythonTest(filePath: string): Promise<void> {
     // Use the Python test runner wrapper to handle lifecycle hooks
     const runnerScript = join(dirname(__dirname), 'python-test-runner.py');
 
+    // Prepare environment with SDK config overrides for this test case
+    const env = { ...process.env } as NodeJS.ProcessEnv;
+    if (config?.overrides && config.overrides[caseId]) {
+      env.SDK_CONFIG_OVERRIDES = JSON.stringify(config.overrides[caseId]);
+    }
+
     const python = spawn(pythonCmd, [runnerScript, sdkDir, filePath], {
       stdio: ['inherit', 'inherit', 'pipe'],  // Capture stderr
       cwd: sdkDir,
-      env: process.env as NodeJS.ProcessEnv  // Pass parent env (includes root .env vars)
+      env  // Pass parent env with SDK config overrides
     });
 
     let stderrData = '';
@@ -177,7 +189,7 @@ export async function runSDKTests(sdk: SDK): Promise<TestResult[]> {
 
   // Run each test case in its own subprocess (for isolation)
   for (const testCase of sdk.cases) {
-    const result = await runTestCase(testCase, {});
+    const result = await runTestCase(testCase, {}, sdk);
     results.push(result);
 
     // Stop on first failure (optional - can be made configurable)

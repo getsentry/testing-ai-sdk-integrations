@@ -5,14 +5,33 @@
 import { glob } from 'glob';
 import { basename, dirname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
-import type { SDK, TestCase } from './types.js';
+import { existsSync, readFileSync } from 'fs';
+import type { SDK, TestCase, SDKConfig } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Root directory of the repository
 export const REPO_ROOT = join(__dirname, '../../..');
+
+/**
+ * Load SDK config.json if it exists
+ */
+function loadSDKConfig(absolutePath: string): SDKConfig | undefined {
+  const configPath = join(absolutePath, 'config.json');
+
+  if (!existsSync(configPath)) {
+    return undefined;
+  }
+
+  try {
+    const content = readFileSync(configPath, 'utf-8');
+    return JSON.parse(content) as SDKConfig;
+  } catch (error) {
+    console.warn(`Warning: Failed to load SDK config at ${configPath}:`, error);
+    return undefined;
+  }
+}
 
 /**
  * Discovers all SDKs and their test cases
@@ -69,13 +88,17 @@ export async function discoverSDKs(): Promise<SDK[]> {
       existsSync(join(data.absolutePath, `setup${ext}`))
     );
 
+    // Load SDK config if it exists
+    const config = loadSDKConfig(data.absolutePath);
+
     sdks.push({
       language: data.language,
       name: data.name,
       path: sdkPath,
       absolutePath: data.absolutePath,
       cases: cases.sort((a, b) => a.id.localeCompare(b.id)),
-      hasSetup
+      hasSetup,
+      config
     });
   }
 

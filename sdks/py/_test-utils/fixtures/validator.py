@@ -44,10 +44,62 @@ def has_attribute(span: Dict[str, Any], attribute_name: str) -> bool:
     return get_attribute(span, attribute_name) is not None
 
 
+def matches_pattern(actual_value: Any, pattern: Any) -> bool:
+    """
+    Check if a value matches a pattern with wildcard support
+
+    Wildcard patterns:
+    - "foo*" matches any string that begins with "foo"
+    - "*foo" matches any string that ends with "foo"
+    - "*foo*" matches any string that contains "foo"
+    - "foo" matches exactly "foo" (no wildcards)
+
+    Args:
+        actual_value: The actual value to test
+        pattern: The expected value or pattern (may contain wildcards)
+
+    Returns:
+        True if the value matches the pattern
+    """
+    # If pattern is not a string, use strict equality
+    if not isinstance(pattern, str):
+        return actual_value == pattern
+
+    # Convert actual value to string for pattern matching
+    actual_str = str(actual_value)
+
+    # Check for wildcard patterns
+    if "*" in pattern:
+        # *foo* - contains
+        if pattern.startswith("*") and pattern.endswith("*"):
+            substring = pattern[1:-1]
+            # If substring is empty (pattern is "*" or "**"), no match
+            if substring == "" or substring == "*":
+                return False
+            return substring in actual_str
+        # foo* - starts with
+        elif pattern.endswith("*"):
+            prefix = pattern[:-1]
+            # If prefix is empty (pattern is just "*"), no match
+            if prefix == "":
+                return False
+            return actual_str.startswith(prefix)
+        # *foo - ends with
+        elif pattern.startswith("*"):
+            suffix = pattern[1:]
+            # If suffix is empty (pattern is just "*"), no match
+            if suffix == "":
+                return False
+            return actual_str.endswith(suffix)
+
+    # No wildcards, use strict equality
+    return actual_value == pattern
+
+
 def attribute_matches(span: Dict[str, Any], attribute_name: str, value: Any) -> bool:
     """Check if a span has an attribute with a specific value"""
     attr_value = get_attribute(span, attribute_name)
-    return attr_value is not None and attr_value == value
+    return attr_value is not None and matches_pattern(attr_value, value)
 
 
 def contains_attributes(span: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
@@ -194,6 +246,7 @@ def validate_fixture(
     transactions: List[Dict[str, Any]],
     events: List[Dict[str, Any]] = None,
     variant: str = "agentic",
+    overrides: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
     Validate captured Sentry data against a fixture
@@ -204,6 +257,7 @@ def validate_fixture(
         transactions: Captured transactions
         events: Captured events (optional)
         variant: The fixture variant (e.g., "agentic", "low-level")
+        overrides: Optional SDK config overrides to apply to fixture expectations
 
     Returns:
         Validation result dict with 'passed' and 'errors' keys
@@ -211,7 +265,8 @@ def validate_fixture(
     if events is None:
         events = []
 
-    fixture = load_fixture(spec_id, variant)
+    # Load fixture with overrides applied
+    fixture = load_fixture(spec_id, variant, overrides)
     errors = []
 
     # Log captured spans in verbose mode

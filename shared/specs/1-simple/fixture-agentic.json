@@ -16,7 +16,7 @@
           "op": "gen_ai.invoke_agent",
           "required_attributes": {
             "gen_ai.request.model": "gpt-5-nano",
-            "gen_ai.request.messages": true
+            "gen_ai.response.model": "gpt-5-nano*"
           }
         },
         {
@@ -25,10 +25,10 @@
           "parent": "invoke_agent",
           "required_attributes": {
             "gen_ai.request.model": "gpt-5-nano",
+            "gen_ai.response.model": "gpt-5-nano*",
             "gen_ai.usage.input_tokens": true,
             "gen_ai.usage.output_tokens": true,
-            "gen_ai.usage.total_tokens": true,
-            "gen_ai.request.messages": true
+            "gen_ai.usage.total_tokens": true
           }
         }
       ]

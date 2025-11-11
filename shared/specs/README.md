@@ -200,6 +200,7 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
 - `required_attributes` format:
   - `"attribute.name": true` - Check presence only
   - `"attribute.name": "value"` - Check exact match
+  - `"attribute.name": "pattern*"` - Wildcard pattern matching (see below)
 
 - `events` (object):
   - `error_count` (number): Expected number of error events
@@ -208,9 +209,50 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
 
 - `op` can be string or array (matches any of the ops)
 - `required_attributes` with `true` = just check presence
-- `required_attributes` with value = check exact match
+- `required_attributes` with value = check exact match or wildcard pattern
 - `parent` = verifies span hierarchy
 - `min_count` = minimum spans (allows extra spans from SDK)
+
+### Wildcard Pattern Matching
+
+Fixture attribute values support wildcard patterns using `*` for flexible matching:
+
+**Pattern Types:**
+
+| Pattern | Description | Example | Matches |
+|---------|-------------|---------|---------|
+| `"foo*"` | Starts with | `"gpt-*"` | `gpt-4o-mini`, `gpt-5-nano` |
+| `"*foo"` | Ends with | `"*-mini"` | `gpt-4o-mini`, `claude-3-mini` |
+| `"*foo*"` | Contains | `"*4o*"` | `gpt-4o-mini`, `gpt-4o` |
+| `"foo"` | Exact match | `"gpt-4o-mini"` | `gpt-4o-mini` only |
+
+**Use Cases:**
+
+- **Model versions**: `"gen_ai.request.model": "gpt-4*"` matches any GPT-4 variant
+- **Flexible IDs**: `"span_id": "*"` would match any non-empty span ID (but prefer `true` for presence)
+- **URL patterns**: `"http.url": "https://api.openai.com/*"` matches any OpenAI API endpoint
+- **Token ranges**: Not supported - use `true` for presence checking instead
+
+**Examples:**
+
+```json
+{
+  "required_attributes": {
+    "gen_ai.request.model": "gpt-*",          // Matches gpt-4o-mini, gpt-5-nano, etc.
+    "gen_ai.response.model": "gemini-*",      // Matches gemini-2.5-flash-lite, gemini-1.5-pro
+    "gen_ai.provider": "*anthropic*",         // Matches "anthropic", "anthropic-vertex", etc.
+    "http.url": "https://api.openai.com/*",   // Matches any OpenAI API URL
+    "gen_ai.response.text": true              // Just check presence (no pattern needed)
+  }
+}
+```
+
+**Important Notes:**
+
+- Wildcards work on string values only (not numbers or booleans)
+- Empty wildcards (`"*"`, `"**"`) are invalid and will not match anything
+- For presence-only checks, use `true` instead of wildcards
+- Patterns are case-sensitive
 
 ## Writing New Specifications
 
@@ -223,5 +265,6 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
 ## See Also
 
 - [Adding SDKs](../../sdks/README.md) - How to implement test cases
-- [Test Utilities](../test-utils/README.md) - Fixture validation system
+- [Test Utilities (JS)](../../sdks/js/_test-utils/README.md) - Fixture validation system
+- [Test Utilities (Python)](../../sdks/py/_test-utils/README.md) - Fixture validation system
 - [Main Documentation](../../CLAUDE.md) - Project overview
