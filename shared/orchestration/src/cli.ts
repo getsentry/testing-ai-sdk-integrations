@@ -15,6 +15,7 @@ import { discoverSDKs, filterSDKs } from './discovery.js';
 import { runTests } from './runner.js';
 import { setup } from './setup.js';
 import { upgrade } from './upgrade.js';
+import { generateCTRFReport, writeCTRFFile, printCTRFReport, generateHTML, writeHTMLFile } from './reporters/index.js';
 import type { TestResult } from './types.js';
 
 // Load root .env file
@@ -76,6 +77,8 @@ program
   .option('-c, --case <case>', 'Run specific test case (e.g., G1)')
   .option('-a, --all', 'Run all tests')
   .option('-v, --verbose', 'Show detailed output including LLM responses')
+  .option('-o, --output-dir <path>', 'Output directory for reports', './test-results')
+  .option('-r, --reports <formats>', 'Generate reports (comma-separated: ctrf,html or "all")', 'all')
   .action(async (options) => {
     // Validate options
     if (!options.sdk && !options.case && !options.all) {
@@ -129,8 +132,34 @@ program
     const results = await runTests(sdks);
     const duration = Date.now() - startTime;
 
-    // Print results
-    printResults(results, duration);
+    // Generate CTRF report (single source of truth)
+    const ctrfReport = generateCTRFReport(results, sdks, duration);
+
+    // Print to console (always)
+    printCTRFReport(ctrfReport);
+
+    // Generate file reports if requested
+    const reportFormats = options.reports.toLowerCase().split(',').map((f: string) => f.trim());
+    const generateAll = reportFormats.includes('all');
+    const generateCTRF = generateAll || reportFormats.includes('ctrf');
+    const generateHTMLReport = generateAll || reportFormats.includes('html');
+
+    if (generateCTRF || generateHTMLReport) {
+      const outputDir = options.outputDir;
+
+      if (generateCTRF) {
+        const ctrfPath = await writeCTRFFile(ctrfReport, outputDir);
+        console.log(chalk.gray(`📄 CTRF report: ${ctrfPath}`));
+      }
+
+      if (generateHTMLReport) {
+        const html = generateHTML(ctrfReport);
+        const htmlPath = await writeHTMLFile(html, outputDir);
+        console.log(chalk.gray(`📄 HTML report: ${htmlPath}`));
+      }
+
+      console.log('');
+    }
 
     // Exit with error code if any tests failed
     const hasFailures = results.some(r => r.status === 'failed');
@@ -156,67 +185,6 @@ program
   .action(async (packageName: string, version: string) => {
     await upgrade(packageName, version);
   });
-
-/**
- * Print test results
- */
-function printResults(results: TestResult[], totalDuration: number) {
-  console.log(chalk.blue.bold('\n📊 Test Results\n'));
-
-  // Group by SDK
-  const resultsBySDK = new Map<string, TestResult[]>();
-  for (const result of results) {
-    if (!resultsBySDK.has(result.sdkPath)) {
-      resultsBySDK.set(result.sdkPath, []);
-    }
-    resultsBySDK.get(result.sdkPath)!.push(result);
-  }
-
-  // Print results for each SDK
-  for (const [sdkPath, sdkResults] of resultsBySDK) {
-    console.log(chalk.cyan.bold(sdkPath));
-
-    for (const result of sdkResults) {
-      const statusIcon = result.status === 'passed'
-        ? chalk.green('✓')
-        : chalk.red('✗');
-
-      const duration = chalk.gray(`(${result.duration}ms)`);
-
-      console.log(`  ${statusIcon} ${result.caseId} ${duration}`);
-
-      if (result.error) {
-        // Format error message with proper indentation
-        const errorLines = result.error.message.split('\n');
-        for (const line of errorLines) {
-          // Lines starting with "    " are span-level errors, keep their indentation
-          // Other lines get standard error indentation
-          if (line.startsWith('    ')) {
-            console.log(chalk.red(line));
-          } else {
-            console.log(chalk.red(`    ${line}`));
-          }
-        }
-      }
-    }
-    console.log('');
-  }
-
-  // Print summary
-  const passed = results.filter(r => r.status === 'passed').length;
-  const failed = results.filter(r => r.status === 'failed').length;
-  const total = results.length;
-
-  console.log(chalk.bold('Summary:'));
-  console.log(`  ${chalk.green(`${passed} passed`)}, ${chalk.red(`${failed} failed`)}, ${total} total`);
-  console.log(chalk.gray(`  Time: ${(totalDuration / 1000).toFixed(2)}s\n`));
-
-  if (failed === 0) {
-    console.log(chalk.green.bold('✓ All tests passed!\n'));
-  } else {
-    console.log(chalk.red.bold('✗ Some tests failed\n'));
-  }
-}
 
 // Parse command line arguments
 program.parse();
