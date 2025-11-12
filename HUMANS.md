@@ -13,6 +13,21 @@ The entire repo was made with Claude Code, and all of the major changes (like re
 - The validator then extracts relevant spans and checks against the fixture.
 - The result is reported in CTRF as JSON, HTML, and printed in the console.
 
+#### What this can do:
+
+Assert that AI integrations:
+
+- correctly initialize
+- capture all relevant spans in correct order/hierarchy
+- correctly capture available attributes
+
+#### What this can't do:
+
+Assert that:
+
+- captured spans are accepted by Relay
+- attributes added/derived during ingestion are present and correct (model cost and span buffer)
+
 ### JS vs. Py
 
 Some parts of the test logic are implemented twice (once for JS and once for Python). They can never be exactly the same, but it is vital that they are as close to each other as possible in terms of overall functionality, file names, function names, variable names, etc.
