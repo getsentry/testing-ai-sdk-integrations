@@ -10,7 +10,7 @@ const { resolve } = require("path");
 const { createMockTransport } = require("../_test-utils/mock-transport.cjs");
 
 // Load environment variables
-config({ path: resolve(__dirname, "../../../.env") });
+config({ quiet: true, path: resolve(__dirname, "../../../.env") });
 
 // Initialize Sentry with LangChain integration
 Sentry.init({
