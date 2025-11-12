@@ -15,36 +15,54 @@ Sentry SDKs (JavaScript and Python) automatically instrument popular AI SDKs lik
 
 ```
 ai-sdks-test/
-├── spec/                          # Formal specifications
-│   ├── test-scenarios.md          # Test scenarios each SDK must implement
-│   ├── expected-sentry-data.md    # What Sentry should capture
-│   ├── implementation-guide.md    # How to implement for each SDK
-│   └── success-criteria.md        # How to verify success
 ├── sdks/
-│   ├── js/                        # JavaScript implementations
+│   ├── js/                        # JavaScript SDK implementations
+│   │   ├── _test-utils/           # JS test utilities (mock transport, fixtures, validators)
 │   │   ├── openai/
+│   │   │   ├── setup.js           # Sentry initialization
+│   │   │   ├── config.json        # SDK configuration (framework type, overrides)
+│   │   │   ├── package.json
+│   │   │   └── cases/             # Test case implementations
+│   │   │       └── 1-simple.js
 │   │   ├── anthropic/
 │   │   ├── langchain/
-│   │   └── llamaindex/
-│   └── py/                        # Python implementations
+│   │   ├── langgraph/
+│   │   ├── vercel/
+│   │   └── google-genai/
+│   └── py/                        # Python SDK implementations
+│       ├── _test-utils/           # Python test utilities (mock transport, fixtures, validators)
 │       ├── openai/
+│       │   ├── setup.py           # Sentry initialization
+│       │   ├── config.json        # SDK configuration (framework type, overrides)
+│       │   ├── requirements.txt
+│       │   └── cases/             # Test case implementations
+│       │       └── 1-simple.py
+│       ├── openai-agents/
 │       ├── anthropic/
 │       ├── langchain/
-│       └── llamaindex/
-├── sdks/
-│   ├── js/
-│   │   ├── _test-utils/           # JS test utilities (mock transport, fixtures, SDK helpers)
-│   │   ├── openai/
-│   │   └── vercel/
-│   └── py/
-│       ├── _test-utils/           # Python test utilities (mock transport, fixtures, SDK helpers)
+│       ├── langgraph/
 │       ├── google-genai/
-│       └── openai-agents/
+│       ├── litellm/
+│       └── pydantic-ai/
 ├── shared/
-│   ├── specs/                     # Test specifications and fixtures
-│   └── orchestration/             # Test runner
-│       └── src/                   # CLI for running tests
-└── .env.example                   # Template for required credentials
+│   ├── specs/                     # Test specifications (language-agnostic)
+│   │   ├── 1-simple/
+│   │   │   ├── spec.md            # Human-readable specification
+│   │   │   ├── fixture-agentic.json    # Expected spans for agentic frameworks
+│   │   │   └── fixture-low-level.json  # Expected spans for low-level frameworks
+│   │   └── 2-simple-with-error/
+│   └── orchestration/             # Test runner and CLI
+│       ├── src/                   # TypeScript source
+│       │   ├── cli.ts             # CLI entry point
+│       │   ├── runner.ts          # Test execution
+│       │   ├── discovery.ts       # SDK/test discovery
+│       │   ├── setup.ts           # Dependency installation
+│       │   └── reporters/         # Test reporting (console, CTRF, HTML)
+│       ├── dist/                  # Compiled JavaScript
+│       └── test-results/          # Generated test reports
+├── .env                           # Environment variables (gitignored)
+├── .env.example                   # Template for API keys
+└── package.json                   # Root package.json for CLI alias
 ```
 
 ## Quick Start
@@ -87,16 +105,72 @@ npm run cli setup
 npm run cli run -- --all
 ```
 
-6. Run tests for a specific SDK:
+6. Run tests with filters:
 ```bash
-# JavaScript LangGraph
-npm run cli run -- --sdk js/langgraph
+# All JavaScript SDKs
+npm run cli run js
 
-# Python OpenAI Agents
-npm run cli run -- --sdk py/openai-agents
+# All Python SDKs
+npm run cli run py
 
-# Specific test case
+# All SDKs matching "lang" (langchain + langgraph in both JS and Python)
+npm run cli run lang
+
+# Specific SDK name across languages (js/langchain + py/langchain)
+npm run cli run langchain
+
+# Specific SDK with exact path
+npm run cli run js/langgraph
+
+# SDK that only exists in one language
+npm run cli run pydantic-ai
+
+# Specific test case across all SDKs
 npm run cli run -- --case 1-simple
+
+# Combine filters (langchain SDKs running 1-simple test only)
+npm run cli run langchain -- --case 1-simple
+```
+
+### CLI Filter Syntax
+
+The CLI supports flexible filtering to run exactly the tests you need:
+
+**Filter Types:**
+- **Language filter**: `js` or `py` - Runs all SDKs in that language
+- **Exact path**: `js/openai` - Runs a specific SDK
+- **Partial name match**: Any string that matches SDK names (uses `contains`)
+  - `lang` → matches `langchain`, `langgraph` (in both JS and Python)
+  - `langchain` → matches only `langchain` (in both JS and Python)
+  - `pydantic` → matches only `pydantic-ai` (Python only)
+  - `openai` → matches `openai`, `openai-agents` (in all languages)
+
+**Additional Options:**
+- `--case <case-id>` - Filter to specific test case (e.g., `1-simple`)
+- `--all` - Run all tests across all SDKs
+- `--verbose` - Show detailed output including LLM responses
+- `--reports <formats>` - Generate reports (ctrf, html, or all)
+
+**Examples:**
+```bash
+# Quick language-wide tests
+npm run cli run js              # All JS SDKs
+npm run cli run py              # All Python SDKs
+
+# Partial matching for related SDKs
+npm run cli run lang            # langchain + langgraph (both languages)
+npm run cli run openai          # openai + openai-agents (all languages)
+
+# Exact SDK selection
+npm run cli run langchain       # js/langchain + py/langchain
+npm run cli run js/langgraph    # Only js/langgraph
+
+# Test case filtering
+npm run cli run -- --case 1-simple              # Run 1-simple across all SDKs
+npm run cli run lang -- --case 1-simple         # Run 1-simple on lang* SDKs
+
+# List available SDKs
+npm run cli list
 ```
 
 ## Test Scenarios
