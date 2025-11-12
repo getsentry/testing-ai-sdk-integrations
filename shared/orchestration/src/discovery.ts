@@ -108,17 +108,27 @@ export async function discoverSDKs(): Promise<SDK[]> {
 /**
  * Filter SDKs based on options
  */
-export function filterSDKs(sdks: SDK[], options: { sdk?: string, case?: string }): SDK[] {
+export function filterSDKs(sdks: SDK[], options: { filter?: string, case?: string }): SDK[] {
   let filtered = sdks;
 
-  // Filter by SDK or language
-  if (options.sdk) {
+  // Filter by SDK filter (positional argument)
+  if (options.filter) {
+    const filterValue = options.filter;
+
     // Check if it's a language-only filter (e.g., "js" or "py")
-    if (options.sdk === 'js' || options.sdk === 'py') {
-      filtered = filtered.filter(sdk => sdk.language === options.sdk);
-    } else {
-      // Otherwise, filter by exact SDK path (e.g., "js/openai")
-      filtered = filtered.filter(sdk => sdk.path === options.sdk);
+    if (filterValue === 'js' || filterValue === 'py') {
+      filtered = filtered.filter(sdk => sdk.language === filterValue);
+    }
+    // Check if it's an exact path match (e.g., "js/openai")
+    else if (filterValue.includes('/')) {
+      filtered = filtered.filter(sdk => sdk.path === filterValue);
+    }
+    // Otherwise, filter by SDK name (partial match across both languages)
+    // e.g., "lang" matches "langchain" and "langgraph" in both js and py
+    // e.g., "langchain" matches "js/langchain" and "py/langchain"
+    // e.g., "pydantic-ai" matches only "py/pydantic-ai"
+    else {
+      filtered = filtered.filter(sdk => sdk.name.includes(filterValue));
     }
   }
 

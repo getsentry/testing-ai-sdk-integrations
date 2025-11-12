@@ -70,22 +70,33 @@ cp .env.example .env
 # Edit .env with your API keys and Sentry DSN
 ```
 
-3. Run tests for a specific SDK:
+3. Install orchestration dependencies:
 ```bash
-# JavaScript OpenAI
-cd sdks/js/openai
+cd shared/orchestration
 npm install
-npm test
-
-# Python LangChain
-cd sdks/py/langchain
-pip install -r requirements.txt
-pytest
+cd ../..
 ```
 
-4. Run all tests:
+4. Set up all SDK dependencies:
 ```bash
-./shared/orchestration/run-tests.sh
+npm run cli setup
+```
+
+5. Run all tests:
+```bash
+npm run cli run -- --all
+```
+
+6. Run tests for a specific SDK:
+```bash
+# JavaScript LangGraph
+npm run cli run -- --sdk js/langgraph
+
+# Python OpenAI Agents
+npm run cli run -- --sdk py/openai-agents
+
+# Specific test case
+npm run cli run -- --case 1-simple
 ```
 
 ## Test Scenarios

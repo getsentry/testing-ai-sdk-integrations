@@ -88,13 +88,9 @@ program
  * Run command - executes test cases
  */
 program
-  .command("run")
+  .command("run [filter]")
   .description("Run test cases")
-  .option(
-    "-s, --sdk <sdk>",
-    "Run tests for specific SDK or language (e.g., js/openai, js, py)"
-  )
-  .option("-c, --case <case>", "Run specific test case (e.g., G1)")
+  .option("-c, --case <case>", "Run specific test case (e.g., 1-simple)")
   .option("-a, --all", "Run all tests")
   .option("-v, --verbose", "Show detailed output including LLM responses")
   .option(
@@ -107,22 +103,28 @@ program
     'Generate reports (comma-separated: ctrf,html or "all")',
     "all"
   )
-  .action(async (options) => {
+  .action(async (filter, options) => {
     // Validate options
-    if (!options.sdk && !options.case && !options.all) {
-      console.log(chalk.red("Error: You must specify --sdk, --case, or --all"));
+    if (!filter && !options.case && !options.all) {
+      console.log(chalk.red("Error: You must specify a filter, --case, or --all"));
       console.log(chalk.gray("Examples:"));
       console.log(
-        chalk.gray("  sentry-ai-test run --sdk js/openai  (specific SDK)")
+        chalk.gray("  npm run cli run js             (all JS SDKs)")
       );
       console.log(
-        chalk.gray("  sentry-ai-test run --sdk js         (all JS SDKs)")
+        chalk.gray("  npm run cli run py             (all Python SDKs)")
       );
       console.log(
-        chalk.gray("  sentry-ai-test run --sdk py         (all Python SDKs)")
+        chalk.gray("  npm run cli run langchain      (js/langchain + py/langchain)")
       );
-      console.log(chalk.gray("  sentry-ai-test run --case 1-simple"));
-      console.log(chalk.gray("  sentry-ai-test run --all"));
+      console.log(
+        chalk.gray("  npm run cli run pydantic-ai    (py/pydantic-ai only)")
+      );
+      console.log(
+        chalk.gray("  npm run cli run js/openai      (specific SDK)")
+      );
+      console.log(chalk.gray("  npm run cli run -- --case 1-simple"));
+      console.log(chalk.gray("  npm run cli run -- --all"));
       process.exit(1);
     }
 
@@ -138,7 +140,7 @@ program
 
     // Filter based on options
     const sdks = filterSDKs(allSDKs, {
-      sdk: options.sdk,
+      filter,
       case: options.case,
     });
 
