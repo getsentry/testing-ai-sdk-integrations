@@ -1,4 +1,4 @@
-This repo (hopefully) contains everything needed to test Sentry SDKs. AI integrations for Python and JavaScript are currently supported.
+This repo (hopefully) contains everything needed to test Sentry SDK AI integrations for Python and JavaScript.
 
 Quick start and other goodies can be found in (./README.md).
 
