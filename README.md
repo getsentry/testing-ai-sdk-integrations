@@ -77,18 +77,21 @@ ai-sdks-test/
 ### Setup
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd ai-sdks-test
 ```
 
 2. Copy and configure environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your API keys and Sentry DSN
 ```
 
 3. Install orchestration dependencies:
+
 ```bash
 cd shared/orchestration
 npm install
@@ -96,16 +99,19 @@ cd ../..
 ```
 
 4. Set up all SDK dependencies:
+
 ```bash
 npm run cli setup
 ```
 
 5. Run all tests:
+
 ```bash
 npm run cli run -- --all
 ```
 
 6. Run tests with filters:
+
 ```bash
 # All JavaScript SDKs
 npm run cli run js
@@ -137,6 +143,7 @@ npm run cli run langchain -- --case 1-simple
 The CLI supports flexible filtering to run exactly the tests you need:
 
 **Filter Types:**
+
 - **Language filter**: `js` or `py` - Runs all SDKs in that language
 - **Exact path**: `js/openai` - Runs a specific SDK
 - **Partial name match**: Any string that matches SDK names (uses `contains`)
@@ -146,12 +153,14 @@ The CLI supports flexible filtering to run exactly the tests you need:
   - `openai` → matches `openai`, `openai-agents` (in all languages)
 
 **Additional Options:**
+
 - `--case <case-id>` - Filter to specific test case (e.g., `1-simple`)
 - `--all` - Run all tests across all SDKs
 - `--verbose` - Show detailed output including LLM responses
 - `--reports <formats>` - Generate reports (ctrf, html, or all)
 
 **Examples:**
+
 ```bash
 # Quick language-wide tests
 npm run cli run js              # All JS SDKs
@@ -181,39 +190,3 @@ Each SDK implementation includes these scenarios (where supported by the SDK):
 2. **Streaming** - Streaming response handling
 3. **Function Calling** - Tool/function calling capabilities
 4. **Error Handling** - Application errors and invalid inputs
-
-## Testing Approach
-
-### Fast Tests (Unit)
-- Mock Sentry transport
-- Verify events in-memory
-- Fast feedback loop
-- Run in CI/CD
-
-### E2E Tests
-- Send to real Sentry project
-- Query Sentry API to verify data
-- Catch real-world issues
-- Run periodically or on releases
-
-### Manual Verification
-- Runnable scripts for manual testing
-- Check Sentry UI directly
-- Useful for debugging and validation
-
-## Contributing
-
-See the [implementation guide](spec/implementation-guide.md) for details on adding new SDK integrations.
-
-## SDK Support Status
-
-| SDK | JavaScript | Python |
-|-----|------------|--------|
-| OpenAI | 🚧 In Progress | ⏳ Planned |
-| Anthropic | ⏳ Planned | ⏳ Planned |
-| LangChain | ⏳ Planned | 🚧 In Progress |
-| LlamaIndex | ⏳ Planned | ⏳ Planned |
-
-## License
-
-[Add license information]
