@@ -1,0 +1,11 @@
+{
+  "sdk_name": "google-genai",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "gemini-2.5-flash-lite",
+      "gen_ai.request.model": "gemini-2.5-flash-lite",
+      "gen_ai.response.model": "gemini-2.5-flash-lite"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@sentry-ai-sdks/langchain",
+  "version": "1.0.0",
+  "description": "LangChain SDK integration tests for Sentry",
+  "dependencies": {
+    "@sentry/node": "10.24.0",
+    "@langchain/core": "0.3.39",
+    "@langchain/openai": "0.4.6",
+    "dotenv": "17.2.3"
+  }
+}

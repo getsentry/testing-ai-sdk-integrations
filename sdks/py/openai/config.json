@@ -1,0 +1,5 @@
+{
+  "sdk_name": "openai",
+  "framework_type": "low-level",
+  "overrides": {}
+}

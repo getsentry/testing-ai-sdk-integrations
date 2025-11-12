@@ -1,0 +1,4 @@
+sentry-sdk==2.43.0
+langgraph==1.0.3
+langchain-openai>=1.0.0
+python-dotenv==1.2.1

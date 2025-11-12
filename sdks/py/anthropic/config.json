@@ -1,0 +1,11 @@
+{
+  "sdk_name": "anthropic",
+  "framework_type": "low-level",
+  "overrides": {
+    "1-simple": {
+      "model": "claude-haiku-4-5",
+      "gen_ai.request.model": "claude-haiku-4-5",
+      "gen_ai.response.model": "claude-haiku-4-5*"
+    }
+  }
+}
