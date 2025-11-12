@@ -1,5 +1,5 @@
 # Claude Code files
-*.claude
+*.claude/settings.local.json
 
 # Environment variables
 .env

@@ -2,7 +2,16 @@ This repo (hopefully) contains everything needed to test Sentry SDKs. AI integra
 
 Quick start and other goodies can be found in (./README.md).
 
-The entire repo was made with Claude Code, and all of the major changes (like refactorings, adding SDKs, etc.) should be done by an agent. Most directories contain README.md files that the agent is instructed to read and update when needed.
+The entire repo was made with Claude Code, and all of the major changes (like refactorings, adding SDKs, etc.) should be done by an agent. Most directories contain README.md files that the agent is instructed to read and update when needed. `.claude/settings.json` make sure it can't read this file or your `.env`
+
+### The Gist
+
+- There is a separate project directory for every integration, ensuring they are independent of each other.
+- The setup file contains code that should be executed before the tests and, in most cases, contains only Sentry SDK initialization with the correct options and mock transport.
+- Every test performs real LLM calls.
+- After it is done, the mock transport is used to extract all of the envelopes the SDK would send.
+- The validator then extracts relevant spans and checks against the fixture.
+- The result is reported in CTRF as JSON, HTML, and printed in the console.
 
 ### JS vs. Py
 
