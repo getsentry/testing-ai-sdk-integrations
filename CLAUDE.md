@@ -99,7 +99,7 @@ This is the main context file. For detailed guides, see:
 **Quick links:**
 - 🚀 Run all tests: `cd shared/orchestration && npm run cli run -- --all`
 - 📝 List available SDKs: `npm run cli list`
-- 🔍 Run specific SDK: `npm run cli run -- --sdk js/vercel`
+- 🔍 Run specific SDK: `npm run cli run js/vercel`
 
 ## Coding Standards & File Types
 
@@ -426,13 +426,17 @@ For details, see:
 | JavaScript | `vercel`          | agentic        | ✅ Working | 1-simple       |
 | JavaScript | `openai`          | low-level      | ✅ Working | 1-simple       |
 | JavaScript | `anthropic`       | low-level      | ✅ Working | 1-simple       |
+| JavaScript | `langchain`       | low-level      | ✅ Working | 1-simple       |
+| JavaScript | `langgraph`       | agentic        | ✅ Working | 1-simple       |
+| JavaScript | `google-genai`    | low-level      | ✅ Working | 1-simple       |
+| Python     | `openai`          | low-level      | ✅ Working | 1-simple       |
 | Python     | `openai-agents`   | agentic        | ✅ Working | 1-simple       |
+| Python     | `anthropic`       | low-level      | ✅ Working | 1-simple       |
+| Python     | `langchain`       | low-level      | ✅ Working | 1-simple       |
+| Python     | `langgraph`       | agentic        | ✅ Working | 1-simple       |
 | Python     | `google-genai`    | low-level      | ✅ Working | 1-simple       |
-
-### Planned SDKs
-
-- JavaScript: LangChain, LlamaIndex
-- Python: LangChain, Anthropic, OpenAI, LlamaIndex
+| Python     | `litellm`         | low-level      | ✅ Working | 1-simple       |
+| Python     | `pydantic-ai`     | agentic        | ✅ Working | 1-simple       |
 
 **Note:** Not all SDKs support all features (streaming, function calling, etc.)
 
@@ -446,12 +450,12 @@ For detailed step-by-step guides on implementing new SDK tests, see:
 1. Determine framework type (agentic vs low-level)
 2. Copy template from sdks/README.md
 3. Implement test cases
-4. Run: `npm run cli run -- --sdk {language}/{your-sdk}`
+4. Run: `npm run cli run {language}/{your-sdk}`
 
 
 ## Current Status
 
-**Status:** Foundation complete, 5 SDKs implemented with 1-simple test passing
+**Status:** Foundation complete, 14 SDKs implemented with 1-simple test passing
 
 **What's Working:**
 
@@ -462,11 +466,11 @@ For detailed step-by-step guides on implementing new SDK tests, see:
 - ✅ SDK configuration with overrides (config.json)
 - ✅ Centralized configuration (root .env, fixture inputs)
 - ✅ Test reporting (console, CTRF JSON, HTML)
+- ✅ Flexible CLI filtering (language, partial name, exact path)
 
 **What's Next:**
 
 - Implement test cases 2-8 (error handling, streaming, multi-turn, agentic workflows)
-- Add more SDKs (LangChain, LlamaIndex, etc.)
 
 
 ## Implementation Guidelines
@@ -547,7 +551,7 @@ For common issues, error messages, and debugging tips, see:
    - Create `config.json` with framework type and overrides
    - Implement `setup.js` or `setup.py` with Sentry initialization
    - Implement test cases in `cases/` directory (start with 1-simple)
-   - Run: `npm run cli run -- --sdk {js|py}/your-sdk`
+   - Run: `npm run cli run {js|py}/your-sdk`
 
 4. **Debugging test failures?**
    - Look at "Span's actual attributes" in error message

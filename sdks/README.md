@@ -12,24 +12,26 @@ When adding a new SDK, ensure you:
 - [ ] **Never hardcode model mappings** - use config.json overrides
 - [ ] Find correct Sentry integration name (use the node/python command in docs)
 - [ ] Follow existing SDK patterns (`vercel`, `anthropic` for JS; `google-genai` for Python)
-- [ ] Test with `npm run cli run -- --sdk {language}/{sdk-name}`
+- [ ] Test with `npm run cli run {language}/{sdk-name}`
 
 ## Currently Implemented
 
-| Language   | SDK               | Framework Type | Status     | Test Cases     |
-| ---------- | ----------------- | -------------- | ---------- | -------------- |
-| JavaScript | `vercel`          | agentic        | ✅ Working | 1-simple       |
-| JavaScript | `openai`          | low-level      | ✅ Working | 1-simple       |
-| JavaScript | `anthropic`       | low-level      | ✅ Working | 1-simple       |
-| Python     | `openai-agents`   | agentic        | ✅ Working | 1-simple       |
-| Python     | `google-genai`    | low-level      | ✅ Working | 1-simple       |
-
-## Planned SDKs
-
-- JavaScript: LangChain, LlamaIndex
-- Python: LangChain, Anthropic, OpenAI, LlamaIndex
-
-**Note:** Not all SDKs support all features (streaming, function calling, etc.)
+| Language   | SDK               | Framework Type | Test Cases     |
+| ---------- | ----------------- | -------------- | -------------- |
+| JavaScript | `vercel`          | agentic        | 1-simple       |
+| JavaScript | `openai`          | low-level      | 1-simple       |
+| JavaScript | `anthropic`       | low-level      | 1-simple       |
+| JavaScript | `langchain`       | low-level      | 1-simple       |
+| JavaScript | `langgraph`       | agentic        | 1-simple       |
+| JavaScript | `google-genai`    | low-level      | 1-simple       |
+| Python     | `openai`          | low-level      | 1-simple       |
+| Python     | `openai-agents`   | agentic        | 1-simple       |
+| Python     | `anthropic`       | low-level      | 1-simple       |
+| Python     | `langchain`       | low-level      | 1-simple       |
+| Python     | `langgraph`       | agentic        | 1-simple       |
+| Python     | `google-genai`    | low-level      | 1-simple       |
+| Python     | `litellm`         | low-level      | 1-simple       |
+| Python     | `pydantic-ai`     | agentic        | 1-simple       |
 
 ## Adding a New JavaScript SDK
 

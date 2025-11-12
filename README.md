@@ -4,7 +4,7 @@ A comprehensive testing framework for validating Sentry's automatic instrumentat
 
 ## Overview
 
-Sentry SDKs (JavaScript and Python) automatically instrument popular AI SDKs like OpenAI, Anthropic, LangChain, and LlamaIndex. This repository tests those integrations to ensure they:
+Sentry SDKs (JavaScript and Python) automatically instrument popular AI SDKs like OpenAI, Anthropic, and LangChain. This repository tests those integrations to ensure they:
 
 - Capture performance data (spans, transactions)
 - Track AI-specific metadata (models, tokens, prompts, completions)
