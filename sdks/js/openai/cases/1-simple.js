@@ -9,8 +9,6 @@ const { Sentry } = require("../setup");
 const OpenAI = require("openai");
 const { runTestCase } = require("../../_test-utils/test-runner.cjs");
 
-const FRAMEWORK_TYPE = "low-level";
-
 async function testLogic(inputs) {
   const { model, system, prompt } = inputs;
 
@@ -37,4 +35,4 @@ async function testLogic(inputs) {
   }
 }
 
-module.exports = runTestCase("1-simple", FRAMEWORK_TYPE, testLogic, Sentry);
+module.exports = runTestCase("1-simple", testLogic, Sentry);

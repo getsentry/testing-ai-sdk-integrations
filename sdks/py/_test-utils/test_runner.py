@@ -9,13 +9,12 @@ from validator import validate_fixture
 from mock_transport import get_mock_transport
 
 
-def run_test_case(spec_id, framework_type, test_logic):
+def run_test_case(spec_id, test_logic):
     """
     Run a test case with automatic fixture loading, span wrapping, and validation
 
     Args:
         spec_id: Test spec ID (e.g., "1-simple")
-        framework_type: Framework type ("agentic" or "low-level")
         test_logic: Async function containing SDK-specific test logic
 
     Returns:
@@ -26,9 +25,20 @@ def run_test_case(spec_id, framework_type, test_logic):
         """Main test case entry point"""
         print(f"    Running {spec_id}: {get_test_description(spec_id)}")
 
-        # Load config overrides from environment
+        # Load SDK config from environment
         import os
         import json
+        sdk_config_json = os.getenv("SDK_CONFIG")
+        sdk_config = json.loads(sdk_config_json) if sdk_config_json else None
+
+        if not sdk_config or "framework_type" not in sdk_config:
+            raise Exception(
+                "SDK_CONFIG with framework_type must be provided via environment variable"
+            )
+
+        framework_type = sdk_config["framework_type"]
+
+        # Load config overrides from environment
         overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
         overrides = json.loads(overrides_json) if overrides_json else None
 
@@ -44,9 +54,20 @@ def run_test_case(spec_id, framework_type, test_logic):
         sentry_sdk.flush(timeout=2.0)
         await asyncio.sleep(0.05)
 
-        # Load config overrides from environment
+        # Load SDK config from environment
         import os
         import json
+        sdk_config_json = os.getenv("SDK_CONFIG")
+        sdk_config = json.loads(sdk_config_json) if sdk_config_json else None
+
+        if not sdk_config or "framework_type" not in sdk_config:
+            raise Exception(
+                "SDK_CONFIG with framework_type must be provided via environment variable"
+            )
+
+        framework_type = sdk_config["framework_type"]
+
+        # Load config overrides from environment
         overrides_json = os.getenv("SDK_CONFIG_OVERRIDES")
         overrides = json.loads(overrides_json) if overrides_json else None
 

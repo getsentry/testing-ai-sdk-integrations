@@ -10,14 +10,26 @@ const { getMockTransport } = require("./mock-transport.cjs");
  * Run a test case with automatic fixture loading, span wrapping, and validation
  *
  * @param {string} specId - Test spec ID (e.g., "1-simple")
- * @param {string} frameworkType - Framework type ("agentic" or "low-level")
  * @param {Function} testLogic - Async function containing SDK-specific test logic
  * @param {Object} Sentry - Sentry SDK instance
  * @returns {Function} Test function ready to be exported
  */
-function runTestCase(specId, frameworkType, testLogic, Sentry) {
+function runTestCase(specId, testLogic, Sentry) {
   return async function () {
     console.log(`    Running ${specId}: ${getTestDescription(specId)}`);
+
+    // Load SDK config from environment
+    const sdkConfig = process.env.SDK_CONFIG
+      ? JSON.parse(process.env.SDK_CONFIG)
+      : null;
+
+    if (!sdkConfig?.framework_type) {
+      throw new Error(
+        "SDK_CONFIG with framework_type must be provided via environment variable"
+      );
+    }
+
+    const frameworkType = sdkConfig.framework_type;
 
     // Load config overrides from environment
     const overrides = process.env.SDK_CONFIG_OVERRIDES

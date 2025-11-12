@@ -58,8 +58,15 @@ function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig)
     // Use the JavaScript test runner wrapper to handle lifecycle hooks
     const runnerScript = join(dirname(__dirname), 'js-test-runner.cjs');
 
-    // Prepare environment with SDK config overrides for this test case
+    // Prepare environment with SDK config and overrides
     const env = { ...process.env } as NodeJS.ProcessEnv;
+
+    // Pass the entire SDK config (including framework_type)
+    if (config) {
+      env.SDK_CONFIG = JSON.stringify(config);
+    }
+
+    // Pass test case specific overrides
     if (config?.overrides && config.overrides[caseId]) {
       env.SDK_CONFIG_OVERRIDES = JSON.stringify(config.overrides[caseId]);
     }
@@ -67,7 +74,7 @@ function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig)
     const node = spawn('node', [runnerScript, sdkDir, filePath], {
       stdio: ['inherit', 'inherit', 'pipe'],  // Capture stderr
       cwd: sdkDir,
-      env  // Pass parent env with SDK config overrides
+      env  // Pass parent env with SDK config
     });
 
     let stderrData = '';
@@ -127,8 +134,15 @@ function runPythonTest(filePath: string, caseId: string, config?: SDKConfig): Pr
     // Use the Python test runner wrapper to handle lifecycle hooks
     const runnerScript = join(dirname(__dirname), 'python-test-runner.py');
 
-    // Prepare environment with SDK config overrides for this test case
+    // Prepare environment with SDK config and overrides
     const env = { ...process.env } as NodeJS.ProcessEnv;
+
+    // Pass the entire SDK config (including framework_type)
+    if (config) {
+      env.SDK_CONFIG = JSON.stringify(config);
+    }
+
+    // Pass test case specific overrides
     if (config?.overrides && config.overrides[caseId]) {
       env.SDK_CONFIG_OVERRIDES = JSON.stringify(config.overrides[caseId]);
     }
@@ -136,7 +150,7 @@ function runPythonTest(filePath: string, caseId: string, config?: SDKConfig): Pr
     const python = spawn(pythonCmd, [runnerScript, sdkDir, filePath], {
       stdio: ['inherit', 'inherit', 'pipe'],  // Capture stderr
       cwd: sdkDir,
-      env  // Pass parent env with SDK config overrides
+      env  // Pass parent env with SDK config
     });
 
     let stderrData = '';

@@ -10,8 +10,6 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from test_runner import run_test_case
 
-FRAMEWORK_TYPE = "low-level"
-
 
 async def test_logic(inputs):
     """The actual test logic"""
@@ -40,6 +38,6 @@ async def test_logic(inputs):
 
 
 # Export test case functions
-test_case = run_test_case("1-simple", FRAMEWORK_TYPE, test_logic)
+test_case = run_test_case("1-simple", test_logic)
 main = test_case["main"]
 assert_sentry = test_case["assert_sentry"]
