@@ -353,23 +353,24 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
     // Validate individual spans and relationships
     if (items && Array.isArray(items)) {
       const spanMap = new Map(); // id -> span object
-      const spanErrors = new Map(); // op -> { missing: [], mismatched: [] }
+      const spanErrors = new Map(); // id -> { expectedOp, actualOp, missing: [], mismatched: [], notFound: boolean }
 
       for (const itemExpectation of items) {
-        const opKey = Array.isArray(itemExpectation.op) ? itemExpectation.op.join(" or ") : itemExpectation.op;
+        const fixtureId = itemExpectation.id;
+        const expectedOp = Array.isArray(itemExpectation.op) ? itemExpectation.op.join(" or ") : itemExpectation.op;
 
         try {
           // Get span by operation and attributes
           const requiredAttrs = itemExpectation.required_attributes;
           const span = getSpan(spans, itemExpectation.op, requiredAttrs);
-          spanMap.set(itemExpectation.id, span);
+          spanMap.set(fixtureId, span);
 
           // Validate required attributes and collect errors
           if (requiredAttrs) {
-            if (!spanErrors.has(opKey)) {
-              spanErrors.set(opKey, { missing: [], mismatched: [] });
+            if (!spanErrors.has(fixtureId)) {
+              spanErrors.set(fixtureId, { expectedOp, actualOp: span.op, missing: [], mismatched: [] });
             }
-            const spanError = spanErrors.get(opKey);
+            const spanError = spanErrors.get(fixtureId);
 
             for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
               if (expectedValue === true) {
@@ -399,10 +400,10 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
               const matchingSpan = spans.find((s) => opList.includes(s.op));
 
               if (matchingSpan) {
-                if (!spanErrors.has(opKey)) {
-                  spanErrors.set(opKey, { missing: [], mismatched: [] });
+                if (!spanErrors.has(fixtureId)) {
+                  spanErrors.set(fixtureId, { expectedOp, actualOp: matchingSpan.op, missing: [], mismatched: [] });
                 }
-                const spanError = spanErrors.get(opKey);
+                const spanError = spanErrors.get(fixtureId);
 
                 // Check each attribute
                 for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
@@ -425,8 +426,8 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
             }
           } else if (error.message.includes('No span found with op=')) {
             // Span doesn't exist at all
-            if (!spanErrors.has(opKey)) {
-              spanErrors.set(opKey, { missing: [], mismatched: [], notFound: true });
+            if (!spanErrors.has(fixtureId)) {
+              spanErrors.set(fixtureId, { expectedOp, actualOp: null, missing: [], mismatched: [], notFound: true });
             }
           } else {
             // Other error - just append it
@@ -436,11 +437,11 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
       }
 
       // Format span errors in a structured way
-      for (const [op, errorDetails] of spanErrors) {
+      for (const [fixtureId, errorDetails] of spanErrors) {
         if (errorDetails.notFound) {
-          errors.push(`    ${op}: span not found`);
+          errors.push(`    ${fixtureId} (expected: ${errorDetails.expectedOp}): span not found`);
         } else if (errorDetails.missing.length > 0 || errorDetails.mismatched.length > 0) {
-          let errorMsg = `    ${op}:`;
+          let errorMsg = `    ${fixtureId} (${errorDetails.actualOp}):`;
 
           for (const attr of errorDetails.missing) {
             errorMsg += `\n       ${attr}: missing`;

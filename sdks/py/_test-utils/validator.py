@@ -334,23 +334,24 @@ def validate_fixture(
         # Validate individual spans and relationships
         if items:
             span_map = {}  # id -> span object
-            span_errors = {}  # op -> { missing: [], mismatched: [] }
+            span_errors = {}  # id -> { expected_op, actual_op, missing: [], mismatched: [], not_found: bool }
 
             for item_expectation in items:
-                op_key = " or ".join(item_expectation["op"]) if isinstance(item_expectation["op"], list) else item_expectation["op"]
+                fixture_id = item_expectation["id"]
+                expected_op = " or ".join(item_expectation["op"]) if isinstance(item_expectation["op"], list) else item_expectation["op"]
 
                 try:
                     # Get span by operation and attributes
                     required_attrs = item_expectation.get("required_attributes")
                     span = get_span(spans, item_expectation["op"], required_attrs)
-                    span_map[item_expectation["id"]] = span
+                    span_map[fixture_id] = span
 
                     # Validate required attributes and collect errors
                     if required_attrs:
-                        if op_key not in span_errors:
-                            span_errors[op_key] = {"missing": [], "mismatched": []}
+                        if fixture_id not in span_errors:
+                            span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": span.get("op"), "missing": [], "mismatched": []}
 
-                        span_error = span_errors[op_key]
+                        span_error = span_errors[fixture_id]
 
                         for attr, expected_value in required_attrs.items():
                             if expected_value is True:
@@ -376,10 +377,10 @@ def validate_fixture(
                             matching_span = next((s for s in spans if s.get("op") in op_list), None)
 
                             if matching_span:
-                                if op_key not in span_errors:
-                                    span_errors[op_key] = {"missing": [], "mismatched": []}
+                                if fixture_id not in span_errors:
+                                    span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": matching_span.get("op"), "missing": [], "mismatched": []}
 
-                                span_error = span_errors[op_key]
+                                span_error = span_errors[fixture_id]
 
                                 # Check each attribute
                                 for attr, expected_value in required_attrs.items():
@@ -396,18 +397,18 @@ def validate_fixture(
                                             })
                     elif "No span found with op=" in error_msg:
                         # Span doesn't exist at all
-                        if op_key not in span_errors:
-                            span_errors[op_key] = {"missing": [], "mismatched": [], "not_found": True}
+                        if fixture_id not in span_errors:
+                            span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": None, "missing": [], "mismatched": [], "not_found": True}
                     else:
                         # Other error - just append it
                         errors.append(error_msg)
 
             # Format span errors in a structured way
-            for op, error_details in span_errors.items():
+            for fixture_id, error_details in span_errors.items():
                 if error_details.get("not_found"):
-                    errors.append(f"    {op}: span not found")
+                    errors.append(f"    {fixture_id} (expected: {error_details['expected_op']}): span not found")
                 elif error_details["missing"] or error_details["mismatched"]:
-                    error_msg = f"    {op}:"
+                    error_msg = f"    {fixture_id} ({error_details['actual_op']}):"
 
                     for attr in error_details["missing"]:
                         error_msg += f"\n       {attr}: missing"
