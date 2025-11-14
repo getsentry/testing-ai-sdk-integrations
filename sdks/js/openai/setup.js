@@ -5,6 +5,7 @@
  */
 
 const Sentry = require("@sentry/node");
+const { createTransport } = require("@sentry/core");
 const { config } = require("dotenv");
 const { resolve } = require("path");
 const { createMockTransport } = require("../_test-utils/mock-transport.cjs");
@@ -16,7 +17,7 @@ config({ quiet: true, path: resolve(__dirname, "../../../.env") });
 Sentry.init({
   dsn: process.env.SENTRY_DSN || "https://public@127.0.0.1/1",
   tracesSampleRate: 1.0,
-  transport: createMockTransport,
+  transport: createMockTransport(createTransport),
   sendDefaultPii: true,
   integrations: [
     Sentry.openAIIntegration({

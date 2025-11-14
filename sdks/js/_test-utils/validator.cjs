@@ -276,16 +276,96 @@ function matchesPattern(actualValue, pattern) {
 }
 
 /**
+ * Validate an attribute against a schema object
+ *
+ * @param {*} attrValue - The actual attribute value
+ * @param {Object} schema - Schema object with validation rules
+ * @returns {boolean} True if value matches schema
+ *
+ * Supported schema formats:
+ * - { type: "json_array", min_length: 2, items_have: ["role", "content"] }
+ * - { type: "json_array", length: 2, items_have: ["role"] }
+ */
+function validateSchema(attrValue, schema) {
+  if (!schema || typeof schema !== 'object') {
+    return false;
+  }
+
+  // Handle json_array type
+  if (schema.type === 'json_array') {
+    // Parse JSON if it's a string
+    let parsed;
+    if (typeof attrValue === 'string') {
+      try {
+        parsed = JSON.parse(attrValue);
+      } catch (e) {
+        return false; // Not valid JSON
+      }
+    } else {
+      parsed = attrValue;
+    }
+
+    // Check if it's an array
+    if (!Array.isArray(parsed)) {
+      return false;
+    }
+
+    // Validate length
+    if (schema.length !== undefined && parsed.length !== schema.length) {
+      return false;
+    }
+
+    if (schema.min_length !== undefined && parsed.length < schema.min_length) {
+      return false;
+    }
+
+    if (schema.max_length !== undefined && parsed.length > schema.max_length) {
+      return false;
+    }
+
+    // Validate items_have (each item must have these properties)
+    if (schema.items_have && Array.isArray(schema.items_have)) {
+      for (const item of parsed) {
+        if (typeof item !== 'object' || item === null) {
+          return false;
+        }
+        for (const requiredProp of schema.items_have) {
+          if (!(requiredProp in item)) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  // Unknown schema type
+  return false;
+}
+
+/**
  * Check if a span has an attribute with a specific value
  *
  * @param {Object} span - The span to check
  * @param {string} attributeName - Name of the attribute (can use dot notation for nested, e.g., "data.ai.model")
- * @param {*} value - Expected value (uses strict equality or wildcard pattern matching)
+ * @param {*} value - Expected value (uses strict equality, wildcard pattern, or schema validation)
  * @returns {boolean} True if attribute exists and matches value
  */
 function attributeMatches(span, attributeName, value) {
   const attrValue = getAttribute(span, attributeName);
-  return attrValue !== undefined && matchesPattern(attrValue, value);
+
+  if (attrValue === undefined) {
+    return false;
+  }
+
+  // Check if value is a schema object
+  if (typeof value === 'object' && value !== null && !Array.isArray(value) && value.type) {
+    return validateSchema(attrValue, value);
+  }
+
+  // Otherwise use pattern matching
+  return matchesPattern(attrValue, value);
 }
 
 /**
@@ -436,7 +516,24 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
             const requiredAttrs = itemExpectation.required_attributes;
             if (requiredAttrs) {
               // Find the span by op only (without attribute filtering)
-              const opList = Array.isArray(itemExpectation.op) ? itemExpectation.op : [itemExpectation.op];
+              // Normalize op to list (handle pattern objects too)
+              const op = itemExpectation.op;
+              let opList;
+              if (typeof op === 'object' && !Array.isArray(op)) {
+                // Pattern object: get matching ops
+                const pattern = op.pattern;
+                const notList = op.not || [];
+                const matchingOps = new Set();
+                spans.forEach((s) => {
+                  if (s.op && matchesPattern(s.op, pattern) && !notList.includes(s.op)) {
+                    matchingOps.add(s.op);
+                  }
+                });
+                opList = Array.from(matchingOps);
+              } else {
+                opList = Array.isArray(op) ? op : [op];
+              }
+
               const matchingSpan = spans.find((s) => opList.includes(s.op));
 
               if (matchingSpan) {

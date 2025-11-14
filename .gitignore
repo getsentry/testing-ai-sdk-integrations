@@ -17,6 +17,10 @@ dist/
 build/
 *.tsbuildinfo
 
+# Test utilities should not have their own dependencies
+sdks/*/_test-utils/package.json
+sdks/*/_test-utils/package-lock.json
+
 # Python
 __pycache__/
 *.py[cod]

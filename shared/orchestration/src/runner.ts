@@ -24,10 +24,10 @@ async function runTestCase(testCase: TestCase, hooks: LifecycleHooks, sdk: SDK):
 
     if (isPython) {
       // Run Python test using subprocess
-      await runPythonTest(testCase.filePath, testCase.id, sdk.config);
+      await runPythonTest(testCase.filePath, testCase.id, sdk.config, sdk.path);
     } else {
       // Run JS/TS test using subprocess for isolation
-      await runJavaScriptTest(testCase.filePath, testCase.id, sdk.config);
+      await runJavaScriptTest(testCase.filePath, testCase.id, sdk.config, sdk.path);
     }
 
     return {
@@ -50,7 +50,7 @@ async function runTestCase(testCase: TestCase, hooks: LifecycleHooks, sdk: SDK):
 /**
  * Run a JavaScript test file
  */
-function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig): Promise<void> {
+function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig, sdkPath?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // Get the SDK directory (2 levels up from test file)
     const sdkDir = dirname(dirname(filePath));
@@ -60,6 +60,11 @@ function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig)
 
     // Prepare environment with SDK config and overrides
     const env = { ...process.env } as NodeJS.ProcessEnv;
+
+    // Pass the SDK path for display in output
+    if (sdkPath) {
+      env.SDK_PATH = sdkPath;
+    }
 
     // Pass the entire SDK config (including framework_type)
     if (config) {
@@ -122,7 +127,7 @@ function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig)
 /**
  * Run a Python test file
  */
-function runPythonTest(filePath: string, caseId: string, config?: SDKConfig): Promise<void> {
+function runPythonTest(filePath: string, caseId: string, config?: SDKConfig, sdkPath?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // Get the SDK directory (2 levels up from test file)
     const sdkDir = dirname(dirname(filePath));
@@ -136,6 +141,11 @@ function runPythonTest(filePath: string, caseId: string, config?: SDKConfig): Pr
 
     // Prepare environment with SDK config and overrides
     const env = { ...process.env } as NodeJS.ProcessEnv;
+
+    // Pass the SDK path for display in output
+    if (sdkPath) {
+      env.SDK_PATH = sdkPath;
+    }
 
     // Pass the entire SDK config (including framework_type)
     if (config) {

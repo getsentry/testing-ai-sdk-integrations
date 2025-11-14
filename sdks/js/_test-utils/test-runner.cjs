@@ -16,6 +16,8 @@ const { getMockTransport } = require("./mock-transport.cjs");
  */
 function runTestCase(specId, testLogic, Sentry) {
   return async function () {
+    const sdkPath = process.env.SDK_PATH || 'unknown';
+    console.log(`\n  [${sdkPath}]`);
     console.log(`    Running ${specId}: ${getTestDescription(specId)}`);
 
     // Load SDK config from environment

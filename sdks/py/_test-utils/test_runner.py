@@ -23,6 +23,9 @@ def run_test_case(spec_id, test_logic):
 
     async def main():
         """Main test case entry point"""
+        import os
+        sdk_path = os.getenv("SDK_PATH", "unknown")
+        print(f"\n  [{sdk_path}]")
         print(f"    Running {spec_id}: {get_test_description(spec_id)}")
 
         # Load SDK config from environment

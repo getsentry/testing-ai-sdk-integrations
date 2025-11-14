@@ -4,6 +4,7 @@ Fixture validator - validates captured Sentry data against fixtures
 Includes assertion helpers for querying and verifying spans
 """
 
+import json
 from typing import List, Dict, Any
 from fixture_loader import load_fixture
 
@@ -102,10 +103,77 @@ def matches_pattern(actual_value: Any, pattern: Any) -> bool:
     return actual_value == pattern
 
 
+def validate_schema(attr_value: Any, schema: Dict[str, Any]) -> bool:
+    """
+    Validate an attribute against a schema object
+
+    Args:
+        attr_value: The actual attribute value
+        schema: Schema object with validation rules
+
+    Returns:
+        True if value matches schema
+
+    Supported schema formats:
+        - {"type": "json_array", "min_length": 2, "items_have": ["role", "content"]}
+        - {"type": "json_array", "length": 2, "items_have": ["role"]}
+    """
+    if not schema or not isinstance(schema, dict):
+        return False
+
+    # Handle json_array type
+    if schema.get("type") == "json_array":
+        # Parse JSON if it's a string
+        if isinstance(attr_value, str):
+            try:
+                parsed = json.loads(attr_value)
+            except (json.JSONDecodeError, ValueError):
+                return False  # Not valid JSON
+        else:
+            parsed = attr_value
+
+        # Check if it's an array
+        if not isinstance(parsed, list):
+            return False
+
+        # Validate length
+        if "length" in schema and len(parsed) != schema["length"]:
+            return False
+
+        if "min_length" in schema and len(parsed) < schema["min_length"]:
+            return False
+
+        if "max_length" in schema and len(parsed) > schema["max_length"]:
+            return False
+
+        # Validate items_have (each item must have these properties)
+        if "items_have" in schema and isinstance(schema["items_have"], list):
+            for item in parsed:
+                if not isinstance(item, dict):
+                    return False
+                for required_prop in schema["items_have"]:
+                    if required_prop not in item:
+                        return False
+
+        return True
+
+    # Unknown schema type
+    return False
+
+
 def attribute_matches(span: Dict[str, Any], attribute_name: str, value: Any) -> bool:
     """Check if a span has an attribute with a specific value"""
     attr_value = get_attribute(span, attribute_name)
-    return attr_value is not None and matches_pattern(attr_value, value)
+
+    if attr_value is None:
+        return False
+
+    # Check if value is a schema object
+    if isinstance(value, dict) and "type" in value:
+        return validate_schema(attr_value, value)
+
+    # Otherwise use pattern matching
+    return matches_pattern(attr_value, value)
 
 
 def contains_attributes(span: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
@@ -410,7 +478,23 @@ def validate_fixture(
                         required_attrs = item_expectation.get("required_attributes")
                         if required_attrs:
                             # Find the span by op only (without attribute filtering)
-                            op_list = item_expectation["op"] if isinstance(item_expectation["op"], list) else [item_expectation["op"]]
+                            # Normalize op to list (handle pattern objects too)
+                            op = item_expectation["op"]
+                            if isinstance(op, dict):
+                                # Pattern object: get matching ops
+                                pattern = op.get("pattern")
+                                not_list = op.get("not", [])
+                                matching_ops = set()
+                                for s in spans:
+                                    span_op = s.get("op")
+                                    if span_op and matches_pattern(span_op, pattern) and span_op not in not_list:
+                                        matching_ops.add(span_op)
+                                op_list = list(matching_ops)
+                            elif isinstance(op, list):
+                                op_list = op
+                            else:
+                                op_list = [op]
+
                             matching_span = next((s for s in spans if s.get("op") in op_list), None)
 
                             if matching_span:

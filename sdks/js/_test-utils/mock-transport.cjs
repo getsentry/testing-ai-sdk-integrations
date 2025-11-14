@@ -5,8 +5,6 @@
  * Provides helpers to query and verify captured events.
  */
 
-const { createTransport } = require("@sentry/core");
-
 class MockTransportCapture {
   constructor() {
     this.envelopes = [];
@@ -130,24 +128,29 @@ let mockTransportCapture = null;
 
 /**
  * Create a mock transport factory (to be passed to Sentry.init)
+ *
+ * @param {Function} createTransport - The createTransport function from @sentry/core
+ * @returns {Function} Transport factory function
  */
-function createMockTransport(options) {
-  // Initialize capture instance
-  mockTransportCapture = new MockTransportCapture();
+function createMockTransport(createTransport) {
+  return function(options) {
+    // Initialize capture instance
+    mockTransportCapture = new MockTransportCapture();
 
-  // Create transport using Sentry's createTransport helper
-  return createTransport(options, (envelope) => {
-    // Capture the envelope
-    if (mockTransportCapture) {
-      mockTransportCapture.capture(envelope);
-    }
+    // Create transport using Sentry's createTransport helper
+    return createTransport(options, (envelope) => {
+      // Capture the envelope
+      if (mockTransportCapture) {
+        mockTransportCapture.capture(envelope);
+      }
 
-    // Return success response
-    return Promise.resolve({
-      statusCode: 200,
-      headers: {},
+      // Return success response
+      return Promise.resolve({
+        statusCode: 200,
+        headers: {},
+      });
     });
-  });
+  };
 }
 
 /**
