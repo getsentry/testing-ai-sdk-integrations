@@ -139,7 +139,7 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
 
     Args:
         spans: List of span objects
-        op: Operation name (string) or list of operation names to search for
+        op: Operation name (string), list of operation names, or dict with pattern/not
         required_attributes: Optional dict of attributes to filter by
 
     Returns:
@@ -149,7 +149,23 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
         ValueError: If zero or multiple spans found
     """
     # Normalize op to a list
-    op_list = [op] if isinstance(op, str) else op
+    if isinstance(op, dict):
+        # Object format: { "pattern": "gen_ai.*", "not": ["gen_ai.invoke_agent", ...] }
+        pattern = op.get("pattern")
+        not_list = op.get("not", [])
+
+        # Get all unique op values from spans that match the pattern but not in the exclusion list
+        matching_ops = set()
+        for s in spans:
+            span_op = s.get("op")
+            if span_op and matches_pattern(span_op, pattern) and span_op not in not_list:
+                matching_ops.add(span_op)
+
+        op_list = list(matching_ops)
+    elif isinstance(op, str):
+        op_list = [op]
+    else:
+        op_list = op
 
     # Filter by operation name(s)
     matching = [s for s in spans if s.get("op") in op_list]
@@ -159,7 +175,13 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
         matching = [s for s in matching if contains_attributes(s, required_attributes)]
 
     if len(matching) == 0:
-        op_desc = op if isinstance(op, str) else " or ".join(op)
+        # Generate description for error messages
+        if isinstance(op, dict):
+            op_desc = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
+        elif isinstance(op, str):
+            op_desc = op
+        else:
+            op_desc = " or ".join(op)
 
         # Check if any spans with the op exist (without attribute filtering)
         spans_with_op = [s for s in spans if s.get("op") in op_list]
@@ -216,7 +238,14 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
             raise ValueError(error_msg)
 
     if len(matching) > 1:
-        op_desc = op if isinstance(op, str) else " or ".join(op)
+        # Generate description for error messages
+        if isinstance(op, dict):
+            op_desc = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
+        elif isinstance(op, str):
+            op_desc = op
+        else:
+            op_desc = " or ".join(op)
+
         error_msg = f'Found {len(matching)} spans matching op="{op_desc}", expected exactly 1'
 
         error_msg += '\n  Matching spans:'
@@ -338,7 +367,15 @@ def validate_fixture(
 
             for item_expectation in items:
                 fixture_id = item_expectation["id"]
-                expected_op = " or ".join(item_expectation["op"]) if isinstance(item_expectation["op"], list) else item_expectation["op"]
+
+                # Generate expected op description
+                op = item_expectation["op"]
+                if isinstance(op, dict):
+                    expected_op = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
+                elif isinstance(op, list):
+                    expected_op = " or ".join(op)
+                else:
+                    expected_op = op
 
                 try:
                     # Get span by operation and attributes

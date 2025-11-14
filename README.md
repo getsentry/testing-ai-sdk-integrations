@@ -80,7 +80,7 @@ ai-sdks-test/
 
 ```bash
 git clone <repository-url>
-cd ai-sdks-test
+cd testing-ai-sdk-integrations
 ```
 
 2. Copy and configure environment variables:
