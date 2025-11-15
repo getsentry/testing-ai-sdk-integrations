@@ -223,6 +223,8 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 1. **If you modify `js/_test-utils/validator.cjs`:**
 
    - Update `py/_test-utils/validator.py` with equivalent logic
+   - **Update `validator.test.cjs` and `validator.test.py` with test cases for the new feature**
+   - Run both test files: `node sdks/js/_test-utils/validator.test.cjs && python3 sdks/py/_test-utils/validator.test.py`
    - Run same fixture through both validators
    - Confirm identical error output
 
@@ -244,6 +246,7 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 | `sdks/js/_test-utils/test-runner.cjs`    | `sdks/py/_test-utils/test_runner.py`   | Orchestrates test execution             |
 | `sdks/js/_test-utils/fixture-loader.cjs` | `sdks/py/_test-utils/fixture_loader.py`| Loads JSON fixtures with overrides      |
 | `sdks/js/_test-utils/validator.cjs`      | `sdks/py/_test-utils/validator.py`     | Validates captured data against fixtures|
+| `sdks/js/_test-utils/validator.test.cjs` | `sdks/py/_test-utils/validator.test.py`| Tests for validator logic               |
 | `sdks/js/_test-utils/mock-transport.cjs` | `sdks/py/_test-utils/mock_transport.py`| Captures Sentry events in-memory        |
 
 ### Test Parity Checklist
@@ -255,6 +258,8 @@ When adding or modifying test-utils, verify:
 - [ ] Same error messages (word-for-word when possible)
 - [ ] Same return values/behavior
 - [ ] Both implementations tested and working
+- [ ] **Validator tests updated in both languages (validator.test.cjs and validator.test.py)**
+- [ ] **Both test files pass: `node validator.test.cjs && python3 validator.test.py`**
 - [ ] Same validation logic produces identical results
 - [ ] Test with same fixture through both validators to confirm identical output
 
@@ -265,7 +270,8 @@ When adding or modifying test-utils, verify:
 | Test Runner | `test-runner.cjs` | `test_runner.py` | ✅ Synced | Both orchestrate tests correctly |
 | Mock Transport | `mock-transport.cjs` | `mock_transport.py` | ✅ Synced | Both capture envelopes correctly |
 | Fixture Loader | `fixture-loader.cjs` | `fixture_loader.py` | ✅ Synced | Both support config overrides |
-| Fixture Validator | `validator.cjs` | `validator.py` | ✅ Synced | Both validate with same logic |
+| Fixture Validator | `validator.cjs` | `validator.py` | ✅ Synced | Schema validation, pattern ops, wildcards |
+| Validator Tests | `validator.test.cjs` | `validator.test.py` | ✅ Synced | Both test schema validation |
 
 ## Test Scenarios
 

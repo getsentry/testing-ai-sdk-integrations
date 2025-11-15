@@ -266,6 +266,67 @@ Fixture attribute values support wildcard patterns using `*` for flexible matchi
 - For presence-only checks, use `true` instead of wildcards
 - Patterns are case-sensitive
 
+### Pattern-Based Op Matching
+
+For complex op matching scenarios, use pattern objects with exclusions:
+
+```json
+{
+  "id": "llm_call",
+  "op": {
+    "pattern": "gen_ai.*",
+    "not": ["gen_ai.invoke_agent", "gen_ai.execute_tool"]
+  },
+  "required_attributes": { ... }
+}
+```
+
+This matches any span with op starting with `gen_ai.` EXCEPT `gen_ai.invoke_agent` and `gen_ai.execute_tool`.
+
+**Supported op formats:**
+- `"op": "gen_ai.chat"` - Single string (exact match)
+- `"op": ["gen_ai.chat", "gen_ai.messages"]` - Array (OR matching)
+- `"op": { "pattern": "gen_ai.*", "not": [...] }` - Pattern with exclusions
+
+### Schema Validation for Complex Attributes
+
+For attributes with structured data (like `gen_ai.request.messages`), use schema objects:
+
+```json
+{
+  "required_attributes": {
+    "gen_ai.request.messages": {
+      "type": "json_array",
+      "min_length": 2,
+      "items_have": ["role", "content"]
+    }
+  }
+}
+```
+
+**Supported schema options:**
+- `type: "json_array"` - Validates JSON string or array
+- `length: N` - Exact array length
+- `min_length: N` - Minimum array length
+- `max_length: N` - Maximum array length
+- `items_have: ["prop1", "prop2"]` - All items must contain these properties
+
+**Example use cases:**
+```json
+{
+  "gen_ai.request.messages": {
+    "type": "json_array",
+    "length": 2,
+    "items_have": ["role", "content"]
+  },
+  "gen_ai.response.choices": {
+    "type": "json_array",
+    "min_length": 1,
+    "items_have": ["message"]
+  }
+}
+```
+
 ## Writing New Specifications
 
 1. **Create directory:** `mkdir shared/specs/{spec-id}`

@@ -9,11 +9,12 @@ sdks/py/_test-utils/
 ├── test_runner.py          # Orchestrates test execution (main helper)
 ├── fixture_loader.py       # Loads JSON fixtures with config overrides
 ├── validator.py            # Validates captured data against fixtures
+├── validator.test.py       # Tests for validator logic
 ├── mock_transport.py       # Captures Sentry data in-memory
 └── README.md              # This file
 ```
 
-**Note:** All files use `.py` extension with snake_case naming.
+**Note:** All files use `.py` extension with snake_case naming. No requirements.txt - dependencies come from each SDK's requirements.txt.
 
 ## 🚨 CRITICAL: JavaScript/Python Parity Rule
 
@@ -32,6 +33,8 @@ sdks/py/_test-utils/
 
 1. **If you modify `validator.py`:**
    - Update `sdks/js/_test-utils/validator.cjs` with equivalent logic
+   - **Update `validator.test.py` and `validator.test.cjs` with test cases for the new feature**
+   - Run both test files: `python3 validator.test.py && node validator.test.cjs`
    - Run same fixture through both validators
    - Confirm identical error output
 
@@ -75,6 +78,14 @@ Validates captured Sentry data against fixture expectations:
   - Compares actual spans/transactions/events vs fixture expectations
   - Checks span counts, attributes, hierarchy
   - Returns validation result with detailed error messages
+
+**Supported validation features:**
+- Wildcard patterns: `"gpt-4*"`, `"*-mini"`, `"*anthropic*"`
+- Pattern-based op matching: `{ "pattern": "gen_ai.*", "not": [...] }`
+- Schema validation: `{ "type": "json_array", "min_length": 2, "items_have": [...] }`
+- Presence checks: `True` (attribute must exist)
+
+**Test file:** `validator.test.py` - Run with `python3 validator.test.py` to verify validator logic
 
 ### mock_transport.py
 
@@ -226,7 +237,8 @@ Test case files will automatically inherit this path setup.
 | Test Runner | `test_runner.py` | `test-runner.cjs` | ✅ Synced | Both orchestrate tests correctly |
 | Mock Transport | `mock_transport.py` | `mock-transport.cjs` | ✅ Synced | Both capture envelopes correctly |
 | Fixture Loader | `fixture_loader.py` | `fixture-loader.cjs` | ✅ Synced | Both support config overrides |
-| Fixture Validator | `validator.py` | `validator.cjs` | ✅ Synced | Both validate with same logic |
+| Fixture Validator | `validator.py` | `validator.cjs` | ✅ Synced | Schema validation, pattern ops, wildcards |
+| Validator Tests | `validator.test.py` | `validator.test.cjs` | ✅ Synced | Both test schema validation |
 
 ## See Also
 
