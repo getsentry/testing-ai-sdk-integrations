@@ -529,6 +529,206 @@ function containsAttributes(span, attributes) {
 // ============================================================================
 
 /**
+ * Validate transaction count
+ *
+ * @param {Array} transactions - Captured transactions
+ * @param {Object} expectations - Fixture expectations
+ * @param {Array} errors - Error array to append to
+ */
+function validateTransactions(transactions, expectations, errors) {
+  if (expectations.transactions) {
+    const { min_count } = expectations.transactions;
+    if (min_count !== undefined && transactions.length < min_count) {
+      errors.push(
+        `Expected at least ${min_count} transaction(s), got ${transactions.length}`
+      );
+    }
+  }
+}
+
+/**
+ * Validate span count
+ *
+ * @param {Array} spans - Captured spans
+ * @param {Object} expectations - Fixture span expectations
+ * @param {Array} errors - Error array to append to
+ */
+function validateSpanCounts(spans, expectations, errors) {
+  if (expectations.spans) {
+    const { count, min_count } = expectations.spans;
+    const minSpanCount = min_count !== undefined ? min_count : count;
+    if (minSpanCount !== undefined && spans.length < minSpanCount) {
+      errors.push(`Expected at least ${minSpanCount} span(s), got ${spans.length}`);
+    }
+  }
+}
+
+/**
+ * Validate events
+ *
+ * @param {Array} events - Captured events
+ * @param {Object} expectations - Fixture expectations
+ * @param {Array} errors - Error array to append to
+ */
+function validateEvents(events, expectations, errors) {
+  if (expectations.events) {
+    const { error_count } = expectations.events;
+    if (error_count !== undefined) {
+      const actualErrorCount = events.filter((e) => e.level === "error").length;
+      if (actualErrorCount !== error_count) {
+        errors.push(`Expected ${error_count} error event(s), got ${actualErrorCount}`);
+      }
+    }
+  }
+}
+
+/**
+ * Validate parent-child relationships between spans
+ *
+ * @param {Array} items - Span item expectations from fixture
+ * @param {Map} spanMap - Map of fixture ID to matched span
+ * @param {Array} errors - Error array to append to
+ */
+function validateSpanRelationships(items, spanMap, errors) {
+  for (const itemExpectation of items) {
+    if (itemExpectation.parent) {
+      const childSpan = spanMap.get(itemExpectation.id);
+      const parentSpan = spanMap.get(itemExpectation.parent);
+
+      if (childSpan && parentSpan) {
+        if (!isChildOf(childSpan, parentSpan)) {
+          errors.push(
+            `Span with op="${itemExpectation.op}" should be child of span with id="${itemExpectation.parent}"`
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Validate individual span items from fixture expectations
+ *
+ * @param {Array} spans - Captured spans
+ * @param {Array} items - Span item expectations from fixture
+ * @param {Array} errors - Error array to append to
+ * @returns {Map} Map of fixture ID to matched span
+ */
+function validateSpanItems(spans, items, errors) {
+  const spanMap = new Map();
+  const spanErrors = new Map();
+  const usedSpans = new Set();
+
+  // Match each expected span
+  for (const itemExpectation of items) {
+    const fixtureId = itemExpectation.id;
+    const expectedOp = formatOpDescription(itemExpectation.op);
+
+    try {
+      // Get span by operation and attributes (pass usedSpans to match in order)
+      const requiredAttrs = itemExpectation.required_attributes;
+      const span = getSpan(spans, itemExpectation.op, requiredAttrs, usedSpans);
+      spanMap.set(fixtureId, span);
+
+      // Mark this span as used
+      if (span.span_id) {
+        usedSpans.add(span.span_id);
+      }
+
+      // Validate required attributes and collect errors
+      if (requiredAttrs) {
+        if (!spanErrors.has(fixtureId)) {
+          spanErrors.set(fixtureId, {
+            expectedOp,
+            actualOp: span.op,
+            missing: [],
+            mismatched: [],
+          });
+        }
+        const spanError = spanErrors.get(fixtureId);
+
+        // Validate attributes and collect errors
+        const attrErrors = validateSpanAttributes(span, requiredAttrs);
+        spanError.missing.push(...attrErrors.missing);
+        spanError.mismatched.push(...attrErrors.mismatched);
+      }
+    } catch (error) {
+      // getSpan threw an error - check if it's about missing attributes or missing span
+      if (error.message.includes("but missing required attributes")) {
+        // Span exists but has attribute issues - extract the details
+        const requiredAttrs = itemExpectation.required_attributes;
+        if (requiredAttrs) {
+          // Find the span by op only (without attribute filtering)
+          const opList = normalizeOpToList(itemExpectation.op, spans);
+          const matchingSpan = spans.find((s) => opList.includes(s.op));
+
+          if (matchingSpan) {
+            if (!spanErrors.has(fixtureId)) {
+              spanErrors.set(fixtureId, {
+                expectedOp,
+                actualOp: matchingSpan.op,
+                missing: [],
+                mismatched: [],
+              });
+            }
+            const spanError = spanErrors.get(fixtureId);
+
+            // Validate attributes and collect errors
+            const attrErrors = validateSpanAttributes(matchingSpan, requiredAttrs);
+            spanError.missing.push(...attrErrors.missing);
+            spanError.mismatched.push(...attrErrors.mismatched);
+          }
+        }
+      } else if (error.message.includes("No span found with op=")) {
+        // Span doesn't exist at all
+        if (!spanErrors.has(fixtureId)) {
+          spanErrors.set(fixtureId, {
+            expectedOp,
+            actualOp: null,
+            missing: [],
+            mismatched: [],
+            notFound: true,
+          });
+        }
+      } else {
+        // Other error - just append it
+        errors.push(error.message);
+      }
+    }
+  }
+
+  // Format span errors in a structured way
+  for (const [fixtureId, errorDetails] of spanErrors) {
+    if (errorDetails.notFound) {
+      errors.push(
+        `    ${fixtureId} (expected: ${errorDetails.expectedOp}): span not found`
+      );
+    } else if (
+      errorDetails.missing.length > 0 ||
+      errorDetails.mismatched.length > 0
+    ) {
+      let errorMsg = `    ${fixtureId} (${errorDetails.actualOp}):`;
+
+      for (const attr of errorDetails.missing) {
+        errorMsg += `\n       ${attr}: missing`;
+      }
+
+      for (const mismatch of errorDetails.mismatched) {
+        errorMsg += `\n       ${
+          mismatch.attr
+        }: mismatch (expected: ${JSON.stringify(
+          mismatch.expected
+        )}, got: ${JSON.stringify(mismatch.actual)})`;
+      }
+
+      errors.push(errorMsg);
+    }
+  }
+
+  return spanMap;
+}
+
+/**
  * Validate captured Sentry data against a fixture
  *
  * @param {string} specId - The spec ID (e.g., "1-simple")
@@ -571,176 +771,19 @@ function validateFixture(
   }
 
   // Validate transactions
-  if (fixture.expectations.transactions) {
-    const { min_count } = fixture.expectations.transactions;
-    if (min_count !== undefined && transactions.length < min_count) {
-      errors.push(
-        `Expected at least ${min_count} transaction(s), got ${transactions.length}`
-      );
-    }
-  }
+  validateTransactions(transactions, fixture.expectations, errors);
 
-  // Validate spans
-  if (fixture.expectations.spans) {
-    const { count, min_count, items } = fixture.expectations.spans;
+  // Validate span counts
+  validateSpanCounts(spans, fixture.expectations, errors);
 
-    // Check minimum span count
-    // Note: 'count' is treated as minimum, not exact
-    const minSpanCount = min_count !== undefined ? min_count : count;
-    if (minSpanCount !== undefined && spans.length < minSpanCount) {
-      errors.push(
-        `Expected at least ${minSpanCount} span(s), got ${spans.length}`
-      );
-    }
-
-    // Validate individual spans and relationships
-    if (items && Array.isArray(items)) {
-      const spanMap = new Map(); // id -> span object
-      const spanErrors = new Map(); // id -> { expectedOp, actualOp, missing: [], mismatched: [], notFound: boolean }
-      const usedSpans = new Set(); // Track span IDs already matched
-
-      for (const itemExpectation of items) {
-        const fixtureId = itemExpectation.id;
-
-        // Generate expected op description
-        const expectedOp = formatOpDescription(itemExpectation.op);
-
-        try {
-          // Get span by operation and attributes (pass usedSpans to match in order)
-          const requiredAttrs = itemExpectation.required_attributes;
-          const span = getSpan(
-            spans,
-            itemExpectation.op,
-            requiredAttrs,
-            usedSpans
-          );
-          spanMap.set(fixtureId, span);
-
-          // Mark this span as used
-          if (span.span_id) {
-            usedSpans.add(span.span_id);
-          }
-
-          // Validate required attributes and collect errors
-          if (requiredAttrs) {
-            if (!spanErrors.has(fixtureId)) {
-              spanErrors.set(fixtureId, {
-                expectedOp,
-                actualOp: span.op,
-                missing: [],
-                mismatched: [],
-              });
-            }
-            const spanError = spanErrors.get(fixtureId);
-
-            // Validate attributes and collect errors
-            const attrErrors = validateSpanAttributes(span, requiredAttrs);
-            spanError.missing.push(...attrErrors.missing);
-            spanError.mismatched.push(...attrErrors.mismatched);
-          }
-        } catch (error) {
-          // getSpan threw an error - check if it's about missing attributes or missing span
-          if (error.message.includes("but missing required attributes")) {
-            // Span exists but has attribute issues - extract the details
-            const requiredAttrs = itemExpectation.required_attributes;
-            if (requiredAttrs) {
-              // Find the span by op only (without attribute filtering)
-              const opList = normalizeOpToList(itemExpectation.op, spans);
-              const matchingSpan = spans.find((s) => opList.includes(s.op));
-
-              if (matchingSpan) {
-                if (!spanErrors.has(fixtureId)) {
-                  spanErrors.set(fixtureId, {
-                    expectedOp,
-                    actualOp: matchingSpan.op,
-                    missing: [],
-                    mismatched: [],
-                  });
-                }
-                const spanError = spanErrors.get(fixtureId);
-
-                // Validate attributes and collect errors
-                const attrErrors = validateSpanAttributes(matchingSpan, requiredAttrs);
-                spanError.missing.push(...attrErrors.missing);
-                spanError.mismatched.push(...attrErrors.mismatched);
-              }
-            }
-          } else if (error.message.includes("No span found with op=")) {
-            // Span doesn't exist at all
-            if (!spanErrors.has(fixtureId)) {
-              spanErrors.set(fixtureId, {
-                expectedOp,
-                actualOp: null,
-                missing: [],
-                mismatched: [],
-                notFound: true,
-              });
-            }
-          } else {
-            // Other error - just append it
-            errors.push(error.message);
-          }
-        }
-      }
-
-      // Format span errors in a structured way
-      for (const [fixtureId, errorDetails] of spanErrors) {
-        if (errorDetails.notFound) {
-          errors.push(
-            `    ${fixtureId} (expected: ${errorDetails.expectedOp}): span not found`
-          );
-        } else if (
-          errorDetails.missing.length > 0 ||
-          errorDetails.mismatched.length > 0
-        ) {
-          let errorMsg = `    ${fixtureId} (${errorDetails.actualOp}):`;
-
-          for (const attr of errorDetails.missing) {
-            errorMsg += `\n       ${attr}: missing`;
-          }
-
-          for (const mismatch of errorDetails.mismatched) {
-            errorMsg += `\n       ${
-              mismatch.attr
-            }: mismatch (expected: ${JSON.stringify(
-              mismatch.expected
-            )}, got: ${JSON.stringify(mismatch.actual)})`;
-          }
-
-          errors.push(errorMsg);
-        }
-      }
-
-      // Validate parent-child relationships
-      for (const itemExpectation of items) {
-        if (itemExpectation.parent) {
-          const childSpan = spanMap.get(itemExpectation.id);
-          const parentSpan = spanMap.get(itemExpectation.parent);
-
-          if (childSpan && parentSpan) {
-            if (!isChildOf(childSpan, parentSpan)) {
-              errors.push(
-                `Span with op="${itemExpectation.op}" should be child of span with id="${itemExpectation.parent}"`
-              );
-            }
-          }
-        }
-      }
-    }
+  // Validate individual spans and relationships
+  if (fixture.expectations.spans?.items) {
+    const spanMap = validateSpanItems(spans, fixture.expectations.spans.items, errors);
+    validateSpanRelationships(fixture.expectations.spans.items, spanMap, errors);
   }
 
   // Validate events
-  if (fixture.expectations.events) {
-    const { error_count } = fixture.expectations.events;
-    if (error_count !== undefined) {
-      const actualErrorCount = events.filter((e) => e.level === "error").length;
-      if (actualErrorCount !== error_count) {
-        errors.push(
-          `Expected ${error_count} error event(s), got ${actualErrorCount}`
-        );
-      }
-    }
-  }
+  validateEvents(events, fixture.expectations, errors);
 
   return {
     passed: errors.length === 0,
@@ -751,13 +794,5 @@ function validateFixture(
 
 module.exports = {
   validateFixture,
-  // Export assertion helpers for direct use if needed
-  getSpan,
-  getSpans,
-  isChildOf,
-  getAttribute,
-  hasAttribute,
-  attributeMatches,
-  matchesPattern,
-  containsAttributes,
+  attributeMatches,  // Used by validator.test.cjs
 };

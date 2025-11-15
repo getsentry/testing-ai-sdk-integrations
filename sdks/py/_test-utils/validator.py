@@ -8,6 +8,9 @@ import json
 from typing import List, Dict, Any
 from fixture_loader import load_fixture
 
+# Public API
+__all__ = ["validate_fixture", "attribute_matches"]
+
 
 # ============================================================================
 # ASSERTION HELPERS
@@ -456,6 +459,167 @@ def is_child_of(child_span: Dict[str, Any], parent_span: Dict[str, Any]) -> bool
 # VALIDATOR
 # ============================================================================
 
+
+def validate_transactions(transactions: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]) -> None:
+    """
+    Validate transaction count
+
+    Args:
+        transactions: Captured transactions
+        expectations: Fixture expectations
+        errors: Error list to append to
+    """
+    if "transactions" in expectations:
+        min_count = expectations["transactions"].get("min_count")
+        if min_count is not None and len(transactions) < min_count:
+            errors.append(f"Expected at least {min_count} transaction(s), got {len(transactions)}")
+
+
+def validate_span_counts(spans: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]) -> None:
+    """
+    Validate span count
+
+    Args:
+        spans: Captured spans
+        expectations: Fixture expectations
+        errors: Error list to append to
+    """
+    if "spans" in expectations:
+        count = expectations["spans"].get("count")
+        min_count = expectations["spans"].get("min_count")
+        min_span_count = min_count if min_count is not None else count
+        if min_span_count is not None and len(spans) < min_span_count:
+            errors.append(f"Expected at least {min_span_count} span(s), got {len(spans)}")
+
+
+def validate_events(events: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]) -> None:
+    """
+    Validate events
+
+    Args:
+        events: Captured events
+        expectations: Fixture expectations
+        errors: Error list to append to
+    """
+    if "events" in expectations:
+        error_count = expectations["events"].get("error_count")
+        if error_count is not None:
+            actual_error_count = len([e for e in events if e.get("level") == "error"])
+            if actual_error_count != error_count:
+                errors.append(f"Expected {error_count} error event(s), got {actual_error_count}")
+
+
+def validate_span_relationships(items: List[Dict[str, Any]], span_map: Dict[str, Dict[str, Any]], errors: List[str]) -> None:
+    """
+    Validate parent-child relationships between spans
+
+    Args:
+        items: Span item expectations from fixture
+        span_map: Dict of fixture ID to matched span
+        errors: Error list to append to
+    """
+    for item_expectation in items:
+        if "parent" in item_expectation:
+            child_span = span_map.get(item_expectation["id"])
+            parent_span = span_map.get(item_expectation["parent"])
+
+            if child_span and parent_span:
+                if not is_child_of(child_span, parent_span):
+                    errors.append(
+                        f'Span with op="{item_expectation["op"]}" should be child of '
+                        f'span with id="{item_expectation["parent"]}"'
+                    )
+
+
+def validate_span_items(spans: List[Dict[str, Any]], items: List[Dict[str, Any]], errors: List[str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Validate individual span items from fixture expectations
+
+    Args:
+        spans: Captured spans
+        items: Span item expectations from fixture
+        errors: Error list to append to
+
+    Returns:
+        Dict of fixture ID to matched span
+    """
+    span_map = {}
+    span_errors = {}
+    used_spans = set()
+
+    # Match each expected span
+    for item_expectation in items:
+        fixture_id = item_expectation["id"]
+        expected_op = format_op_description(item_expectation["op"])
+
+        try:
+            # Get span by operation and attributes (pass used_spans to match in order)
+            required_attrs = item_expectation.get("required_attributes")
+            span = get_span(spans, item_expectation["op"], required_attrs, used_spans)
+            span_map[fixture_id] = span
+
+            # Mark this span as used
+            if span.get("span_id"):
+                used_spans.add(span["span_id"])
+
+            # Validate required attributes and collect errors
+            if required_attrs:
+                if fixture_id not in span_errors:
+                    span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": span.get("op"), "missing": [], "mismatched": []}
+
+                span_error = span_errors[fixture_id]
+
+                # Validate attributes and collect errors
+                attr_errors = validate_span_attributes(span, required_attrs)
+                span_error["missing"].extend(attr_errors["missing"])
+                span_error["mismatched"].extend(attr_errors["mismatched"])
+        except Exception as e:
+            error_msg = str(e)
+            # get_span threw an error - check if it's about missing attributes or missing span
+            if "but missing required attributes" in error_msg:
+                # Span exists but has attribute issues - extract the details
+                required_attrs = item_expectation.get("required_attributes")
+                if required_attrs:
+                    # Find the span by op only (without attribute filtering)
+                    op_list = normalize_op_to_list(item_expectation["op"], spans)
+                    matching_span = next((s for s in spans if s.get("op") in op_list), None)
+
+                    if matching_span:
+                        if fixture_id not in span_errors:
+                            span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": matching_span.get("op"), "missing": [], "mismatched": []}
+
+                        span_error = span_errors[fixture_id]
+
+                        # Validate attributes and collect errors
+                        attr_errors = validate_span_attributes(matching_span, required_attrs)
+                        span_error["missing"].extend(attr_errors["missing"])
+                        span_error["mismatched"].extend(attr_errors["mismatched"])
+            elif "No span found with op=" in error_msg:
+                # Span doesn't exist at all
+                if fixture_id not in span_errors:
+                    span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": None, "missing": [], "mismatched": [], "not_found": True}
+            else:
+                # Other error - just append it
+                errors.append(error_msg)
+
+    # Format span errors in a structured way
+    for fixture_id, error_details in span_errors.items():
+        if error_details.get("not_found"):
+            errors.append(f"    {fixture_id} (expected: {error_details['expected_op']}): span not found")
+        elif error_details["missing"] or error_details["mismatched"]:
+            error_msg = f"    {fixture_id} ({error_details['actual_op']}):"
+
+            for attr in error_details["missing"]:
+                error_msg += f"\n       {attr}: missing"
+
+            for mismatch in error_details["mismatched"]:
+                error_msg += f'\n       {mismatch["attr"]}: mismatch (expected: {repr(mismatch["expected"])}, got: {repr(mismatch["actual"])})'
+
+            errors.append(error_msg)
+
+    return span_map
+
+
 def validate_fixture(
     spec_id: str,
     spans: List[Dict[str, Any]],
@@ -503,126 +667,18 @@ def validate_fixture(
         print('    === End Captured Spans ===\n')
 
     # Validate transactions
-    if "transactions" in fixture["expectations"]:
-        min_count = fixture["expectations"]["transactions"].get("min_count")
-        if min_count is not None and len(transactions) < min_count:
-            errors.append(
-                f"Expected at least {min_count} transaction(s), got {len(transactions)}"
-            )
+    validate_transactions(transactions, fixture["expectations"], errors)
 
-    # Validate spans
-    if "spans" in fixture["expectations"]:
-        expectations = fixture["expectations"]["spans"]
-        count = expectations.get("count")
-        min_count = expectations.get("min_count")
-        items = expectations.get("items", [])
+    # Validate span counts
+    validate_span_counts(spans, fixture["expectations"], errors)
 
-        # Check minimum span count
-        # Note: 'count' is treated as minimum, not exact
-        min_span_count = min_count if min_count is not None else count
-        if min_span_count is not None and len(spans) < min_span_count:
-            errors.append(f"Expected at least {min_span_count} span(s), got {len(spans)}")
-
-        # Validate individual spans and relationships
-        if items:
-            span_map = {}  # id -> span object
-            span_errors = {}  # id -> { expected_op, actual_op, missing: [], mismatched: [], not_found: bool }
-            used_spans = set()  # Track span IDs already matched
-
-            for item_expectation in items:
-                fixture_id = item_expectation["id"]
-
-                # Generate expected op description
-                expected_op = format_op_description(item_expectation["op"])
-
-                try:
-                    # Get span by operation and attributes (pass used_spans to match in order)
-                    required_attrs = item_expectation.get("required_attributes")
-                    span = get_span(spans, item_expectation["op"], required_attrs, used_spans)
-                    span_map[fixture_id] = span
-
-                    # Mark this span as used
-                    if span.get("span_id"):
-                        used_spans.add(span["span_id"])
-
-                    # Validate required attributes and collect errors
-                    if required_attrs:
-                        if fixture_id not in span_errors:
-                            span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": span.get("op"), "missing": [], "mismatched": []}
-
-                        span_error = span_errors[fixture_id]
-
-                        # Validate attributes and collect errors
-                        attr_errors = validate_span_attributes(span, required_attrs)
-                        span_error["missing"].extend(attr_errors["missing"])
-                        span_error["mismatched"].extend(attr_errors["mismatched"])
-                except Exception as e:
-                    error_msg = str(e)
-                    # getSpan threw an error - check if it's about missing attributes or missing span
-                    if "but missing required attributes" in error_msg:
-                        # Span exists but has attribute issues - extract the details
-                        required_attrs = item_expectation.get("required_attributes")
-                        if required_attrs:
-                            # Find the span by op only (without attribute filtering)
-                            op_list = normalize_op_to_list(item_expectation["op"], spans)
-                            matching_span = next((s for s in spans if s.get("op") in op_list), None)
-
-                            if matching_span:
-                                if fixture_id not in span_errors:
-                                    span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": matching_span.get("op"), "missing": [], "mismatched": []}
-
-                                span_error = span_errors[fixture_id]
-
-                                # Validate attributes and collect errors
-                                attr_errors = validate_span_attributes(matching_span, required_attrs)
-                                span_error["missing"].extend(attr_errors["missing"])
-                                span_error["mismatched"].extend(attr_errors["mismatched"])
-                    elif "No span found with op=" in error_msg:
-                        # Span doesn't exist at all
-                        if fixture_id not in span_errors:
-                            span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": None, "missing": [], "mismatched": [], "not_found": True}
-                    else:
-                        # Other error - just append it
-                        errors.append(error_msg)
-
-            # Format span errors in a structured way
-            for fixture_id, error_details in span_errors.items():
-                if error_details.get("not_found"):
-                    errors.append(f"    {fixture_id} (expected: {error_details['expected_op']}): span not found")
-                elif error_details["missing"] or error_details["mismatched"]:
-                    error_msg = f"    {fixture_id} ({error_details['actual_op']}):"
-
-                    for attr in error_details["missing"]:
-                        error_msg += f"\n       {attr}: missing"
-
-                    for mismatch in error_details["mismatched"]:
-                        error_msg += f'\n       {mismatch["attr"]}: mismatch (expected: {repr(mismatch["expected"])}, got: {repr(mismatch["actual"])})'
-
-                    errors.append(error_msg)
-
-            # Validate parent-child relationships
-            for item_expectation in items:
-                if "parent" in item_expectation:
-                    child_span = span_map.get(item_expectation["id"])
-                    parent_span = span_map.get(item_expectation["parent"])
-
-                    if child_span and parent_span:
-                        if not is_child_of(child_span, parent_span):
-                            errors.append(
-                                f'Span with op="{item_expectation["op"]}" should be child of '
-                                f'span with id="{item_expectation["parent"]}"'
-                            )
+    # Validate individual spans and relationships
+    if "spans" in fixture["expectations"] and "items" in fixture["expectations"]["spans"]:
+        items = fixture["expectations"]["spans"]["items"]
+        span_map = validate_span_items(spans, items, errors)
+        validate_span_relationships(items, span_map, errors)
 
     # Validate events
-    if "events" in fixture["expectations"]:
-        error_count = fixture["expectations"]["events"].get("error_count")
-        if error_count is not None:
-            actual_error_count = len(
-                [e for e in events if e.get("level") == "error"]
-            )
-            if actual_error_count != error_count:
-                errors.append(
-                    f"Expected {error_count} error event(s), got {actual_error_count}"
-                )
+    validate_events(events, fixture["expectations"], errors)
 
     return {"passed": len(errors) == 0, "errors": errors, "fixture": fixture}
