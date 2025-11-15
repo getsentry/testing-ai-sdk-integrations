@@ -28,10 +28,10 @@ Test cases are identified by spec ID (e.g., "1-simple", "2-multi-step"). Each ha
 ### Implemented
 
 - **1-simple**: Basic Completion - Single prompt with system message
+- **2-multi-step**: Multi-step conversation - Two API calls with conversation history
 
 ### Planned
 
-- **2-multi-step**: Multi-step conversation
 - **3-simple-with-error**: Basic completion with application error
 - **4-streaming**: Basic streaming
 - **5-streaming-with-error**: Streaming with application error
@@ -345,6 +345,59 @@ For attributes with structured data (like `gen_ai.request.messages`), use schema
   }
 }
 ```
+
+### Shared Span Definitions
+
+To eliminate duplication, common span definitions are stored in `shared/specs/common-spans.json` and can be referenced using `$ref`:
+
+**common-spans.json:**
+```json
+{
+  "llm_call": {
+    "id": "llm_call",
+    "op": { "pattern": "gen_ai.*", "not": [...] },
+    "required_attributes": { ... }
+  },
+  "invoke_agent": { ... }
+}
+```
+
+**Using $ref in fixtures:**
+```json
+{
+  "expectations": {
+    "spans": {
+      "items": [
+        { "$ref": "common-spans#/llm_call" },
+        { "$ref": "common-spans#/llm_call", "parent": "agent" }
+      ]
+    }
+  }
+}
+```
+
+**Benefits:**
+- Single source of truth for span definitions
+- Properties in fixture override referenced span properties
+- Reduces fixture size by ~50%
+
+### Order-Based Span Matching
+
+When multiple spans have the same op, they're matched in the order they appear in the fixture:
+
+```json
+{
+  "items": [
+    { "$ref": "common-spans#/llm_call", "id": "first_call" },
+    { "$ref": "common-spans#/llm_call", "id": "second_call" }
+  ]
+}
+```
+
+First `llm_call` in fixture → first matching span
+Second `llm_call` in fixture → second matching span (first excluded)
+
+**No occurrence field needed** - just list spans in expected order.
 
 ## Writing New Specifications
 

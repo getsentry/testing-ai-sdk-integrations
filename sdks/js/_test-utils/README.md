@@ -55,11 +55,13 @@ sdks/js/_test-utils/
 The main helper that orchestrates test execution. Provides:
 
 - **`runTestCase(testCaseId, testLogic, Sentry)`** - Main test orchestration function
-  - Loads SDK config from `config.json`
-  - Loads fixture with config overrides applied
+  - Loads SDK config from environment (`SDK_CONFIG`)
+  - Loads fixture with `$ref` resolution and config overrides applied
+  - Displays test name from `fixture.name` (no hardcoded descriptions)
   - Wraps test logic in Sentry span
   - Validates captured data against fixture
-  - Returns functions compatible with orchestration runner
+  - Shows SDK path in output: `[js/langchain]`
+  - Returns async function compatible with orchestration runner
 
 ### fixture-loader.cjs
 
@@ -67,23 +69,40 @@ Loads JSON fixtures from `shared/specs/` with SDK-specific overrides:
 
 - **`loadFixture(testCaseId, frameworkType, configOverrides)`**
   - Reads fixture from `shared/specs/{testCaseId}/fixture-{frameworkType}.json`
+  - Resolves `$ref` references to shared span definitions (`common-spans.json`)
   - Applies config overrides (model names, span attributes)
   - Returns fixture with all overrides applied
+
+**Features:**
+- `$ref` syntax: `{ "$ref": "common-spans#/llm_call", "parent": "agent" }`
+- Cached common spans for performance
+- Override properties merge with referenced spans
 
 ### validator.cjs
 
 Validates captured Sentry data against fixture expectations:
 
 - **`validateFixture(testCaseId, spans, transactions, events, frameworkType, configOverrides)`**
-  - Compares actual spans/transactions/events vs fixture expectations
-  - Checks span counts, attributes, hierarchy
+  - Main validation function that orchestrates all validation steps
+  - Checks transactions, spans, attributes, hierarchy, events
   - Returns validation result with detailed error messages
+
+**Internal validation functions (not exported):**
+- `validateTransactions()`, `validateSpanCounts()`, `validateEvents()` - Count validations
+- `validateSpanItems()` - Matches and validates individual spans
+- `validateSpanRelationships()` - Validates parent-child hierarchy
+- `validateSpanAttributes()` - Validates attributes with schema support
+- `normalizeOpToList()`, `formatOpDescription()` - Helper utilities
 
 **Supported validation features:**
 - Wildcard patterns: `"gpt-4*"`, `"*-mini"`, `"*anthropic*"`
 - Pattern-based op matching: `{ "pattern": "gen_ai.*", "not": [...] }`
-- Schema validation: `{ "type": "json_array", "min_length": 2, "items_have": [...] }`
+- Schema validation: `{ "type": "json_array", "min_length": 2, "items_have": [...] }`, `{ "type": "plain_string" }`
 - Presence checks: `true` (attribute must exist)
+- Order-based span matching: Multiple spans with same op matched in fixture order
+- `null`/`undefined` treated as missing (not mismatch)
+
+**Exports:** Only `validateFixture` and `attributeMatches` (for tests)
 
 **Test file:** `validator.test.cjs` - Run with `node validator.test.cjs` to verify validator logic
 

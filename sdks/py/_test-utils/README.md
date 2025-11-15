@@ -55,10 +55,12 @@ sdks/py/_test-utils/
 The main helper that orchestrates test execution. Provides:
 
 - **`run_test_case(testCaseId, testLogic)`** - Main test orchestration function
-  - Loads SDK config from `config.json`
-  - Loads fixture with config overrides applied
+  - Loads SDK config from environment (`SDK_CONFIG`)
+  - Loads fixture with `$ref` resolution and config overrides applied
+  - Displays test name from `fixture["name"]` (no hardcoded descriptions)
   - Wraps test logic in Sentry span
   - Validates captured data against fixture
+  - Shows SDK path in output: `[py/openai]`
   - Returns dict with `main()` and `assert_sentry()` functions
 
 ### fixture_loader.py
@@ -67,23 +69,40 @@ Loads JSON fixtures from `shared/specs/` with SDK-specific overrides:
 
 - **`load_fixture(test_case_id, framework_type, config_overrides)`**
   - Reads fixture from `shared/specs/{test_case_id}/fixture-{framework_type}.json`
+  - Resolves `$ref` references to shared span definitions (`common-spans.json`)
   - Applies config overrides (model names, span attributes)
   - Returns fixture with all overrides applied
+
+**Features:**
+- `$ref` syntax: `{ "$ref": "common-spans#/llm_call", "parent": "agent" }`
+- Cached common spans for performance
+- Override properties merge with referenced spans
 
 ### validator.py
 
 Validates captured Sentry data against fixture expectations:
 
 - **`validate_fixture(test_case_id, spans, transactions, events, framework_type, config_overrides)`**
-  - Compares actual spans/transactions/events vs fixture expectations
-  - Checks span counts, attributes, hierarchy
+  - Main validation function that orchestrates all validation steps
+  - Checks transactions, spans, attributes, hierarchy, events
   - Returns validation result with detailed error messages
+
+**Internal validation functions (not exported):**
+- `validate_transactions()`, `validate_span_counts()`, `validate_events()` - Count validations
+- `validate_span_items()` - Matches and validates individual spans
+- `validate_span_relationships()` - Validates parent-child hierarchy
+- `validate_span_attributes()` - Validates attributes with schema support
+- `normalize_op_to_list()`, `format_op_description()` - Helper utilities
 
 **Supported validation features:**
 - Wildcard patterns: `"gpt-4*"`, `"*-mini"`, `"*anthropic*"`
 - Pattern-based op matching: `{ "pattern": "gen_ai.*", "not": [...] }`
-- Schema validation: `{ "type": "json_array", "min_length": 2, "items_have": [...] }`
+- Schema validation: `{ "type": "json_array", "min_length": 2, "items_have": [...] }`, `{ "type": "plain_string" }`
 - Presence checks: `True` (attribute must exist)
+- Order-based span matching: Multiple spans with same op matched in fixture order
+- `None` treated as missing (not mismatch)
+
+**Exports:** Only `validate_fixture` and `attribute_matches` (via `__all__`)
 
 **Test file:** `validator.test.py` - Run with `python3 validator.test.py` to verify validator logic
 

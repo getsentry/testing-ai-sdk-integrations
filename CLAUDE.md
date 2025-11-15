@@ -290,10 +290,10 @@ Test cases are identified by spec ID (e.g., "1-simple", "2-multi-step"). Each ha
 **Implemented:**
 
 - **1-simple**: Basic Completion - Single prompt with system message
+- **2-multi-step**: Multi-step conversation - Two API calls with conversation history
 
 **Planned:**
 
-- **2-multi-step**: Multi-step conversation
 - **3-simple-with-error**: Basic completion with application error
 - **4-streaming**: Basic streaming
 - **5-streaming-with-error**: Streaming with application error
@@ -471,14 +471,18 @@ For detailed step-by-step guides on implementing new SDK tests, see:
 
 ## Current Status
 
-**Status:** Foundation complete, 14 SDKs implemented with 1-simple test passing
+**Status:** Foundation complete, 14 SDKs implemented, 2 test specs complete
 
 **What's Working:**
 
 - ✅ Test orchestration (CLI, discovery, runner)
 - ✅ Mock transports (JS and Python)
-- ✅ Fixture validation (JS and Python in sync)
-- ✅ Clear error messages showing missing attributes
+- ✅ Refactored validators (modular, maintainable, 89% smaller main function)
+- ✅ Shared span definitions (`$ref` syntax, 50% less duplication)
+- ✅ Schema validation (`json_array`, `plain_string` types)
+- ✅ Pattern-based op matching with exclusions
+- ✅ Order-based span matching (no occurrence field needed)
+- ✅ Clear error messages (fixture ID + actual op shown)
 - ✅ SDK configuration with overrides (config.json)
 - ✅ Centralized configuration (root .env, fixture inputs)
 - ✅ Test reporting (console, CTRF JSON, HTML)
@@ -486,7 +490,7 @@ For detailed step-by-step guides on implementing new SDK tests, see:
 
 **What's Next:**
 
-- Implement test cases 2-8 (multi-step, error handling, streaming, agentic workflows)
+- Implement test cases 3-8 (error handling, streaming, agentic workflows)
 
 ## Implementation Guidelines
 
