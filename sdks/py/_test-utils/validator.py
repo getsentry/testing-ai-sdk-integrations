@@ -117,9 +117,38 @@ def validate_schema(attr_value: Any, schema: Dict[str, Any]) -> bool:
     Supported schema formats:
         - {"type": "json_array", "min_length": 2, "items_have": ["role", "content"]}
         - {"type": "json_array", "length": 2, "items_have": ["role"]}
+        - {"type": "plain_string", "min_length": 1, "pattern": "*hello*"}
     """
     if not schema or not isinstance(schema, dict):
         return False
+
+    # Handle plain_string type
+    if schema.get("type") == "plain_string":
+        # Must be a string
+        if not isinstance(attr_value, str):
+            return False
+
+        # Must NOT be valid JSON
+        try:
+            json.loads(attr_value)
+            return False  # It's valid JSON, so it's not a plain string
+        except (json.JSONDecodeError, ValueError):
+            # Good - not JSON, it's a plain string
+            pass
+
+        # Validate min_length
+        if "min_length" in schema and len(attr_value) < schema["min_length"]:
+            return False
+
+        # Validate max_length
+        if "max_length" in schema and len(attr_value) > schema["max_length"]:
+            return False
+
+        # Validate pattern
+        if "pattern" in schema and not matches_pattern(attr_value, schema["pattern"]):
+            return False
+
+        return True
 
     # Handle json_array type
     if schema.get("type") == "json_array":

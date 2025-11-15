@@ -105,5 +105,65 @@ let failed = 0;
   }
 }
 
+// Test 6: Plain string (not JSON)
+{
+  const span = { data: { 'gen_ai.response.text': 'Hello world' } };
+  const schema = { type: 'plain_string', min_length: 1 };
+  const result = attributeMatches(span, 'gen_ai.response.text', schema);
+
+  if (result === true) {
+    console.log('✓ Test 6: Plain string validation passes');
+    passed++;
+  } else {
+    console.log('✗ Test 6: FAILED - Plain string should pass');
+    failed++;
+  }
+}
+
+// Test 7: JSON string rejected as plain_string
+{
+  const span = { data: { 'gen_ai.response.text': '[1, 2, 3]' } };
+  const schema = { type: 'plain_string' };
+  const result = attributeMatches(span, 'gen_ai.response.text', schema);
+
+  if (result === false) {
+    console.log('✓ Test 7: JSON string rejected as plain_string');
+    passed++;
+  } else {
+    console.log('✗ Test 7: FAILED - Should reject JSON strings');
+    failed++;
+  }
+}
+
+// Test 8: Plain string with pattern
+{
+  const span = { data: { 'gen_ai.system': 'You are a helpful assistant' } };
+  const schema = { type: 'plain_string', pattern: '*helpful*' };
+  const result = attributeMatches(span, 'gen_ai.system', schema);
+
+  if (result === true) {
+    console.log('✓ Test 8: Plain string with pattern match');
+    passed++;
+  } else {
+    console.log('✗ Test 8: FAILED - Pattern should match');
+    failed++;
+  }
+}
+
+// Test 9: Plain string min_length violation
+{
+  const span = { data: { 'gen_ai.response.text': 'Hi' } };
+  const schema = { type: 'plain_string', min_length: 10 };
+  const result = attributeMatches(span, 'gen_ai.response.text', schema);
+
+  if (result === false) {
+    console.log('✓ Test 9: Plain string min_length violation (2 < 10)');
+    passed++;
+  } else {
+    console.log('✗ Test 9: FAILED - Should reject string shorter than min_length');
+    failed++;
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

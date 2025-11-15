@@ -59,6 +59,7 @@ Frameworks that wrap LLM calls in agent abstraction spans:
 - **OpenAI Agents SDK** (`py/openai-agents`) - Produces agent workflow spans
 
 **Span hierarchy example:**
+
 ```
 gen_ai.invoke_agent (parent)
   └─ gen_ai.chat or gen_ai.generate_text (child)
@@ -73,6 +74,7 @@ Frameworks that directly produce LLM call spans without agent wrappers:
 - **Google GenAI SDK** (`py/google-genai`) - Direct LLM call spans
 
 **Span hierarchy example:**
+
 ```
 gen_ai.chat (no parent)
 ```
@@ -87,6 +89,7 @@ Each test case folder contains multiple fixture files to handle both framework t
 Framework type is configured per SDK in `config.json`, not in individual test files:
 
 **SDK Config (config.json):**
+
 ```json
 {
   "sdk_name": "vercel",
@@ -96,6 +99,7 @@ Framework type is configured per SDK in `config.json`, not in individual test fi
 ```
 
 **JavaScript Test Case:**
+
 ```javascript
 const { runTestCase } = require("../../_test-utils/test-runner.cjs");
 const { Sentry } = require("../setup");
@@ -109,6 +113,7 @@ module.exports = runTestCase("1-simple", testLogic, Sentry);
 ```
 
 **Python Test Case:**
+
 ```python
 from test_runner import run_test_case
 
@@ -128,13 +133,13 @@ assert_sentry = test_case["assert_sentry"]
 
 When adding a new SDK, determine its framework type first, then use the same type across all test cases for that SDK.
 
-| SDK Path              | Framework Type | Reason                                      |
-| --------------------- | -------------- | ------------------------------------------- |
-| `js/vercel`           | `agentic`      | Produces `gen_ai.invoke_agent` parent spans |
-| `js/openai`           | `low-level`    | Direct `gen_ai.chat` spans only             |
-| `js/anthropic`        | `low-level`    | Direct LLM call spans only                  |
-| `py/openai-agents`    | `agentic`      | Produces agent workflow spans               |
-| `py/google-genai`     | `low-level`    | Direct LLM call spans only                  |
+| SDK Path           | Framework Type | Reason                                      |
+| ------------------ | -------------- | ------------------------------------------- |
+| `js/vercel`        | `agentic`      | Produces `gen_ai.invoke_agent` parent spans |
+| `js/openai`        | `low-level`    | Direct `gen_ai.chat` spans only             |
+| `js/anthropic`     | `low-level`    | Direct LLM call spans only                  |
+| `py/openai-agents` | `agentic`      | Produces agent workflow spans               |
+| `py/google-genai`  | `low-level`    | Direct LLM call spans only                  |
 
 **How to determine framework type for a new SDK:**
 
@@ -191,6 +196,7 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
 ### Fixture Format Specification
 
 **Top-level fields:**
+
 - `spec_id` (string): Unique identifier matching directory name
 - `name` (string): Human-readable test name
 - `description` (string, optional): Detailed description
@@ -200,16 +206,19 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
 **Expectations structure:**
 
 - `spans` (object):
+
   - `min_count` (number): Minimum number of spans expected
   - `items` (array): Specific spans to verify
 
 - `spans.items[]` (object):
+
   - `id` (string): Unique identifier for this span (used for parent references)
   - `op` (string | string[]): Operation name(s) to match
   - `parent` (string, optional): ID of parent span (verifies hierarchy)
   - `required_attributes` (object, optional): Attributes to verify
 
 - `required_attributes` format:
+
   - `"attribute.name": true` - Check presence only
   - `"attribute.name": "value"` - Check exact match
   - `"attribute.name": "pattern*"` - Wildcard pattern matching (see below)
@@ -231,12 +240,12 @@ Fixture attribute values support wildcard patterns using `*` for flexible matchi
 
 **Pattern Types:**
 
-| Pattern | Description | Example | Matches |
-|---------|-------------|---------|---------|
-| `"foo*"` | Starts with | `"gpt-*"` | `gpt-4o-mini`, `gpt-5-nano` |
-| `"*foo"` | Ends with | `"*-mini"` | `gpt-4o-mini`, `claude-3-mini` |
-| `"*foo*"` | Contains | `"*4o*"` | `gpt-4o-mini`, `gpt-4o` |
-| `"foo"` | Exact match | `"gpt-4o-mini"` | `gpt-4o-mini` only |
+| Pattern   | Description | Example         | Matches                        |
+| --------- | ----------- | --------------- | ------------------------------ |
+| `"foo*"`  | Starts with | `"gpt-*"`       | `gpt-4o-mini`, `gpt-5-nano`    |
+| `"*foo"`  | Ends with   | `"*-mini"`      | `gpt-4o-mini`, `claude-3-mini` |
+| `"*foo*"` | Contains    | `"*4o*"`        | `gpt-4o-mini`, `gpt-4o`        |
+| `"foo"`   | Exact match | `"gpt-4o-mini"` | `gpt-4o-mini` only             |
 
 **Use Cases:**
 
@@ -250,11 +259,11 @@ Fixture attribute values support wildcard patterns using `*` for flexible matchi
 ```json
 {
   "required_attributes": {
-    "gen_ai.request.model": "gpt-*",          // Matches gpt-4o-mini, gpt-5-nano, etc.
-    "gen_ai.response.model": "gemini-*",      // Matches gemini-2.5-flash-lite, gemini-1.5-pro
-    "gen_ai.provider": "*anthropic*",         // Matches "anthropic", "anthropic-vertex", etc.
-    "http.url": "https://api.openai.com/*",   // Matches any OpenAI API URL
-    "gen_ai.response.text": true              // Just check presence (no pattern needed)
+    "gen_ai.request.model": "gpt-*", // Matches gpt-4o-mini, gpt-5-nano, etc.
+    "gen_ai.response.model": "gemini-*", // Matches gemini-2.5-flash-lite, gemini-1.5-pro
+    "gen_ai.provider": "*anthropic*", // Matches "anthropic", "anthropic-vertex", etc.
+    "http.url": "https://api.openai.com/*", // Matches any OpenAI API URL
+    "gen_ai.response.text": true // Just check presence (no pattern needed)
   }
 }
 ```
@@ -284,6 +293,7 @@ For complex op matching scenarios, use pattern objects with exclusions:
 This matches any span with op starting with `gen_ai.` EXCEPT `gen_ai.invoke_agent` and `gen_ai.execute_tool`.
 
 **Supported op formats:**
+
 - `"op": "gen_ai.chat"` - Single string (exact match)
 - `"op": ["gen_ai.chat", "gen_ai.messages"]` - Array (OR matching)
 - `"op": { "pattern": "gen_ai.*", "not": [...] }` - Pattern with exclusions
@@ -304,14 +314,23 @@ For attributes with structured data (like `gen_ai.request.messages`), use schema
 }
 ```
 
-**Supported schema options:**
-- `type: "json_array"` - Validates JSON string or array
+**Supported schema types:**
+
+**`json_array`** - Validates stringified JSON arrays or array objects
+
 - `length: N` - Exact array length
 - `min_length: N` - Minimum array length
 - `max_length: N` - Maximum array length
 - `items_have: ["prop1", "prop2"]` - All items must contain these properties
 
+**`plain_string`** - Validates plain strings (NOT stringified JSON)
+
+- `min_length: N` - Minimum string length
+- `max_length: N` - Maximum string length
+- `pattern: "value*"` - Wildcard pattern matching
+
 **Example use cases:**
+
 ```json
 {
   "gen_ai.request.messages": {
@@ -319,10 +338,10 @@ For attributes with structured data (like `gen_ai.request.messages`), use schema
     "length": 2,
     "items_have": ["role", "content"]
   },
-  "gen_ai.response.choices": {
-    "type": "json_array",
+  "gen_ai.response.text": {
+    "type": "plain_string",
     "min_length": 1,
-    "items_have": ["message"]
+    "pattern": "*hello world*"
   }
 }
 ```

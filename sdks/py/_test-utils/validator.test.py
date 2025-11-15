@@ -98,5 +98,53 @@ else:
     print('✗ Test 5: FAILED - Wildcard matching broken')
     failed += 1
 
+# Test 6: Plain string (not JSON)
+span = {"data": {"gen_ai.response.text": "Hello world"}}
+schema = {"type": "plain_string", "min_length": 1}
+result = attribute_matches(span, "gen_ai.response.text", schema)
+
+if result == True:
+    print('✓ Test 6: Plain string validation passes')
+    passed += 1
+else:
+    print('✗ Test 6: FAILED - Plain string should pass')
+    failed += 1
+
+# Test 7: JSON string rejected as plain_string
+span = {"data": {"gen_ai.response.text": "[1, 2, 3]"}}
+schema = {"type": "plain_string"}
+result = attribute_matches(span, "gen_ai.response.text", schema)
+
+if result == False:
+    print('✓ Test 7: JSON string rejected as plain_string')
+    passed += 1
+else:
+    print('✗ Test 7: FAILED - Should reject JSON strings')
+    failed += 1
+
+# Test 8: Plain string with pattern
+span = {"data": {"gen_ai.system": "You are a helpful assistant"}}
+schema = {"type": "plain_string", "pattern": "*helpful*"}
+result = attribute_matches(span, "gen_ai.system", schema)
+
+if result == True:
+    print('✓ Test 8: Plain string with pattern match')
+    passed += 1
+else:
+    print('✗ Test 8: FAILED - Pattern should match')
+    failed += 1
+
+# Test 9: Plain string min_length violation
+span = {"data": {"gen_ai.response.text": "Hi"}}
+schema = {"type": "plain_string", "min_length": 10}
+result = attribute_matches(span, "gen_ai.response.text", schema)
+
+if result == False:
+    print('✓ Test 9: Plain string min_length violation (2 < 10)')
+    passed += 1
+else:
+    print('✗ Test 9: FAILED - Should reject string shorter than min_length')
+    failed += 1
+
 print(f'\n{passed} passed, {failed} failed')
 sys.exit(1 if failed > 0 else 0)

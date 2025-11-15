@@ -285,10 +285,44 @@ function matchesPattern(actualValue, pattern) {
  * Supported schema formats:
  * - { type: "json_array", min_length: 2, items_have: ["role", "content"] }
  * - { type: "json_array", length: 2, items_have: ["role"] }
+ * - { type: "plain_string", min_length: 1, pattern: "*hello*" }
  */
 function validateSchema(attrValue, schema) {
   if (!schema || typeof schema !== 'object') {
     return false;
+  }
+
+  // Handle plain_string type
+  if (schema.type === 'plain_string') {
+    // Must be a string
+    if (typeof attrValue !== 'string') {
+      return false;
+    }
+
+    // Must NOT be valid JSON
+    try {
+      JSON.parse(attrValue);
+      return false; // It's valid JSON, so it's not a plain string
+    } catch (e) {
+      // Good - not JSON, it's a plain string
+    }
+
+    // Validate min_length
+    if (schema.min_length !== undefined && attrValue.length < schema.min_length) {
+      return false;
+    }
+
+    // Validate max_length
+    if (schema.max_length !== undefined && attrValue.length > schema.max_length) {
+      return false;
+    }
+
+    // Validate pattern
+    if (schema.pattern !== undefined && !matchesPattern(attrValue, schema.pattern)) {
+      return false;
+    }
+
+    return true;
   }
 
   // Handle json_array type
