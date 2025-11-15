@@ -5,6 +5,61 @@
 const fs = require("fs");
 const path = require("path");
 
+// Cache for common spans
+let commonSpansCache = null;
+
+/**
+ * Load common span definitions
+ *
+ * @returns {Object} Common span definitions
+ */
+function loadCommonSpans() {
+  if (commonSpansCache) {
+    return commonSpansCache;
+  }
+
+  const commonSpansPath = path.join(__dirname, "../../../shared/specs/common-spans.json");
+
+  if (!fs.existsSync(commonSpansPath)) {
+    return {};
+  }
+
+  const content = fs.readFileSync(commonSpansPath, "utf-8");
+  commonSpansCache = JSON.parse(content);
+  return commonSpansCache;
+}
+
+/**
+ * Resolve $ref in a span item
+ *
+ * @param {Object} spanItem - Span item that may contain $ref
+ * @param {Object} commonSpans - Common span definitions
+ * @returns {Object} Resolved span item
+ */
+function resolveRef(spanItem, commonSpans) {
+  if (!spanItem.$ref) {
+    return spanItem;
+  }
+
+  // Parse $ref format: "common-spans#/span_name"
+  const ref = spanItem.$ref;
+  if (!ref.startsWith("common-spans#/")) {
+    throw new Error(`Invalid $ref format: ${ref}. Expected format: "common-spans#/span_name"`);
+  }
+
+  const spanName = ref.substring("common-spans#/".length);
+  const commonSpan = commonSpans[spanName];
+
+  if (!commonSpan) {
+    throw new Error(`Common span not found: ${spanName}`);
+  }
+
+  // Merge common span with overrides from the reference
+  // Properties in spanItem (except $ref) override common span properties
+  const { $ref, ...overrides } = spanItem;
+  return { ...commonSpan, ...overrides };
+}
+
 /**
  * Apply overrides to a fixture object
  *
@@ -63,6 +118,14 @@ function loadFixture(specId, variant = "agentic", overrides = null) {
 
   const content = fs.readFileSync(fixturePath, "utf-8");
   const fixture = JSON.parse(content);
+
+  // Resolve $ref references in span items
+  if (fixture.expectations?.spans?.items) {
+    const commonSpans = loadCommonSpans();
+    fixture.expectations.spans.items = fixture.expectations.spans.items.map(item =>
+      resolveRef(item, commonSpans)
+    );
+  }
 
   // Apply overrides if provided
   return applyOverrides(fixture, overrides);
