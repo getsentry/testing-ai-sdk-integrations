@@ -17,8 +17,6 @@ const { getMockTransport } = require("./mock-transport.cjs");
 function runTestCase(specId, testLogic, Sentry) {
   return async function () {
     const sdkPath = process.env.SDK_PATH || 'unknown';
-    console.log(`\n  [${sdkPath}]`);
-    console.log(`    Running ${specId}: ${getTestDescription(specId)}`);
 
     // Load SDK config from environment
     const sdkConfig = process.env.SDK_CONFIG
@@ -40,6 +38,10 @@ function runTestCase(specId, testLogic, Sentry) {
 
     // Load fixture inputs with overrides applied
     const fixture = loadFixture(specId, frameworkType, overrides);
+
+    // Log with test name from fixture
+    console.log(`\n  [${sdkPath}]`);
+    console.log(`    Running ${specId}: ${fixture.name || specId}`);
 
     // Create main span for this test
     await Sentry.startSpan({ name: `${specId}-test`, op: "test" }, async () => {
@@ -82,23 +84,6 @@ function runTestCase(specId, testLogic, Sentry) {
     console.log("    ✓ All fixture validations passed");
     console.log(`    ✓ ${specId} completed`);
   };
-}
-
-/**
- * Gets human-readable description for a test spec
- */
-function getTestDescription(specId) {
-  const descriptions = {
-    "1-simple": "Basic Completion",
-    "2-multi-step": "Multi-step Conversation",
-    "3-simple-with-error": "Basic Completion with Error",
-    "4-streaming": "Basic Streaming",
-    "5-streaming-with-error": "Streaming with Error",
-    "6-agent-success": "Agent Success Path",
-    "7-agent-llm-error": "Agent LLM Error",
-    "8-agent-tool-error": "Agent Tool Error",
-  };
-  return descriptions[specId] || specId;
 }
 
 module.exports = {

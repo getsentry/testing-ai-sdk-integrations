@@ -24,13 +24,11 @@ def run_test_case(spec_id, test_logic):
     async def main():
         """Main test case entry point"""
         import os
+        import json
+
         sdk_path = os.getenv("SDK_PATH", "unknown")
-        print(f"\n  [{sdk_path}]")
-        print(f"    Running {spec_id}: {get_test_description(spec_id)}")
 
         # Load SDK config from environment
-        import os
-        import json
         sdk_config_json = os.getenv("SDK_CONFIG")
         sdk_config = json.loads(sdk_config_json) if sdk_config_json else None
 
@@ -47,6 +45,10 @@ def run_test_case(spec_id, test_logic):
 
         # Load fixture inputs with overrides applied
         fixture = load_fixture(spec_id, framework_type, overrides)
+
+        # Log with test name from fixture
+        print(f"\n  [{sdk_path}]")
+        print(f"    Running {spec_id}: {fixture.get('name', spec_id)}")
 
         # Run test logic
         await test_logic(fixture["inputs"])
@@ -101,18 +103,3 @@ def run_test_case(spec_id, test_logic):
         print(f"    ✓ {spec_id} completed")
 
     return {"main": main, "assert_sentry": assert_sentry}
-
-
-def get_test_description(spec_id):
-    """Gets human-readable description for a test spec"""
-    descriptions = {
-        "1-simple": "Basic Completion",
-        "2-multi-step": "Multi-step Conversation",
-        "3-simple-with-error": "Basic Completion with Error",
-        "4-streaming": "Basic Streaming",
-        "5-streaming-with-error": "Streaming with Error",
-        "6-agent-success": "Agent Success Path",
-        "7-agent-llm-error": "Agent LLM Error",
-        "8-agent-tool-error": "Agent Tool Error",
-    }
-    return descriptions.get(spec_id, spec_id)
