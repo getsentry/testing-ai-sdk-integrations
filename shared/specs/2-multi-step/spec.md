@@ -1,11 +1,11 @@
-# G3: Multi-turn Conversation
+# 2-multi-step: Multi-step Conversation
 
 ## Level & Category
 - **Level**: 2 (Intermediate)
 - **Category**: Generation
 
 ## Description
-Multiple messages in conversation, multiple API calls. Builds on G1 by adding conversation history. Tests that Sentry captures all interactions in a multi-turn conversation.
+Multiple messages in conversation, multiple API calls. Builds on 1-simple by adding conversation history. Tests that Sentry captures all interactions in a multi-step conversation.
 
 ## Requirements
 - First message: same as G1 (add 69+96)

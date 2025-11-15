@@ -16,28 +16,29 @@ When adding a new SDK, ensure you:
 
 ## Currently Implemented
 
-| Language   | SDK               | Framework Type | Test Cases     |
-| ---------- | ----------------- | -------------- | -------------- |
-| JavaScript | `vercel`          | agentic        | 1-simple       |
-| JavaScript | `openai`          | low-level      | 1-simple       |
-| JavaScript | `anthropic`       | low-level      | 1-simple       |
-| JavaScript | `langchain`       | low-level      | 1-simple       |
-| JavaScript | `langgraph`       | agentic        | 1-simple       |
-| JavaScript | `google-genai`    | low-level      | 1-simple       |
-| Python     | `openai`          | low-level      | 1-simple       |
-| Python     | `openai-agents`   | agentic        | 1-simple       |
-| Python     | `anthropic`       | low-level      | 1-simple       |
-| Python     | `langchain`       | low-level      | 1-simple       |
-| Python     | `langgraph`       | agentic        | 1-simple       |
-| Python     | `google-genai`    | low-level      | 1-simple       |
-| Python     | `litellm`         | low-level      | 1-simple       |
-| Python     | `pydantic-ai`     | agentic        | 1-simple       |
+| Language   | SDK             | Framework Type | Test Cases |
+| ---------- | --------------- | -------------- | ---------- |
+| JavaScript | `vercel`        | agentic        | 1-simple   |
+| JavaScript | `openai`        | low-level      | 1-simple   |
+| JavaScript | `anthropic`     | low-level      | 1-simple   |
+| JavaScript | `langchain`     | low-level      | 1-simple   |
+| JavaScript | `langgraph`     | agentic        | 1-simple   |
+| JavaScript | `google-genai`  | low-level      | 1-simple   |
+| Python     | `openai`        | low-level      | 1-simple   |
+| Python     | `openai-agents` | agentic        | 1-simple   |
+| Python     | `anthropic`     | low-level      | 1-simple   |
+| Python     | `langchain`     | low-level      | 1-simple   |
+| Python     | `langgraph`     | agentic        | 1-simple   |
+| Python     | `google-genai`  | low-level      | 1-simple   |
+| Python     | `litellm`       | low-level      | 1-simple   |
+| Python     | `pydantic-ai`   | agentic        | 1-simple   |
 
 ## Adding a New JavaScript SDK
 
 ### Step 1: Determine Framework Type
 
 First, determine if your SDK is "agentic" or "low-level":
+
 - Run a simple test and examine spans
 - Agent/workflow wrappers → `agentic`
 - Direct LLM calls only → `low-level`
@@ -52,7 +53,7 @@ See [../shared/specs/README.md](../shared/specs/README.md) for framework type de
 
 The test framework uses JSON fixtures to define expected behavior. However, different SDKs have different requirements:
 
-- **Model names**: OpenAI SDKs use `gpt-4o-mini`, Google GenAI uses `gemini-2.5-flash-lite`, Anthropic uses `claude-3-5-sonnet-20241022`
+- **Model names**: OpenAI SDKs use `gpt-5-nano`, Google GenAI uses `gemini-2.5-flash-lite`, Anthropic uses `claude-3-5-sonnet-20241022`
 - **Span attributes**: Some SDKs may capture different attributes or use different attribute names
 - **Per-test-case variation**: Some tests may need different models (e.g., use a more capable model for complex agentic workflows)
 
@@ -77,11 +78,13 @@ Create `sdks/{language}/{sdk-name}/config.json`:
 ```
 
 **Schema:**
+
 - `sdk_name` (required): Unique identifier for your SDK
 - `framework_type` (required): Either `"agentic"` or `"low-level"`
 - `overrides` (optional): Per-test-case overrides for fixture values
 
 **Overrides Format:**
+
 - Key = test case ID (e.g., `"1-simple"`, `"2-simple-with-error"`)
 - Value = object with attribute overrides
 - Special key `"model"` automatically overrides `inputs.model`
@@ -90,6 +93,7 @@ Create `sdks/{language}/{sdk-name}/config.json`:
 #### Examples
 
 **OpenAI SDK (no overrides needed):**
+
 ```json
 {
   "sdk_name": "openai",
@@ -99,6 +103,7 @@ Create `sdks/{language}/{sdk-name}/config.json`:
 ```
 
 **Google GenAI SDK (different model):**
+
 ```json
 {
   "sdk_name": "google-genai",
@@ -114,6 +119,7 @@ Create `sdks/{language}/{sdk-name}/config.json`:
 ```
 
 **Anthropic SDK (different model):**
+
 ```json
 {
   "sdk_name": "anthropic",
@@ -129,16 +135,17 @@ Create `sdks/{language}/{sdk-name}/config.json`:
 ```
 
 **Per-Test-Case Variation:**
+
 ```json
 {
   "sdk_name": "openai",
   "framework_type": "low-level",
   "overrides": {
     "1-simple": {
-      "model": "gpt-4o-mini"
+      "model": "gpt-5-nano"
     },
-    "3-multi-turn": {
-      "model": "gpt-4o"
+    "2-multi-step": {
+      "model": "gpt-5-nano"
     }
   }
 }
@@ -159,6 +166,7 @@ touch sdks/js/{sdk-name}/package.json
 **IMPORTANT: Always use exact latest versions (no ^ or ~)**
 
 To get the latest versions, run:
+
 ```bash
 npm view @sentry/node version
 npm view {your-ai-sdk} version
@@ -181,6 +189,7 @@ Create `package.json` with **exact versions** (no semver ranges):
 ```
 
 **Why exact versions?**
+
 - Ensures reproducible builds
 - Makes it clear when dependencies need updating
 - Prevents unexpected breaking changes
@@ -226,6 +235,7 @@ module.exports = { Sentry };
 ```
 
 **How to find the correct integration name:**
+
 ```bash
 node -e "const Sentry = require('@sentry/node'); console.log(Object.keys(Sentry).filter(k => k.toLowerCase().includes('ai')).join('\n'))"
 ```
@@ -258,7 +268,7 @@ async function testLogic(inputs) {
   });
 
   const response = await client.yourMethod({
-    model: model,  // model is already overridden via config.json
+    model: model, // model is already overridden via config.json
     system: system,
     messages: [{ role: "user", content: prompt }],
   });
@@ -279,6 +289,7 @@ module.exports = runTestCase("1-simple", testLogic, Sentry);
 ```
 
 **IMPORTANT: Key Points**
+
 1. **Never hardcode model mappings** in test files - always use config.json overrides
 2. **Pin exact versions** in package.json (no `^` or `~`)
 3. **Use the runTestCase helper** - don't manually handle fixtures/validation
@@ -321,6 +332,7 @@ touch sdks/py/{sdk-name}/requirements.txt
 **IMPORTANT: Always use exact latest versions (use == not >=)**
 
 To get the latest versions, run:
+
 ```bash
 pip index versions sentry-sdk
 pip index versions {your-ai-sdk}
@@ -336,12 +348,14 @@ python-dotenv==1.x.x
 ```
 
 **Why exact versions?**
+
 - Ensures reproducible builds
 - Makes it clear when dependencies need updating
 - Prevents unexpected breaking changes
 - Easier to track which versions are being tested
 
 Create virtual environment and install:
+
 ```bash
 cd sdks/py/{sdk-name}
 python3 -m venv .venv

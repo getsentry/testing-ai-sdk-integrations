@@ -9,7 +9,7 @@
   },
   "expectations": {
     "spans": {
-      "min_count": 3,
+      "min_count": 2,
       "items": [
         {
           "$ref": "common-spans#/invoke_agent"

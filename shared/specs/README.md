@@ -12,14 +12,14 @@ shared/specs/
 │   ├── spec.md                    # Human-readable specification
 │   ├── fixture-agentic.json       # Expectations for agentic frameworks
 │   └── fixture-low-level.json     # Expectations for low-level frameworks
-├── 2-simple-with-error/
+├── 2-multi-step/
 │   └── ...
 └── ...
 ```
 
 ## Current Test Cases
 
-Test cases are identified by spec ID (e.g., "1-simple", "2-simple-with-error"). Each has:
+Test cases are identified by spec ID (e.g., "1-simple", "2-multi-step"). Each has:
 
 - **JSON fixture(s)** in `shared/specs/{spec-id}/` defining expectations
 - **JS implementation(s)** in `sdks/js/*/cases/`
@@ -31,8 +31,8 @@ Test cases are identified by spec ID (e.g., "1-simple", "2-simple-with-error"). 
 
 ### Planned
 
-- **2-simple-with-error**: Basic completion with application error
-- **3-multi-turn**: Multi-turn conversation
+- **2-multi-step**: Multi-step conversation
+- **3-simple-with-error**: Basic completion with application error
 - **4-streaming**: Basic streaming
 - **5-streaming-with-error**: Streaming with application error
 - **6-agent-success**: Agentic workflow - success path
@@ -159,7 +159,7 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
   "spec_id": "1-simple",
   "name": "Basic Completion",
   "inputs": {
-    "model": "gpt-4o-mini",
+    "model": "gpt-5-nano",
     "system": "You are a helpful math assistant.",
     "prompt": "What is 69 + 96?"
   },
@@ -171,7 +171,7 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
           "id": "invoke_agent",
           "op": "gen_ai.invoke_agent",
           "required_attributes": {
-            "gen_ai.response.model": "gpt-4o-mini",
+            "gen_ai.response.model": "gpt-5-nano",
             "gen_ai.response.text": true,
             "gen_ai.usage.input_tokens": true
           }
@@ -181,7 +181,7 @@ Fixtures define expected spans, transactions, and events in a language-agnostic 
           "op": ["gen_ai.chat", "gen_ai.generate_text"],
           "parent": "invoke_agent",
           "required_attributes": {
-            "gen_ai.request.model": "gpt-4o-mini"
+            "gen_ai.request.model": "gpt-5-nano"
           }
         }
       ]
@@ -240,12 +240,12 @@ Fixture attribute values support wildcard patterns using `*` for flexible matchi
 
 **Pattern Types:**
 
-| Pattern   | Description | Example         | Matches                        |
-| --------- | ----------- | --------------- | ------------------------------ |
-| `"foo*"`  | Starts with | `"gpt-*"`       | `gpt-4o-mini`, `gpt-5-nano`    |
-| `"*foo"`  | Ends with   | `"*-mini"`      | `gpt-4o-mini`, `claude-3-mini` |
-| `"*foo*"` | Contains    | `"*4o*"`        | `gpt-4o-mini`, `gpt-4o`        |
-| `"foo"`   | Exact match | `"gpt-4o-mini"` | `gpt-4o-mini` only             |
+| Pattern   | Description | Example        | Matches                       |
+| --------- | ----------- | -------------- | ----------------------------- |
+| `"foo*"`  | Starts with | `"gpt-*"`      | `gpt-5-nano`, `gpt-5-nano`    |
+| `"*foo"`  | Ends with   | `"*-mini"`     | `gpt-5-nano`, `claude-3-mini` |
+| `"*foo*"` | Contains    | `"*4o*"`       | `gpt-5-nano`, `gpt-5-nano`    |
+| `"foo"`   | Exact match | `"gpt-5-nano"` | `gpt-5-nano` only             |
 
 **Use Cases:**
 
@@ -259,7 +259,7 @@ Fixture attribute values support wildcard patterns using `*` for flexible matchi
 ```json
 {
   "required_attributes": {
-    "gen_ai.request.model": "gpt-*", // Matches gpt-4o-mini, gpt-5-nano, etc.
+    "gen_ai.request.model": "gpt-*", // Matches gpt-5-nano, gpt-5-nano, etc.
     "gen_ai.response.model": "gemini-*", // Matches gemini-2.5-flash-lite, gemini-1.5-pro
     "gen_ai.provider": "*anthropic*", // Matches "anthropic", "anthropic-vertex", etc.
     "http.url": "https://api.openai.com/*", // Matches any OpenAI API URL

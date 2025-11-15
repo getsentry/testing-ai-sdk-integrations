@@ -50,7 +50,7 @@ ai-sdks-test/
 │   │   │   ├── spec.md            # Human-readable specification
 │   │   │   ├── fixture-agentic.json    # Expected spans for agentic frameworks
 │   │   │   └── fixture-low-level.json  # Expected spans for low-level frameworks
-│   │   └── 2-simple-with-error/
+│   │   └── 2-multi-step/
 │   └── orchestration/             # Test runner and CLI
 │       ├── src/                   # TypeScript source
 │       │   ├── cli.ts             # CLI entry point

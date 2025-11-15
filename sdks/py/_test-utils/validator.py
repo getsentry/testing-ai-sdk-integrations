@@ -229,7 +229,7 @@ def contains_attributes(span: Dict[str, Any], attributes: Dict[str, Any]) -> boo
     return True
 
 
-def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str, Any] = None) -> Dict[str, Any]:
+def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str, Any] = None, used_spans: set = None) -> Dict[str, Any]:
     """
     Get a single span by operation name(s) and/or attributes
     Raises if zero or more than one span is found
@@ -238,6 +238,7 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
         spans: List of span objects
         op: Operation name (string), list of operation names, or dict with pattern/not
         required_attributes: Optional dict of attributes to filter by
+        used_spans: Set of span IDs already used (for matching multiple spans in order)
 
     Returns:
         The matching span
@@ -266,6 +267,10 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
 
     # Filter by operation name(s)
     matching = [s for s in spans if s.get("op") in op_list]
+
+    # Exclude already-used spans if used_spans is provided
+    if used_spans is not None:
+        matching = [s for s in matching if s.get("span_id") not in used_spans]
 
     # Further filter by attributes if specified
     if required_attributes:
@@ -335,6 +340,11 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
             raise ValueError(error_msg)
 
     if len(matching) > 1:
+        # If used_spans is provided, we're matching in order - return first match
+        if used_spans is not None:
+            return matching[0]
+
+        # Otherwise, multiple matches is an error
         # Generate description for error messages
         if isinstance(op, dict):
             op_desc = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
@@ -461,6 +471,7 @@ def validate_fixture(
         if items:
             span_map = {}  # id -> span object
             span_errors = {}  # id -> { expected_op, actual_op, missing: [], mismatched: [], not_found: bool }
+            used_spans = set()  # Track span IDs already matched
 
             for item_expectation in items:
                 fixture_id = item_expectation["id"]
@@ -475,10 +486,14 @@ def validate_fixture(
                     expected_op = op
 
                 try:
-                    # Get span by operation and attributes
+                    # Get span by operation and attributes (pass used_spans to match in order)
                     required_attrs = item_expectation.get("required_attributes")
-                    span = get_span(spans, item_expectation["op"], required_attrs)
+                    span = get_span(spans, item_expectation["op"], required_attrs, used_spans)
                     span_map[fixture_id] = span
+
+                    # Mark this span as used
+                    if span.get("span_id"):
+                        used_spans.add(span["span_id"])
 
                     # Validate required attributes and collect errors
                     if required_attrs:

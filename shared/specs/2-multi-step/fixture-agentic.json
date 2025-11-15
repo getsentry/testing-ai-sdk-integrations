@@ -1,0 +1,32 @@
+{
+  "spec_id": "2-multi-step",
+  "name": "Multi-step Conversation",
+  "description": "Multiple API calls with conversation history",
+  "inputs": {
+    "model": "gpt-5-nano",
+    "system": "You are a helpful math assistant. Answer only with the final result.",
+    "first_prompt": "What is 69 + 96?",
+    "second_prompt": "Multiply it by 3"
+  },
+  "expectations": {
+    "spans": {
+      "min_count": 3,
+      "items": [
+        {
+          "$ref": "common-spans#/invoke_agent"
+        },
+        {
+          "$ref": "common-spans#/llm_call",
+          "parent": "invoke_agent"
+        },
+        {
+          "$ref": "common-spans#/llm_call",
+          "parent": "invoke_agent"
+        }
+      ]
+    },
+    "events": {
+      "error_count": 0
+    }
+  }
+}

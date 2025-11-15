@@ -19,16 +19,19 @@ When a test fails, check these first:
 ### Pitfall #1: Missing or incorrect config.json
 
 **Symptoms:**
+
 - Error: "Framework type not specified"
 - Error: "Cannot find config.json"
 - Test uses wrong fixture variant
 
 **Problem:**
+
 - Missing `config.json` in SDK directory
 - `framework_type` field not set
 - Wrong framework type specified
 
 **Solution:**
+
 ```json
 // ✅ GOOD - create config.json in SDK directory
 // In: sdks/js/vercel/config.json
@@ -40,21 +43,23 @@ When a test fails, check these first:
 ```
 
 **For low-level SDKs:**
+
 ```json
 {
   "sdk_name": "openai",
   "framework_type": "low-level",
   "overrides": {
     "1-simple": {
-      "model": "gpt-4o-mini",
-      "gen_ai.request.model": "gpt-4o-mini",
-      "gen_ai.response.model": "gpt-4o-mini"
+      "model": "gpt-5-nano",
+      "gen_ai.request.model": "gpt-5-nano",
+      "gen_ai.response.model": "gpt-5-nano"
     }
   }
 }
 ```
 
 **Additional notes:**
+
 - Every SDK must have a `config.json` file
 - Framework type is determined by the SDK's architecture (see CLAUDE.md)
 - All test cases in an SDK use the same framework type from config
@@ -65,16 +70,18 @@ When a test fails, check these first:
 ### Pitfall #2: Using ES modules (import/export) in SDK test files
 
 **Symptoms:**
+
 - SyntaxError: Cannot use import statement outside a module
 - ReferenceError: exports is not defined
 
 **Problem:**
+
 ```javascript
 // ❌ BAD - causes "Cannot use import statement outside a module"
 import Sentry from "@sentry/node";
 import { loadFixture } from "../../_test-utils/fixtures";
 
-export default async function() {
+export default async function () {
   // ...
 }
 ```
@@ -82,6 +89,7 @@ export default async function() {
 **Why it breaks:** SDK test files use CommonJS for compatibility with the test runner and to avoid compilation steps.
 
 **Solution:**
+
 ```javascript
 // ✅ GOOD - use CommonJS require/module.exports
 const Sentry = require("@sentry/node");
@@ -104,11 +112,13 @@ module.exports = async function () {
 ### Pitfall #3: Forgetting sys.path setup in Python SDK
 
 **Symptoms:**
+
 - ModuleNotFoundError: No module named 'mock_transport'
 - ModuleNotFoundError: No module named 'test_runner'
 - ModuleNotFoundError: No module named 'fixture_loader'
 
 **Problem:**
+
 ```python
 # ❌ BAD - import fails immediately
 import sentry_sdk
@@ -118,6 +128,7 @@ from mock_transport import create_mock_transport  # ERROR
 **Why it breaks:** Python doesn't have project-wide module resolution by default. Shared test utilities are outside the SDK directory, so Python can't find them.
 
 **Solution:**
+
 ```python
 # ✅ GOOD - add sys.path setup BEFORE imports
 import os
@@ -135,6 +146,7 @@ from mock_transport import create_mock_transport, get_mock_transport, clear_mock
 ```
 
 **Path breakdown:**
+
 ```
 Path(__file__)                    # /path/to/sdks/py/your-sdk/setup.py
 .parent                            # /path/to/sdks/py/your-sdk/
@@ -147,10 +159,12 @@ Path(__file__)                    # /path/to/sdks/py/your-sdk/setup.py
 ### Pitfall #4: Wrong relative path counts in JavaScript
 
 **Symptoms:**
-- Error: Cannot find module '../../_test-utils/fixtures'
-- Module not found: Can't resolve '../_test-utils/mock-transport'
+
+- Error: Cannot find module '../../\_test-utils/fixtures'
+- Module not found: Can't resolve '../\_test-utils/mock-transport'
 
 **Problem:**
+
 ```javascript
 // ❌ BAD - wrong number of ../
 const { loadFixture } = require("../_test-utils/fixtures");
@@ -160,6 +174,7 @@ const { loadFixture } = require("../_test-utils/fixtures");
 **Why it breaks:** Relative paths must traverse up to repo root, then down to target directory.
 
 **Solution:**
+
 ```javascript
 // ✅ GOOD - count levels carefully
 // From: sdks/js/vercel/cases/1-simple.js (4 levels deep from root)
@@ -170,17 +185,19 @@ const { loadFixture } = require("../../_test-utils/fixtures");
 ```
 
 **Formula for counting:**
+
 1. Start at your test file location
 2. Count how many directories deep you are from repo root
 3. That's your `../` count
 4. Then add the path down to target directory
 
 **Common paths from test cases:**
+
 ```javascript
 // From sdks/js/{sdk}/cases/{test}.js:
 require("../../_test-utils/mock-transport.js");
 require("../../_test-utils/fixtures");
-require("../setup");  // SDK's setup.js
+require("../setup"); // SDK's setup.js
 
 // From sdks/js/{sdk}/setup.js:
 require("../_test-utils/mock-transport.js");
@@ -191,11 +208,13 @@ require("../_test-utils/mock-transport.js");
 ### Pitfall #5: Missing .venv in Python SDK
 
 **Symptoms:**
+
 - Error: No module named 'sentry_sdk'
 - Error: No module named 'openai' (or other AI SDK)
 - Python test exits immediately with import errors
 
 **Problem:**
+
 ```bash
 $ npm run cli run -- --sdk py/your-sdk
 # Error: No module named 'sentry_sdk'
@@ -204,6 +223,7 @@ $ npm run cli run -- --sdk py/your-sdk
 **Why it breaks:** Python dependencies aren't installed in the system Python or aren't accessible to the test runner.
 
 **Solution:**
+
 ```bash
 # ✅ GOOD - create virtual environment first
 cd sdks/py/your-sdk
@@ -217,6 +237,7 @@ npm run cli run -- --sdk py/your-sdk
 ```
 
 **How the orchestrator finds Python:**
+
 1. Checks for `sdks/py/your-sdk/.venv/bin/python` ← Uses this if exists
 2. Falls back to `python3` system command
 
@@ -227,10 +248,12 @@ npm run cli run -- --sdk py/your-sdk
 ### Pitfall #6: Using TypeScript (.ts) for SDK test files
 
 **Symptoms:**
+
 - Warning: "SDK has no setup file" (✓ indicator missing in `list` output)
 - Tests don't run even though files exist
 
 **Problem:**
+
 ```bash
 # Created setup.ts instead of setup.js
 sdks/js/your-sdk/
@@ -242,6 +265,7 @@ sdks/js/your-sdk/
 **Why it breaks:** The orchestrator only looks for `.js` files (and `.py` for Python SDKs). TypeScript files require compilation.
 
 **Solution:**
+
 ```bash
 # ✅ GOOD - use .js for SDK files
 sdks/js/your-sdk/
@@ -262,10 +286,12 @@ sdks/js/your-sdk/
 ### Pitfall #7: Calling assert_sentry() from main() in Python
 
 **Symptoms:**
+
 - AssertionError: No spans found (but SDK is instrumented correctly)
 - Validation fails even though test logic succeeds
 
 **Problem:**
+
 ```python
 # ❌ BAD - assert_sentry() runs too early
 async def main():
@@ -276,6 +302,7 @@ async def main():
 **Why it breaks:** The orchestrator needs to call `sentry_sdk.flush()` between running the test and checking assertions. If you call `assert_sentry()` from `main()`, it runs before flushing completes.
 
 **Solution:**
+
 ```python
 # ✅ GOOD - let orchestrator call them separately
 async def main():
@@ -293,6 +320,7 @@ async def assert_sentry():
 ```
 
 **Test execution flow for Python:**
+
 1. Orchestrator imports test module
 2. Orchestrator calls `main()` ← Run test logic
 3. Orchestrator calls `sentry_sdk.flush()` ← Ensure events captured
@@ -303,6 +331,7 @@ async def assert_sentry():
 ### Pitfall #8: Wrong framework type for SDK
 
 **Symptoms:**
+
 - Error: "No span found with op='gen_ai.invoke_agent'" (when using agentic fixture on low-level SDK)
 - Error: "No span found with op='gen_ai.chat'" (when using low-level fixture on agentic SDK)
 
@@ -310,12 +339,14 @@ async def assert_sentry():
 Test fails even though the SDK is working correctly. The issue is using the wrong fixture variant.
 
 **Solution:**
+
 1. Run your SDK and examine actual spans captured
 2. Check if you see agent/workflow wrapper spans → use `FRAMEWORK_TYPE = "agentic"`
 3. Check if you only see direct LLM call spans → use `FRAMEWORK_TYPE = "low-level"`
 4. Update `FRAMEWORK_TYPE` constant in **all** test cases for that SDK
 
 **Framework type examples:**
+
 ```javascript
 // Agentic frameworks (produce wrapper spans)
 const FRAMEWORK_TYPE = "agentic";
@@ -327,11 +358,15 @@ const FRAMEWORK_TYPE = "low-level";
 ```
 
 **How to diagnose:**
+
 ```javascript
 // Add debug output in your test
 const transport = getMockSentryTransport();
 const spans = transport.getSpans();
-console.log("Captured spans:", spans.map(s => s.op));
+console.log(
+  "Captured spans:",
+  spans.map((s) => s.op)
+);
 
 // Output might be:
 // ["gen_ai.invoke_agent", "gen_ai.chat"]  → agentic
@@ -345,13 +380,18 @@ console.log("Captured spans:", spans.map(s => s.op));
 ### Enable Verbose Logging
 
 **JavaScript:**
+
 ```javascript
 // In test case
 console.log("Debug: Running test with model:", model);
-console.log("Debug: Captured spans:", transport.getSpans().map(s => ({ op: s.op, name: s.description })));
+console.log(
+  "Debug: Captured spans:",
+  transport.getSpans().map((s) => ({ op: s.op, name: s.description }))
+);
 ```
 
 **Python:**
+
 ```python
 # In test case
 print(f"Debug: Running test with model: {model}")
@@ -365,7 +405,10 @@ print(f"Debug: Captured {len(transport.get_spans())} spans")
 // JavaScript
 const transport = getMockSentryTransport();
 console.log("Spans:", JSON.stringify(transport.getSpans(), null, 2));
-console.log("Transactions:", JSON.stringify(transport.getTransactions(), null, 2));
+console.log(
+  "Transactions:",
+  JSON.stringify(transport.getTransactions(), null, 2)
+);
 console.log("Events:", JSON.stringify(transport.getEvents(), null, 2));
 ```
 
@@ -399,6 +442,7 @@ print(f"Sentry client: {'initialized' if client else 'NOT initialized'}")
 ### "Mock transport not initialized"
 
 **Likely causes:**
+
 1. Forgot to call `createMockTransport()` before `Sentry.init()` (JavaScript)
 2. Exported frameworkType from setup.js (see Pitfall #1)
 3. Module loading order issue
@@ -410,6 +454,7 @@ print(f"Sentry client: {'initialized' if client else 'NOT initialized'}")
 ### "Cannot find module"
 
 **Likely causes:**
+
 1. Wrong relative path (see Pitfall #4)
 2. Missing `sys.path.insert()` in Python (see Pitfall #3)
 3. Forgot to run `npm install` or `pip install`
@@ -421,6 +466,7 @@ print(f"Sentry client: {'initialized' if client else 'NOT initialized'}")
 ### "No span found with op='...'"
 
 **Likely causes:**
+
 1. Wrong framework type (see Pitfall #8)
 2. SDK integration not working (check Sentry is initialized)
 3. Forgot to flush Sentry before assertions
@@ -432,6 +478,7 @@ print(f"Sentry client: {'initialized' if client else 'NOT initialized'}")
 ### "Fixture validation failed"
 
 **Likely causes:**
+
 1. Fixture expectations don't match actual SDK output
 2. Sentry SDK version mismatch
 3. AI SDK version changed behavior

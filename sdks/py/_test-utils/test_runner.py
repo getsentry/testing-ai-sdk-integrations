@@ -107,8 +107,8 @@ def get_test_description(spec_id):
     """Gets human-readable description for a test spec"""
     descriptions = {
         "1-simple": "Basic Completion",
-        "2-simple-with-error": "Basic Completion with Error",
-        "3-multi-turn": "Multi-turn Conversation",
+        "2-multi-step": "Multi-step Conversation",
+        "3-simple-with-error": "Basic Completion with Error",
         "4-streaming": "Basic Streaming",
         "5-streaming-with-error": "Streaming with Error",
         "6-agent-success": "Agent Success Path",

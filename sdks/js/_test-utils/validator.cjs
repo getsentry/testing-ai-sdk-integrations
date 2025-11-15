@@ -17,14 +17,15 @@ const { loadFixture } = require("./fixture-loader.cjs");
  * @param {Array} spans - Array of span objects
  * @param {string|Array<string>|Object} op - Operation name (string), array of operation names, or object with pattern/not
  * @param {Object} [requiredAttributes] - Optional object of attributes to filter by
+ * @param {Set} [usedSpans] - Set of span IDs already used (for matching multiple spans in order)
  * @returns {Object} The matching span
  * @throws {Error} If zero or multiple spans found
  */
-function getSpan(spans, op, requiredAttributes) {
+function getSpan(spans, op, requiredAttributes, usedSpans) {
   // Normalize op to an array
   let opList;
 
-  if (typeof op === 'object' && !Array.isArray(op)) {
+  if (typeof op === "object" && !Array.isArray(op)) {
     // Object format: { pattern: "gen_ai.*", not: ["gen_ai.invoke_agent", ...] }
     const pattern = op.pattern;
     const notList = op.not || [];
@@ -46,15 +47,22 @@ function getSpan(spans, op, requiredAttributes) {
   // Filter by operation name(s)
   let matching = spans.filter((s) => opList.includes(s.op));
 
+  // Exclude already-used spans if usedSpans is provided
+  if (usedSpans) {
+    matching = matching.filter((s) => !usedSpans.has(s.span_id));
+  }
+
   // Further filter by attributes if specified
   if (requiredAttributes) {
-    matching = matching.filter((s) => containsAttributes(s, requiredAttributes));
+    matching = matching.filter((s) =>
+      containsAttributes(s, requiredAttributes)
+    );
   }
 
   if (matching.length === 0) {
     // Generate description for error messages
     let opDesc;
-    if (typeof op === 'object' && !Array.isArray(op)) {
+    if (typeof op === "object" && !Array.isArray(op)) {
       opDesc = `${op.pattern} (excluding: ${(op.not || []).join(", ")})`;
     } else {
       opDesc = Array.isArray(op) ? op.join(" or ") : op;
@@ -73,7 +81,7 @@ function getSpan(spans, op, requiredAttributes) {
       throw new Error(errorMsg);
     } else {
       // Spans with that op exist, but don't match required attributes
-      const isVerbose = process.env.SENTRY_AI_TEST_VERBOSE === 'true';
+      const isVerbose = process.env.SENTRY_AI_TEST_VERBOSE === "true";
       let errorMsg = `Found span with op="${opDesc}" but missing required attributes`;
 
       if (requiredAttributes) {
@@ -85,28 +93,36 @@ function getSpan(spans, op, requiredAttributes) {
           const missing = [];
           const mismatched = [];
 
-          for (const [attr, expectedVal] of Object.entries(requiredAttributes)) {
+          for (const [attr, expectedVal] of Object.entries(
+            requiredAttributes
+          )) {
             const actualVal = getAttribute(span, attr);
 
             if (actualVal === undefined) {
               missing.push(attr);
             } else if (expectedVal !== true && actualVal !== expectedVal) {
-              mismatched.push(`${attr} (expected: ${JSON.stringify(expectedVal)}, got: ${JSON.stringify(actualVal)})`);
+              mismatched.push(
+                `${attr} (expected: ${JSON.stringify(
+                  expectedVal
+                )}, got: ${JSON.stringify(actualVal)})`
+              );
             }
           }
 
           if (missing.length > 0) {
-            errorMsg += `\n  Missing: ${missing.join(', ')}`;
+            errorMsg += `\n  Missing: ${missing.join(", ")}`;
           }
           if (mismatched.length > 0) {
-            errorMsg += `\n  Mismatched: ${mismatched.join(', ')}`;
+            errorMsg += `\n  Mismatched: ${mismatched.join(", ")}`;
           }
           errorMsg += `\n  (run with --verbose for full details)`;
         } else {
           // Verbose mode: Show everything
           errorMsg += `\n  Required attributes:`;
           for (const [attr, val] of Object.entries(requiredAttributes)) {
-            errorMsg += `\n    - ${attr}: ${val === true ? "(any value)" : JSON.stringify(val)}`;
+            errorMsg += `\n    - ${attr}: ${
+              val === true ? "(any value)" : JSON.stringify(val)
+            }`;
           }
 
           errorMsg += `\n  Span's actual attributes:`;
@@ -126,9 +142,15 @@ function getSpan(spans, op, requiredAttributes) {
   }
 
   if (matching.length > 1) {
+    // If usedSpans is provided, we're matching in order - return first match
+    if (usedSpans) {
+      return matching[0];
+    }
+
+    // Otherwise, multiple matches is an error
     // Generate description for error messages
     let opDesc;
-    if (typeof op === 'object' && !Array.isArray(op)) {
+    if (typeof op === "object" && !Array.isArray(op)) {
       opDesc = `${op.pattern} (excluding: ${(op.not || []).join(", ")})`;
     } else {
       opDesc = Array.isArray(op) ? op.join(" or ") : op;
@@ -138,7 +160,9 @@ function getSpan(spans, op, requiredAttributes) {
 
     errorMsg += `\n  Matching spans:`;
     matching.forEach((s, i) => {
-      errorMsg += `\n    ${i + 1}. op="${s.op}" span_id=${(s.span_id || "?").substring(0, 8)}`;
+      errorMsg += `\n    ${i + 1}. op="${s.op}" span_id=${(
+        s.span_id || "?"
+      ).substring(0, 8)}`;
     });
 
     throw new Error(errorMsg);
@@ -188,7 +212,11 @@ function getAttribute(span, attributeName) {
   }
 
   // First check in span.data (where Sentry stores span attributes)
-  if (span.data && typeof span.data === "object" && attributeName in span.data) {
+  if (
+    span.data &&
+    typeof span.data === "object" &&
+    attributeName in span.data
+  ) {
     return span.data[attributeName];
   }
 
@@ -288,14 +316,14 @@ function matchesPattern(actualValue, pattern) {
  * - { type: "plain_string", min_length: 1, pattern: "*hello*" }
  */
 function validateSchema(attrValue, schema) {
-  if (!schema || typeof schema !== 'object') {
+  if (!schema || typeof schema !== "object") {
     return false;
   }
 
   // Handle plain_string type
-  if (schema.type === 'plain_string') {
+  if (schema.type === "plain_string") {
     // Must be a string
-    if (typeof attrValue !== 'string') {
+    if (typeof attrValue !== "string") {
       return false;
     }
 
@@ -308,17 +336,26 @@ function validateSchema(attrValue, schema) {
     }
 
     // Validate min_length
-    if (schema.min_length !== undefined && attrValue.length < schema.min_length) {
+    if (
+      schema.min_length !== undefined &&
+      attrValue.length < schema.min_length
+    ) {
       return false;
     }
 
     // Validate max_length
-    if (schema.max_length !== undefined && attrValue.length > schema.max_length) {
+    if (
+      schema.max_length !== undefined &&
+      attrValue.length > schema.max_length
+    ) {
       return false;
     }
 
     // Validate pattern
-    if (schema.pattern !== undefined && !matchesPattern(attrValue, schema.pattern)) {
+    if (
+      schema.pattern !== undefined &&
+      !matchesPattern(attrValue, schema.pattern)
+    ) {
       return false;
     }
 
@@ -326,10 +363,10 @@ function validateSchema(attrValue, schema) {
   }
 
   // Handle json_array type
-  if (schema.type === 'json_array') {
+  if (schema.type === "json_array") {
     // Parse JSON if it's a string
     let parsed;
-    if (typeof attrValue === 'string') {
+    if (typeof attrValue === "string") {
       try {
         parsed = JSON.parse(attrValue);
       } catch (e) {
@@ -360,7 +397,7 @@ function validateSchema(attrValue, schema) {
     // Validate items_have (each item must have these properties)
     if (schema.items_have && Array.isArray(schema.items_have)) {
       for (const item of parsed) {
-        if (typeof item !== 'object' || item === null) {
+        if (typeof item !== "object" || item === null) {
           return false;
         }
         for (const requiredProp of schema.items_have) {
@@ -394,7 +431,12 @@ function attributeMatches(span, attributeName, value) {
   }
 
   // Check if value is a schema object
-  if (typeof value === 'object' && value !== null && !Array.isArray(value) && value.type) {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    value.type
+  ) {
     return validateSchema(attrValue, value);
   }
 
@@ -413,7 +455,7 @@ function attributeMatches(span, attributeName, value) {
  *
  * @example
  * assert(containsAttributes(span, {
- *   'gen_ai.request.model': 'gpt-4o-mini',  // checks value matches
+ *   'gen_ai.request.model': 'gpt-5-nano',  // checks value matches
  *   'gen_ai.response.text': true,            // just checks presence
  *   'gen_ai.usage.input_tokens': true,
  * }));
@@ -451,28 +493,35 @@ function containsAttributes(span, attributes) {
  * @param {Object} overrides - Optional SDK config overrides to apply to fixture expectations
  * @returns {Object} Validation result with { passed, errors }
  */
-function validateFixture(specId, spans, transactions, events = [], variant = "agentic", overrides = null) {
+function validateFixture(
+  specId,
+  spans,
+  transactions,
+  events = [],
+  variant = "agentic",
+  overrides = null
+) {
   const fixture = loadFixture(specId, variant, overrides);
   const errors = [];
 
   // Log captured spans in verbose mode
-  if (process.env.SENTRY_AI_TEST_VERBOSE === 'true') {
-    console.log('\n    === Captured Spans (Verbose) ===');
+  if (process.env.SENTRY_AI_TEST_VERBOSE === "true") {
+    console.log("\n    === Captured Spans (Verbose) ===");
     if (spans.length === 0) {
-      console.log('    No spans captured');
+      console.log("    No spans captured");
     } else {
       spans.forEach((span, index) => {
         console.log(`    Span ${index + 1}:`);
-        console.log(`      op: ${span.op || 'N/A'}`);
-        console.log(`      description: ${span.description || 'N/A'}`);
-        console.log(`      span_id: ${span.span_id || 'N/A'}`);
-        console.log(`      parent_span_id: ${span.parent_span_id || 'N/A'}`);
+        console.log(`      op: ${span.op || "N/A"}`);
+        console.log(`      description: ${span.description || "N/A"}`);
+        console.log(`      span_id: ${span.span_id || "N/A"}`);
+        console.log(`      parent_span_id: ${span.parent_span_id || "N/A"}`);
         if (span.data && Object.keys(span.data).length > 0) {
-          console.log(`      data keys: ${Object.keys(span.data).join(', ')}`);
+          console.log(`      data keys: ${Object.keys(span.data).join(", ")}`);
         }
       });
     }
-    console.log('    === End Captured Spans ===\n');
+    console.log("    === End Captured Spans ===\n");
   }
 
   // Validate transactions
@@ -493,13 +542,16 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
     // Note: 'count' is treated as minimum, not exact
     const minSpanCount = min_count !== undefined ? min_count : count;
     if (minSpanCount !== undefined && spans.length < minSpanCount) {
-      errors.push(`Expected at least ${minSpanCount} span(s), got ${spans.length}`);
+      errors.push(
+        `Expected at least ${minSpanCount} span(s), got ${spans.length}`
+      );
     }
 
     // Validate individual spans and relationships
     if (items && Array.isArray(items)) {
       const spanMap = new Map(); // id -> span object
       const spanErrors = new Map(); // id -> { expectedOp, actualOp, missing: [], mismatched: [], notFound: boolean }
+      const usedSpans = new Set(); // Track span IDs already matched
 
       for (const itemExpectation of items) {
         const fixtureId = itemExpectation.id;
@@ -507,22 +559,39 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
         // Generate expected op description
         let expectedOp;
         const op = itemExpectation.op;
-        if (typeof op === 'object' && !Array.isArray(op)) {
-          expectedOp = `${op.pattern} (excluding: ${(op.not || []).join(", ")})`;
+        if (typeof op === "object" && !Array.isArray(op)) {
+          expectedOp = `${op.pattern} (excluding: ${(op.not || []).join(
+            ", "
+          )})`;
         } else {
           expectedOp = Array.isArray(op) ? op.join(" or ") : op;
         }
 
         try {
-          // Get span by operation and attributes
+          // Get span by operation and attributes (pass usedSpans to match in order)
           const requiredAttrs = itemExpectation.required_attributes;
-          const span = getSpan(spans, itemExpectation.op, requiredAttrs);
+          const span = getSpan(
+            spans,
+            itemExpectation.op,
+            requiredAttrs,
+            usedSpans
+          );
           spanMap.set(fixtureId, span);
+
+          // Mark this span as used
+          if (span.span_id) {
+            usedSpans.add(span.span_id);
+          }
 
           // Validate required attributes and collect errors
           if (requiredAttrs) {
             if (!spanErrors.has(fixtureId)) {
-              spanErrors.set(fixtureId, { expectedOp, actualOp: span.op, missing: [], mismatched: [] });
+              spanErrors.set(fixtureId, {
+                expectedOp,
+                actualOp: span.op,
+                missing: [],
+                mismatched: [],
+              });
             }
             const spanError = spanErrors.get(fixtureId);
 
@@ -541,7 +610,7 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
                     spanError.mismatched.push({
                       attr,
                       expected: expectedValue,
-                      actual: actualValue
+                      actual: actualValue,
                     });
                   }
                 }
@@ -550,7 +619,7 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
           }
         } catch (error) {
           // getSpan threw an error - check if it's about missing attributes or missing span
-          if (error.message.includes('but missing required attributes')) {
+          if (error.message.includes("but missing required attributes")) {
             // Span exists but has attribute issues - extract the details
             const requiredAttrs = itemExpectation.required_attributes;
             if (requiredAttrs) {
@@ -558,13 +627,17 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
               // Normalize op to list (handle pattern objects too)
               const op = itemExpectation.op;
               let opList;
-              if (typeof op === 'object' && !Array.isArray(op)) {
+              if (typeof op === "object" && !Array.isArray(op)) {
                 // Pattern object: get matching ops
                 const pattern = op.pattern;
                 const notList = op.not || [];
                 const matchingOps = new Set();
                 spans.forEach((s) => {
-                  if (s.op && matchesPattern(s.op, pattern) && !notList.includes(s.op)) {
+                  if (
+                    s.op &&
+                    matchesPattern(s.op, pattern) &&
+                    !notList.includes(s.op)
+                  ) {
                     matchingOps.add(s.op);
                   }
                 });
@@ -577,12 +650,19 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
 
               if (matchingSpan) {
                 if (!spanErrors.has(fixtureId)) {
-                  spanErrors.set(fixtureId, { expectedOp, actualOp: matchingSpan.op, missing: [], mismatched: [] });
+                  spanErrors.set(fixtureId, {
+                    expectedOp,
+                    actualOp: matchingSpan.op,
+                    missing: [],
+                    mismatched: [],
+                  });
                 }
                 const spanError = spanErrors.get(fixtureId);
 
                 // Check each attribute
-                for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
+                for (const [attr, expectedValue] of Object.entries(
+                  requiredAttrs
+                )) {
                   if (expectedValue === true) {
                     if (!hasAttribute(matchingSpan, attr)) {
                       spanError.missing.push(attr);
@@ -597,7 +677,7 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
                         spanError.mismatched.push({
                           attr,
                           expected: expectedValue,
-                          actual: actualValue
+                          actual: actualValue,
                         });
                       }
                     }
@@ -605,10 +685,16 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
                 }
               }
             }
-          } else if (error.message.includes('No span found with op=')) {
+          } else if (error.message.includes("No span found with op=")) {
             // Span doesn't exist at all
             if (!spanErrors.has(fixtureId)) {
-              spanErrors.set(fixtureId, { expectedOp, actualOp: null, missing: [], mismatched: [], notFound: true });
+              spanErrors.set(fixtureId, {
+                expectedOp,
+                actualOp: null,
+                missing: [],
+                mismatched: [],
+                notFound: true,
+              });
             }
           } else {
             // Other error - just append it
@@ -620,8 +706,13 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
       // Format span errors in a structured way
       for (const [fixtureId, errorDetails] of spanErrors) {
         if (errorDetails.notFound) {
-          errors.push(`    ${fixtureId} (expected: ${errorDetails.expectedOp}): span not found`);
-        } else if (errorDetails.missing.length > 0 || errorDetails.mismatched.length > 0) {
+          errors.push(
+            `    ${fixtureId} (expected: ${errorDetails.expectedOp}): span not found`
+          );
+        } else if (
+          errorDetails.missing.length > 0 ||
+          errorDetails.mismatched.length > 0
+        ) {
           let errorMsg = `    ${fixtureId} (${errorDetails.actualOp}):`;
 
           for (const attr of errorDetails.missing) {
@@ -629,7 +720,11 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
           }
 
           for (const mismatch of errorDetails.mismatched) {
-            errorMsg += `\n       ${mismatch.attr}: mismatch (expected: ${JSON.stringify(mismatch.expected)}, got: ${JSON.stringify(mismatch.actual)})`;
+            errorMsg += `\n       ${
+              mismatch.attr
+            }: mismatch (expected: ${JSON.stringify(
+              mismatch.expected
+            )}, got: ${JSON.stringify(mismatch.actual)})`;
           }
 
           errors.push(errorMsg);

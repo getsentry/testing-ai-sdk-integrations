@@ -16,7 +16,7 @@ async def test_logic(inputs):
     system = inputs["system"]
     prompt = inputs["prompt"]
 
-    # LiteLLM requires the model prefix (e.g., "openai/gpt-4o-mini")
+    # LiteLLM requires the model prefix (e.g., "openai/gpt-5-nano")
     response = completion(
         model=f"openai/{model}",
         messages=[
