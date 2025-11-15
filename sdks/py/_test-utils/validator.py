@@ -13,6 +13,91 @@ from fixture_loader import load_fixture
 # ASSERTION HELPERS
 # ============================================================================
 
+
+def format_op_description(op: Any) -> str:
+    """
+    Format an op specification as a human-readable description
+
+    Args:
+        op: Operation specification (string, list, or dict)
+
+    Returns:
+        Human-readable description
+    """
+    if isinstance(op, dict):
+        not_list = op.get("not", [])
+        return f"{op.get('pattern')} (excluding: {', '.join(not_list)})"
+    elif isinstance(op, list):
+        return " or ".join(op)
+    else:
+        return op
+
+
+def normalize_op_to_list(op: Any, spans: List[Dict[str, Any]]) -> List[str]:
+    """
+    Normalize an op specification to a list of operation names
+
+    Args:
+        op: Operation specification (string, list, or dict with pattern/not)
+        spans: Available spans (needed for pattern matching)
+
+    Returns:
+        List of operation names
+    """
+    if isinstance(op, dict):
+        # Object format: { "pattern": "gen_ai.*", "not": ["gen_ai.invoke_agent", ...] }
+        pattern = op.get("pattern")
+        not_list = op.get("not", [])
+
+        # Get all unique op values from spans that match the pattern but not in the exclusion list
+        matching_ops = set()
+        for s in spans:
+            span_op = s.get("op")
+            if span_op and matches_pattern(span_op, pattern) and span_op not in not_list:
+                matching_ops.add(span_op)
+
+        return list(matching_ops)
+    elif isinstance(op, str):
+        return [op]
+    else:
+        return op
+
+
+def validate_span_attributes(span: Dict[str, Any], required_attributes: Dict[str, Any]) -> Dict[str, List]:
+    """
+    Validate span attributes and collect errors
+
+    Args:
+        span: The span to validate
+        required_attributes: Required attributes to check
+
+    Returns:
+        Dict with 'missing' and 'mismatched' arrays
+    """
+    errors = {"missing": [], "mismatched": []}
+
+    for attr, expected_value in required_attributes.items():
+        if expected_value is True:
+            # Just check presence
+            if not has_attribute(span, attr):
+                errors["missing"].append(attr)
+        else:
+            # Check value matches
+            if not attribute_matches(span, attr, expected_value):
+                actual_value = get_attribute(span, attr)
+                # Treat None as missing, not mismatch
+                if actual_value is None:
+                    errors["missing"].append(attr)
+                else:
+                    errors["mismatched"].append({
+                        "attr": attr,
+                        "expected": expected_value,
+                        "actual": actual_value
+                    })
+
+    return errors
+
+
 def get_attribute(span: Dict[str, Any], attribute_name: str) -> Any:
     """
     Get an attribute value from a span
@@ -246,24 +331,8 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
     Raises:
         ValueError: If zero or multiple spans found
     """
-    # Normalize op to a list
-    if isinstance(op, dict):
-        # Object format: { "pattern": "gen_ai.*", "not": ["gen_ai.invoke_agent", ...] }
-        pattern = op.get("pattern")
-        not_list = op.get("not", [])
-
-        # Get all unique op values from spans that match the pattern but not in the exclusion list
-        matching_ops = set()
-        for s in spans:
-            span_op = s.get("op")
-            if span_op and matches_pattern(span_op, pattern) and span_op not in not_list:
-                matching_ops.add(span_op)
-
-        op_list = list(matching_ops)
-    elif isinstance(op, str):
-        op_list = [op]
-    else:
-        op_list = op
+    # Normalize op to a list of operation names
+    op_list = normalize_op_to_list(op, spans)
 
     # Filter by operation name(s)
     matching = [s for s in spans if s.get("op") in op_list]
@@ -277,13 +346,7 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
         matching = [s for s in matching if contains_attributes(s, required_attributes)]
 
     if len(matching) == 0:
-        # Generate description for error messages
-        if isinstance(op, dict):
-            op_desc = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
-        elif isinstance(op, str):
-            op_desc = op
-        else:
-            op_desc = " or ".join(op)
+        op_desc = format_op_description(op)
 
         # Check if any spans with the op exist (without attribute filtering)
         spans_with_op = [s for s in spans if s.get("op") in op_list]
@@ -345,14 +408,7 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
             return matching[0]
 
         # Otherwise, multiple matches is an error
-        # Generate description for error messages
-        if isinstance(op, dict):
-            op_desc = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
-        elif isinstance(op, str):
-            op_desc = op
-        else:
-            op_desc = " or ".join(op)
-
+        op_desc = format_op_description(op)
         error_msg = f'Found {len(matching)} spans matching op="{op_desc}", expected exactly 1'
 
         error_msg += '\n  Matching spans:'
@@ -477,13 +533,7 @@ def validate_fixture(
                 fixture_id = item_expectation["id"]
 
                 # Generate expected op description
-                op = item_expectation["op"]
-                if isinstance(op, dict):
-                    expected_op = f"{op.get('pattern')} (excluding: {', '.join(op.get('not', []))})"
-                elif isinstance(op, list):
-                    expected_op = " or ".join(op)
-                else:
-                    expected_op = op
+                expected_op = format_op_description(item_expectation["op"])
 
                 try:
                     # Get span by operation and attributes (pass used_spans to match in order)
@@ -502,22 +552,10 @@ def validate_fixture(
 
                         span_error = span_errors[fixture_id]
 
-                        for attr, expected_value in required_attrs.items():
-                            if expected_value is True:
-                                if not has_attribute(span, attr):
-                                    span_error["missing"].append(attr)
-                            else:
-                                if not attribute_matches(span, attr, expected_value):
-                                    actual_value = get_attribute(span, attr)
-                                    # Treat None as missing, not mismatch
-                                    if actual_value is None:
-                                        span_error["missing"].append(attr)
-                                    else:
-                                        span_error["mismatched"].append({
-                                            "attr": attr,
-                                            "expected": expected_value,
-                                            "actual": actual_value
-                                        })
+                        # Validate attributes and collect errors
+                        attr_errors = validate_span_attributes(span, required_attrs)
+                        span_error["missing"].extend(attr_errors["missing"])
+                        span_error["mismatched"].extend(attr_errors["mismatched"])
                 except Exception as e:
                     error_msg = str(e)
                     # getSpan threw an error - check if it's about missing attributes or missing span
@@ -526,23 +564,7 @@ def validate_fixture(
                         required_attrs = item_expectation.get("required_attributes")
                         if required_attrs:
                             # Find the span by op only (without attribute filtering)
-                            # Normalize op to list (handle pattern objects too)
-                            op = item_expectation["op"]
-                            if isinstance(op, dict):
-                                # Pattern object: get matching ops
-                                pattern = op.get("pattern")
-                                not_list = op.get("not", [])
-                                matching_ops = set()
-                                for s in spans:
-                                    span_op = s.get("op")
-                                    if span_op and matches_pattern(span_op, pattern) and span_op not in not_list:
-                                        matching_ops.add(span_op)
-                                op_list = list(matching_ops)
-                            elif isinstance(op, list):
-                                op_list = op
-                            else:
-                                op_list = [op]
-
+                            op_list = normalize_op_to_list(item_expectation["op"], spans)
                             matching_span = next((s for s in spans if s.get("op") in op_list), None)
 
                             if matching_span:
@@ -551,23 +573,10 @@ def validate_fixture(
 
                                 span_error = span_errors[fixture_id]
 
-                                # Check each attribute
-                                for attr, expected_value in required_attrs.items():
-                                    if expected_value is True:
-                                        if not has_attribute(matching_span, attr):
-                                            span_error["missing"].append(attr)
-                                    else:
-                                        if not attribute_matches(matching_span, attr, expected_value):
-                                            actual_value = get_attribute(matching_span, attr)
-                                            # Treat None as missing, not mismatch
-                                            if actual_value is None:
-                                                span_error["missing"].append(attr)
-                                            else:
-                                                span_error["mismatched"].append({
-                                                    "attr": attr,
-                                                    "expected": expected_value,
-                                                    "actual": actual_value
-                                                })
+                                # Validate attributes and collect errors
+                                attr_errors = validate_span_attributes(matching_span, required_attrs)
+                                span_error["missing"].extend(attr_errors["missing"])
+                                span_error["mismatched"].extend(attr_errors["mismatched"])
                     elif "No span found with op=" in error_msg:
                         # Span doesn't exist at all
                         if fixture_id not in span_errors:

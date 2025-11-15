@@ -11,20 +11,26 @@ const { loadFixture } = require("./fixture-loader.cjs");
 // ============================================================================
 
 /**
- * Get a single span by operation name(s) and/or attributes
- * Throws if zero or more than one span is found
+ * Format an op specification as a human-readable description
  *
- * @param {Array} spans - Array of span objects
- * @param {string|Array<string>|Object} op - Operation name (string), array of operation names, or object with pattern/not
- * @param {Object} [requiredAttributes] - Optional object of attributes to filter by
- * @param {Set} [usedSpans] - Set of span IDs already used (for matching multiple spans in order)
- * @returns {Object} The matching span
- * @throws {Error} If zero or multiple spans found
+ * @param {string|Array<string>|Object} op - Operation specification
+ * @returns {string} Human-readable description
  */
-function getSpan(spans, op, requiredAttributes, usedSpans) {
-  // Normalize op to an array
-  let opList;
+function formatOpDescription(op) {
+  if (typeof op === "object" && !Array.isArray(op)) {
+    return `${op.pattern} (excluding: ${(op.not || []).join(", ")})`;
+  }
+  return Array.isArray(op) ? op.join(" or ") : op;
+}
 
+/**
+ * Normalize an op specification to a list of operation names
+ *
+ * @param {string|Array<string>|Object} op - Operation specification
+ * @param {Array} spans - Available spans (needed for pattern matching)
+ * @returns {Array<string>} List of operation names
+ */
+function normalizeOpToList(op, spans) {
   if (typeof op === "object" && !Array.isArray(op)) {
     // Object format: { pattern: "gen_ai.*", not: ["gen_ai.invoke_agent", ...] }
     const pattern = op.pattern;
@@ -38,11 +44,64 @@ function getSpan(spans, op, requiredAttributes, usedSpans) {
       }
     });
 
-    opList = Array.from(matchingOps);
-  } else {
-    // String or array format (existing behavior)
-    opList = Array.isArray(op) ? op : [op];
+    return Array.from(matchingOps);
   }
+
+  // String or array format
+  return Array.isArray(op) ? op : [op];
+}
+
+/**
+ * Validate span attributes and collect errors
+ *
+ * @param {Object} span - The span to validate
+ * @param {Object} requiredAttributes - Required attributes to check
+ * @returns {Object} Object with {missing: [], mismatched: []} arrays
+ */
+function validateSpanAttributes(span, requiredAttributes) {
+  const errors = { missing: [], mismatched: [] };
+
+  for (const [attr, expectedValue] of Object.entries(requiredAttributes)) {
+    if (expectedValue === true) {
+      // Just check presence
+      if (!hasAttribute(span, attr)) {
+        errors.missing.push(attr);
+      }
+    } else {
+      // Check value matches
+      if (!attributeMatches(span, attr, expectedValue)) {
+        const actualValue = getAttribute(span, attr);
+        // Treat undefined/null as missing, not mismatch
+        if (actualValue === undefined || actualValue === null) {
+          errors.missing.push(attr);
+        } else {
+          errors.mismatched.push({
+            attr,
+            expected: expectedValue,
+            actual: actualValue,
+          });
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Get a single span by operation name(s) and/or attributes
+ * Throws if zero or more than one span is found
+ *
+ * @param {Array} spans - Array of span objects
+ * @param {string|Array<string>|Object} op - Operation name (string), array of operation names, or object with pattern/not
+ * @param {Object} [requiredAttributes] - Optional object of attributes to filter by
+ * @param {Set} [usedSpans] - Set of span IDs already used (for matching multiple spans in order)
+ * @returns {Object} The matching span
+ * @throws {Error} If zero or multiple spans found
+ */
+function getSpan(spans, op, requiredAttributes, usedSpans) {
+  // Normalize op to a list of operation names
+  const opList = normalizeOpToList(op, spans);
 
   // Filter by operation name(s)
   let matching = spans.filter((s) => opList.includes(s.op));
@@ -60,13 +119,7 @@ function getSpan(spans, op, requiredAttributes, usedSpans) {
   }
 
   if (matching.length === 0) {
-    // Generate description for error messages
-    let opDesc;
-    if (typeof op === "object" && !Array.isArray(op)) {
-      opDesc = `${op.pattern} (excluding: ${(op.not || []).join(", ")})`;
-    } else {
-      opDesc = Array.isArray(op) ? op.join(" or ") : op;
-    }
+    const opDesc = formatOpDescription(op);
 
     // Check if any spans with the op exist (without attribute filtering)
     const spansWithOp = spans.filter((s) => opList.includes(s.op));
@@ -148,14 +201,7 @@ function getSpan(spans, op, requiredAttributes, usedSpans) {
     }
 
     // Otherwise, multiple matches is an error
-    // Generate description for error messages
-    let opDesc;
-    if (typeof op === "object" && !Array.isArray(op)) {
-      opDesc = `${op.pattern} (excluding: ${(op.not || []).join(", ")})`;
-    } else {
-      opDesc = Array.isArray(op) ? op.join(" or ") : op;
-    }
-
+    const opDesc = formatOpDescription(op);
     let errorMsg = `Found ${matching.length} spans matching op="${opDesc}", expected exactly 1`;
 
     errorMsg += `\n  Matching spans:`;
@@ -557,15 +603,7 @@ function validateFixture(
         const fixtureId = itemExpectation.id;
 
         // Generate expected op description
-        let expectedOp;
-        const op = itemExpectation.op;
-        if (typeof op === "object" && !Array.isArray(op)) {
-          expectedOp = `${op.pattern} (excluding: ${(op.not || []).join(
-            ", "
-          )})`;
-        } else {
-          expectedOp = Array.isArray(op) ? op.join(" or ") : op;
-        }
+        const expectedOp = formatOpDescription(itemExpectation.op);
 
         try {
           // Get span by operation and attributes (pass usedSpans to match in order)
@@ -595,27 +633,10 @@ function validateFixture(
             }
             const spanError = spanErrors.get(fixtureId);
 
-            for (const [attr, expectedValue] of Object.entries(requiredAttrs)) {
-              if (expectedValue === true) {
-                if (!hasAttribute(span, attr)) {
-                  spanError.missing.push(attr);
-                }
-              } else {
-                if (!attributeMatches(span, attr, expectedValue)) {
-                  const actualValue = getAttribute(span, attr);
-                  // Treat undefined/null as missing, not mismatch
-                  if (actualValue === undefined || actualValue === null) {
-                    spanError.missing.push(attr);
-                  } else {
-                    spanError.mismatched.push({
-                      attr,
-                      expected: expectedValue,
-                      actual: actualValue,
-                    });
-                  }
-                }
-              }
-            }
+            // Validate attributes and collect errors
+            const attrErrors = validateSpanAttributes(span, requiredAttrs);
+            spanError.missing.push(...attrErrors.missing);
+            spanError.mismatched.push(...attrErrors.mismatched);
           }
         } catch (error) {
           // getSpan threw an error - check if it's about missing attributes or missing span
@@ -624,28 +645,7 @@ function validateFixture(
             const requiredAttrs = itemExpectation.required_attributes;
             if (requiredAttrs) {
               // Find the span by op only (without attribute filtering)
-              // Normalize op to list (handle pattern objects too)
-              const op = itemExpectation.op;
-              let opList;
-              if (typeof op === "object" && !Array.isArray(op)) {
-                // Pattern object: get matching ops
-                const pattern = op.pattern;
-                const notList = op.not || [];
-                const matchingOps = new Set();
-                spans.forEach((s) => {
-                  if (
-                    s.op &&
-                    matchesPattern(s.op, pattern) &&
-                    !notList.includes(s.op)
-                  ) {
-                    matchingOps.add(s.op);
-                  }
-                });
-                opList = Array.from(matchingOps);
-              } else {
-                opList = Array.isArray(op) ? op : [op];
-              }
-
+              const opList = normalizeOpToList(itemExpectation.op, spans);
               const matchingSpan = spans.find((s) => opList.includes(s.op));
 
               if (matchingSpan) {
@@ -659,30 +659,10 @@ function validateFixture(
                 }
                 const spanError = spanErrors.get(fixtureId);
 
-                // Check each attribute
-                for (const [attr, expectedValue] of Object.entries(
-                  requiredAttrs
-                )) {
-                  if (expectedValue === true) {
-                    if (!hasAttribute(matchingSpan, attr)) {
-                      spanError.missing.push(attr);
-                    }
-                  } else {
-                    if (!attributeMatches(matchingSpan, attr, expectedValue)) {
-                      const actualValue = getAttribute(matchingSpan, attr);
-                      // Treat undefined/null as missing, not mismatch
-                      if (actualValue === undefined || actualValue === null) {
-                        spanError.missing.push(attr);
-                      } else {
-                        spanError.mismatched.push({
-                          attr,
-                          expected: expectedValue,
-                          actual: actualValue,
-                        });
-                      }
-                    }
-                  }
-                }
+                // Validate attributes and collect errors
+                const attrErrors = validateSpanAttributes(matchingSpan, requiredAttrs);
+                spanError.missing.push(...attrErrors.missing);
+                spanError.mismatched.push(...attrErrors.mismatched);
               }
             }
           } else if (error.message.includes("No span found with op=")) {
