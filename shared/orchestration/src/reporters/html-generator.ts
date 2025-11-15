@@ -139,15 +139,9 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
             <span class="duration">(${test.duration}ms)</span>
           </summary>
           <div class="error-details">
-            ${test.message ? html`
-              <div class="error-message">
-                <strong>Error:</strong>
-                <pre>${test.message}</pre>
-              </div>
-            ` : ''}
             ${test.trace ? html`
               <div class="error-trace">
-                <strong>Stack Trace:</strong>
+                <strong>Details:</strong>
                 <pre>${test.trace}</pre>
               </div>
             ` : ''}

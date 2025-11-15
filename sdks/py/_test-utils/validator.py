@@ -494,11 +494,15 @@ def validate_fixture(
                             else:
                                 if not attribute_matches(span, attr, expected_value):
                                     actual_value = get_attribute(span, attr)
-                                    span_error["mismatched"].append({
-                                        "attr": attr,
-                                        "expected": expected_value,
-                                        "actual": actual_value
-                                    })
+                                    # Treat None as missing, not mismatch
+                                    if actual_value is None:
+                                        span_error["missing"].append(attr)
+                                    else:
+                                        span_error["mismatched"].append({
+                                            "attr": attr,
+                                            "expected": expected_value,
+                                            "actual": actual_value
+                                        })
                 except Exception as e:
                     error_msg = str(e)
                     # getSpan threw an error - check if it's about missing attributes or missing span
@@ -540,11 +544,15 @@ def validate_fixture(
                                     else:
                                         if not attribute_matches(matching_span, attr, expected_value):
                                             actual_value = get_attribute(matching_span, attr)
-                                            span_error["mismatched"].append({
-                                                "attr": attr,
-                                                "expected": expected_value,
-                                                "actual": actual_value
-                                            })
+                                            # Treat None as missing, not mismatch
+                                            if actual_value is None:
+                                                span_error["missing"].append(attr)
+                                            else:
+                                                span_error["mismatched"].append({
+                                                    "attr": attr,
+                                                    "expected": expected_value,
+                                                    "actual": actual_value
+                                                })
                     elif "No span found with op=" in error_msg:
                         # Span doesn't exist at all
                         if fixture_id not in span_errors:

@@ -534,11 +534,16 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
               } else {
                 if (!attributeMatches(span, attr, expectedValue)) {
                   const actualValue = getAttribute(span, attr);
-                  spanError.mismatched.push({
-                    attr,
-                    expected: expectedValue,
-                    actual: actualValue
-                  });
+                  // Treat undefined/null as missing, not mismatch
+                  if (actualValue === undefined || actualValue === null) {
+                    spanError.missing.push(attr);
+                  } else {
+                    spanError.mismatched.push({
+                      attr,
+                      expected: expectedValue,
+                      actual: actualValue
+                    });
+                  }
                 }
               }
             }
@@ -585,11 +590,16 @@ function validateFixture(specId, spans, transactions, events = [], variant = "ag
                   } else {
                     if (!attributeMatches(matchingSpan, attr, expectedValue)) {
                       const actualValue = getAttribute(matchingSpan, attr);
-                      spanError.mismatched.push({
-                        attr,
-                        expected: expectedValue,
-                        actual: actualValue
-                      });
+                      // Treat undefined/null as missing, not mismatch
+                      if (actualValue === undefined || actualValue === null) {
+                        spanError.missing.push(attr);
+                      } else {
+                        spanError.mismatched.push({
+                          attr,
+                          expected: expectedValue,
+                          actual: actualValue
+                        });
+                      }
                     }
                   }
                 }
