@@ -162,6 +162,73 @@ function updatePackageJson(filePath: string, packageName: string, version: strin
 }
 
 /**
+ * Check if a package is installed as editable in a Python venv
+ */
+async function isEditableInstall(venvPath: string, packageName: string): Promise<boolean> {
+  try {
+    const pipPath = join(venvPath, 'bin', 'pip');
+
+    // Run pip list --format=json to get package information
+    const output = await new Promise<string>((resolve, reject) => {
+      const child = spawn(pipPath, ['list', '--format=json'], {
+        stdio: 'pipe'
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          reject(new Error(stderr || 'pip list failed'));
+        }
+      });
+
+      child.on('error', (err) => {
+        reject(err);
+      });
+    });
+
+    // Parse JSON output
+    const packages = JSON.parse(output);
+
+    // Find the package
+    const pkg = packages.find((p: any) => p.name === packageName);
+
+    if (!pkg) {
+      return false;
+    }
+
+    // Check if it's editable (location contains a path, not site-packages)
+    // Editable packages have an 'editable_project_location' field or
+    // their location doesn't point to site-packages
+    if (pkg.editable_project_location) {
+      return true;
+    }
+
+    // Fallback: check if location looks like an editable install
+    // (contains a path that's not in site-packages)
+    if (pkg.location && !pkg.location.includes('site-packages')) {
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    // If we can't determine, assume it's not editable
+    return false;
+  }
+}
+
+/**
  * Update package version in requirements.txt
  */
 function updateRequirementsTxt(filePath: string, packageName: string, version: string): boolean {
@@ -271,6 +338,18 @@ async function upgradePythonSDKs(packageName: string, version: string): Promise<
 
     if (!existsSync(requirementsPath)) {
       continue;
+    }
+
+    // Check if package is installed as editable
+    if (existsSync(venvPath)) {
+      const isEditable = await isEditableInstall(venvPath, packageName);
+      if (isEditable) {
+        process.stdout.write(chalk.yellow(`  ${sdk.path} - Skipping (editable install active)\n`));
+        process.stdout.write(chalk.gray(`    To upgrade, first remove editable install:\n`));
+        process.stdout.write(chalk.gray(`    cd ${sdk.path} && .venv/bin/pip uninstall ${packageName}\n`));
+        process.stdout.write(chalk.gray(`    Then run: npm run cli setup\n`));
+        continue;
+      }
     }
 
     // Try to update requirements.txt

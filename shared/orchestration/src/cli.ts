@@ -103,6 +103,7 @@ program
     'Generate reports (comma-separated: ctrf,html or "all")',
     "all"
   )
+  .option("--local-sentry-sdk <path>", "Use local Sentry SDK for editable install (Python SDKs)")
   .action(async (filter, options) => {
     // Validate options
     if (!filter && !options.case && !options.all) {
@@ -172,7 +173,7 @@ program
 
     // Run tests
     const startTime = Date.now();
-    const results = await runTests(sdks);
+    const results = await runTests(sdks, { localSentrySdkPath: options.localSentrySdk });
     const duration = Date.now() - startTime;
 
     // Generate CTRF report (single source of truth)
@@ -218,8 +219,9 @@ program
 program
   .command("setup")
   .description("Install all dependencies across the repository")
-  .action(async () => {
-    await setup();
+  .option("--local-sentry-sdk <path>", "Use local Sentry SDK for editable install (Python SDKs)")
+  .action(async (options) => {
+    await setup({ localSentrySdkPath: options.localSentrySdk });
   });
 
 /**

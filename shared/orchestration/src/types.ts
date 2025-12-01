@@ -40,7 +40,15 @@ export interface TestCaseModule {
   default: () => Promise<void> | void;
 }
 
-export interface RunOptions {
+export interface LocalSentryOptions {
+  localSentrySdkPath?: string;  // Path to local Sentry SDK for editable install
+}
+
+export interface SetupOptions extends LocalSentryOptions {
+  // Future: add other setup-specific options here
+}
+
+export interface RunOptions extends LocalSentryOptions {
   sdk?: string;         // Filter by SDK (e.g., "js/openai")
   case?: string;        // Filter by case (e.g., "G1")
   all?: boolean;        // Run all tests
