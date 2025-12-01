@@ -18,12 +18,12 @@ async def test_logic(inputs):
 
     client = genai.Client(api_key=os.getenv("GOOGLE_GENAI_API_KEY"))
 
-    # Combine system and prompt (GenAI doesn't have separate system parameter)
-    contents = f"{system}\n\n{prompt}"
-
     response = client.models.generate_content(
         model=model,
-        contents=contents,
+        contents=prompt,
+        config=genai.types.GenerateContentConfig(
+            system_instruction=system,
+        ),
     )
 
     if not response.text:
