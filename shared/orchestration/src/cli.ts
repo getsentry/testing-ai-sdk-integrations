@@ -103,6 +103,8 @@ program
     'Generate reports (comma-separated: ctrf,html or "all")',
     "all"
   )
+  .option("--local-sentry-python <path>", "Use local Sentry Python SDK (sentry-python)")
+  .option("--local-sentry-javascript <path>", "Use local Sentry JavaScript SDK (sentry-javascript)")
   .action(async (filter, options) => {
     // Validate options
     if (!filter && !options.case && !options.all) {
@@ -172,7 +174,10 @@ program
 
     // Run tests
     const startTime = Date.now();
-    const results = await runTests(sdks);
+    const results = await runTests(sdks, {
+      localSentryPythonPath: options.localSentryPython,
+      localSentryJavaScriptPath: options.localSentryJavascript
+    });
     const duration = Date.now() - startTime;
 
     // Generate CTRF report (single source of truth)
@@ -218,8 +223,13 @@ program
 program
   .command("setup")
   .description("Install all dependencies across the repository")
-  .action(async () => {
-    await setup();
+  .option("--local-sentry-python <path>", "Use local Sentry Python SDK (sentry-python)")
+  .option("--local-sentry-javascript <path>", "Use local Sentry JavaScript SDK (sentry-javascript)")
+  .action(async (options) => {
+    await setup({
+      localSentryPythonPath: options.localSentryPython,
+      localSentryJavaScriptPath: options.localSentryJavascript
+    });
   });
 
 /**
