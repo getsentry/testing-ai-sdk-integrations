@@ -41,7 +41,8 @@ export interface TestCaseModule {
 }
 
 export interface LocalSentryOptions {
-  localSentrySdkPath?: string;  // Path to local Sentry SDK for editable install
+  localSentryPythonPath?: string;     // Path to local Sentry Python SDK (sentry-python)
+  localSentryJavaScriptPath?: string; // Path to local Sentry JavaScript SDK (sentry-javascript)
 }
 
 export interface SetupOptions extends LocalSentryOptions {

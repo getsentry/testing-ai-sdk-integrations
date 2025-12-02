@@ -3,7 +3,7 @@
  */
 
 import { spawn } from 'child_process';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, lstatSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
 import { discoverSDKs } from './discovery.js';
@@ -162,6 +162,27 @@ function updatePackageJson(filePath: string, packageName: string, version: strin
 }
 
 /**
+ * Check if a package is linked using npm link
+ */
+function isNpmLinked(sdkPath: string, packageName: string): boolean {
+  try {
+    const nodeModulesPath = join(sdkPath, 'node_modules', packageName);
+
+    // Check if the package exists in node_modules
+    if (!existsSync(nodeModulesPath)) {
+      return false;
+    }
+
+    // Check if it's a symlink (npm link creates symlinks)
+    const stats = lstatSync(nodeModulesPath);
+    return stats.isSymbolicLink();
+  } catch (error) {
+    // If we can't determine, assume it's not linked
+    return false;
+  }
+}
+
+/**
  * Check if a package is installed as editable in a Python venv
  */
 async function isEditableInstall(venvPath: string, packageName: string): Promise<boolean> {
@@ -270,6 +291,16 @@ async function upgradeJavaScriptSDKs(packageName: string, version: string): Prom
     const packageJsonPath = join(sdk.absolutePath, 'package.json');
 
     if (!existsSync(packageJsonPath)) {
+      continue;
+    }
+
+    // Check if package is linked via npm link
+    const isLinked = isNpmLinked(sdk.absolutePath, packageName);
+    if (isLinked) {
+      process.stdout.write(chalk.yellow(`  ${sdk.path} - Skipping (npm linked)\n`));
+      process.stdout.write(chalk.gray(`    To upgrade, first unlink:\n`));
+      process.stdout.write(chalk.gray(`    cd ${sdk.path} && npm unlink ${packageName}\n`));
+      process.stdout.write(chalk.gray(`    Then run: npm run cli setup\n`));
       continue;
     }
 

@@ -169,9 +169,12 @@ function runPythonTest(filePath: string, caseId: string, config?: SDKConfig, sdk
       env.SDK_CONFIG_OVERRIDES = JSON.stringify(config.overrides[caseId]);
     }
 
-    // Pass local Sentry SDK path (for informational purposes)
-    if (options?.localSentrySdkPath) {
-      env.LOCAL_SENTRY_SDK_PATH = options.localSentrySdkPath;
+    // Pass local Sentry SDK paths (for informational purposes)
+    if (options?.localSentryPythonPath) {
+      env.LOCAL_SENTRY_PYTHON_PATH = options.localSentryPythonPath;
+    }
+    if (options?.localSentryJavaScriptPath) {
+      env.LOCAL_SENTRY_JAVASCRIPT_PATH = options.localSentryJavaScriptPath;
     }
 
     // Check if verbose mode is enabled
