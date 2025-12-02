@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.68.0",
-    "@sentry/node": "10.24.0",
+    "@sentry/node": "10.27.0",
     "dotenv": "17.2.3"
   }
 }

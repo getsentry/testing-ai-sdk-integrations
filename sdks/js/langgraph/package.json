@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "LangGraph SDK integration tests for Sentry",
   "dependencies": {
-    "@sentry/node": "10.24.0",
+    "@sentry/node": "10.27.0",
     "@langchain/core": "0.3.39",
     "@langchain/openai": "0.4.6",
     "@langchain/langgraph": "0.2.31",
