@@ -1,4 +1,4 @@
-sentry-sdk==2.43.0
+sentry-sdk==2.46.0
 langchain-core==1.0.4
 langchain-openai==1.0.2
 python-dotenv==1.2.1
