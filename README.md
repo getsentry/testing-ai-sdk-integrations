@@ -62,6 +62,7 @@ ai-sdks-test/
 │       └── test-results/          # Generated test reports
 ├── .env                           # Environment variables (gitignored)
 ├── .env.example                   # Template for API keys
+├── action.yml                     # GitHub Action to run the tests for a specific language on CI
 └── package.json                   # Root package.json for CLI alias
 ```
 
@@ -181,6 +182,51 @@ npm run cli run lang -- --case 1-simple         # Run 1-simple on lang* SDKs
 # List available SDKs
 npm run cli list
 ```
+
+## Using as a GitHub Action
+
+This repository can be used as a reusable GitHub Action in SDK repositories (e.g., `sentry-javascript`, `sentry-python`) to run AI integration tests on a schedule.
+
+### Setup in SDK Repositories
+
+1. **Create a workflow** in your SDK repo (e.g., `.github/workflows/ai-integration-tests.yml`):
+
+```yaml
+name: AI Integration Tests
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Weekly on Monday at 9am UTC
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout SDK repository
+        uses: actions/checkout@v4
+
+      - name: Run AI Integration Tests
+        uses: getsentry/testing-ai-sdk-integrations@v1
+        with:
+          language: js # or 'python'
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
+```
+
+2. **Add secrets** to your SDK repository:
+   - `OPENAI_API_KEY` - OpenAI API key
+   - `ANTHROPIC_API_KEY` - Anthropic API key
+   - `GOOGLE_API_KEY` - Google API key for GenAI
+   - `GITHUB_TOKEN` - GitHub token
+
+### How It Works
+
+- The action runs tests for the specified language (js or python)
+- On failure, it automatically creates or updates an issue in the **calling repository** (not this repo)
+- Issues are labeled with `ai-integration-test-failure` for easy tracking
+- Test results are included in the issue body in JSON format
 
 ## Test Scenarios
 
