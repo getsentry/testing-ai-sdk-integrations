@@ -210,18 +210,16 @@ jobs:
         uses: getsentry/testing-ai-sdk-integrations@v1
         with:
           language: js # or 'python'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          sentry-dsn: ${{ secrets.SENTRY_DSN }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           google-api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
 2. **Add secrets** to your SDK repository:
-   - `SENTRY_DSN` - Sentry project DSN
    - `OPENAI_API_KEY` - OpenAI API key
    - `ANTHROPIC_API_KEY` - Anthropic API key
    - `GOOGLE_API_KEY` - Google API key for GenAI
+   - `GITHUB_TOKEN` - GitHub token
 
 ### How It Works
 

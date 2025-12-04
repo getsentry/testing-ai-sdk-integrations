@@ -1,48 +1,42 @@
-name: 'Run AI SDK Integration Tests'
-description: 'Run AI SDK integration tests for a specific language (js or python) and report failures'
-author: 'Sentry Telemetry Experience Team'
+name: "Run AI SDK Integration Tests"
+description: "Run AI SDK integration tests for a specific language (js or python) and report failures"
+author: "Sentry Telemetry Experience Team"
 
 branding:
-  icon: 'check-circle'
-  color: 'purple'
+  icon: "triangle"
+  color: "purple"
 
 inputs:
   language:
-    description: 'SDK language to test (js or python)'
-    required: true
-  github-token:
-    description: 'GitHub token for creating issues in the calling repo'
-    required: true
-  sentry-dsn:
-    description: 'Sentry DSN for error tracking'
+    description: "SDK language to test. One of: js, python"
     required: true
   openai-api-key:
-    description: 'OpenAI API key'
+    description: "OpenAI API key"
     required: true
   anthropic-api-key:
-    description: 'Anthropic API key'
+    description: "Anthropic API key"
     required: true
   google-api-key:
-    description: 'Google API key for GenAI'
+    description: "Google API key for GenAI"
     required: true
 
 outputs:
   success:
-    description: 'Whether all tests passed'
+    description: "Whether all tests passed"
     value: ${{ steps.run-tests.outputs.success }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: "20"
 
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: "3.13"
 
     - name: Install orchestration dependencies
       shell: bash
@@ -59,7 +53,6 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
-        SENTRY_DSN: ${{ inputs.sentry-dsn }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         GOOGLE_API_KEY: ${{ inputs.google-api-key }}
@@ -81,7 +74,6 @@ runs:
       if: failure()
       uses: actions/github-script@v7
       with:
-        github-token: ${{ inputs.github-token }}
         script: |
           const fs = require('fs');
           const path = require('path');
