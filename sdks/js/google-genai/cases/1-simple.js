@@ -10,16 +10,18 @@ const { GoogleGenAI } = require("@google/genai");
 const { runTestCase } = require("../../_test-utils/test-runner.cjs");
 
 async function testLogic(inputs) {
-  const { model, system, prompt } = inputs;
+  const { model, prompt, system } = inputs;
 
-  const client = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
-
-  // Combine system and prompt (Google GenAI doesn't have separate system parameter)
-  const contents = `${system}\n\n${prompt}`;
+  const client = new GoogleGenAI({
+    apiKey: process.env.GOOGLE_GENAI_API_KEY,
+  });
 
   const response = await client.models.generateContent({
     model,
-    contents,
+    contents: prompt,
+    config: {
+      systemInstruction: [ system ],
+    },
   });
 
   const text = response.text;
