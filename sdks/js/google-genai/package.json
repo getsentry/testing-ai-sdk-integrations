@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Google GenAI SDK integration tests for Sentry",
   "dependencies": {
-    "@sentry/node": "10.27.0",
+    "@sentry/node": "10.29.0",
     "@google/genai": "1.29.0",
     "dotenv": "17.2.3"
   }
