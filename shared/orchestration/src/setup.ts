@@ -349,6 +349,13 @@ async function setupPythonSDK(sdkPath: string, absolutePath: string, options?: L
 }
 
 /**
+ * Check if we should setup SDKs for a given language
+ */
+function shouldSetupLanguage(language: 'js' | 'py', options?: SetupOptions): boolean {
+  return !options?.language || options.language === language;
+}
+
+/**
  * Main setup function
  */
 export async function setup(options?: SetupOptions): Promise<void> {
@@ -368,7 +375,7 @@ export async function setup(options?: SetupOptions): Promise<void> {
   const pySDKs = sdks.filter(sdk => sdk.language === 'py');
 
   // Setup JavaScript SDKs
-  if (jsSDKs.length > 0) {
+  if (shouldSetupLanguage('js', options) && jsSDKs.length > 0) {
     console.log(chalk.bold('JavaScript SDKs'));
     for (const sdk of jsSDKs) {
       const result = await setupJavaScriptSDK(sdk.path, sdk.absolutePath, options);
@@ -378,7 +385,7 @@ export async function setup(options?: SetupOptions): Promise<void> {
   }
 
   // Setup Python SDKs
-  if (pySDKs.length > 0) {
+  if (shouldSetupLanguage('py', options) && pySDKs.length > 0) {
     console.log(chalk.bold('Python SDKs'));
     for (const sdk of pySDKs) {
       const results = await setupPythonSDK(sdk.path, sdk.absolutePath, options);

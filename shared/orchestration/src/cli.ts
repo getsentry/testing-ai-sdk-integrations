@@ -221,12 +221,23 @@ program
  * Setup command - Install all dependencies
  */
 program
-  .command("setup")
-  .description("Install all dependencies across the repository")
+  .command("setup [language]")
+  .description("Install all dependencies across the repository (optionally filter by 'js' or 'py')")
   .option("--local-sentry-python <path>", "Use local Sentry Python SDK (sentry-python)")
   .option("--local-sentry-javascript <path>", "Use local Sentry JavaScript SDK (sentry-javascript)")
-  .action(async (options) => {
+  .action(async (language, options) => {
+    // Validate language argument if provided
+    if (language && language !== 'js' && language !== 'py') {
+      console.log(chalk.red(`Error: Invalid language "${language}". Must be "js" or "py".`));
+      console.log(chalk.gray('Examples:'));
+      console.log(chalk.gray('  npm run cli setup        (all SDKs)'));
+      console.log(chalk.gray('  npm run cli setup js     (JS only)'));
+      console.log(chalk.gray('  npm run cli setup py     (Python only)'));
+      process.exit(1);
+    }
+
     await setup({
+      language: language as 'js' | 'py' | undefined,
       localSentryPythonPath: options.localSentryPython,
       localSentryJavaScriptPath: options.localSentryJavascript
     });
