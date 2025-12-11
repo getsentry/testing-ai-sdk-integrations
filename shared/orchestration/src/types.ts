@@ -46,7 +46,7 @@ export interface LocalSentryOptions {
 }
 
 export interface SetupOptions extends LocalSentryOptions {
-  // Future: add other setup-specific options here
+  language?: 'js' | 'py';  // Filter by language (e.g., "js" or "py")
 }
 
 export interface RunOptions extends LocalSentryOptions {
