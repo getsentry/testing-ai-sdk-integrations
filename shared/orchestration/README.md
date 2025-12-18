@@ -158,6 +158,13 @@ npm run cli run -- --sdk js --case 1-simple
 npm run cli run -- --sdk js/vercel --case 1-simple
 ```
 
+**Stop on first failure (fail-fast mode):**
+```bash
+npm run cli run -- --sdk js/openai --fail-fast
+```
+
+When an SDK has multiple test cases (e.g., 1-simple, 2-multi-step), fail-fast mode will stop running tests for that SDK after the first failure. This is useful for debugging since you can fix the first failing test without waiting for all subsequent tests to run.
+
 **Available options:**
 - `--all` - Run all tests
 - `--sdk <path>` - Run specific SDK or all SDKs in a language
@@ -165,6 +172,10 @@ npm run cli run -- --sdk js/vercel --case 1-simple
   - `py` - All Python SDKs
   - `js/openai` - Specific SDK
 - `--case <id>` - Run specific test case (e.g., 1-simple)
+- `-f, --fail-fast` - Stop SDK tests on first failure (useful for debugging)
+- `-v, --verbose` - Show detailed output including LLM responses
+- `-o, --output-dir <path>` - Output directory for reports (default: ./test-results)
+- `-r, --reports <formats>` - Generate reports: ctrf, html, or all (default: all)
 
 **Note:** `--sdk` can target a language (js/py) or a specific SDK (js/openai).
 

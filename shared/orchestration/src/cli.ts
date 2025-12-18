@@ -93,6 +93,7 @@ program
   .option("-c, --case <case>", "Run specific test case (e.g., 1-simple)")
   .option("-a, --all", "Run all tests")
   .option("-v, --verbose", "Show detailed output including LLM responses")
+  .option("-f, --fail-fast", "Stop SDK tests on first failure")
   .option(
     "-o, --output-dir <path>",
     "Output directory for reports",
@@ -176,7 +177,8 @@ program
     const startTime = Date.now();
     const results = await runTests(sdks, {
       localSentryPythonPath: options.localSentryPython,
-      localSentryJavaScriptPath: options.localSentryJavascript
+      localSentryJavaScriptPath: options.localSentryJavascript,
+      failFast: options.failFast
     });
     const duration = Date.now() - startTime;
 
