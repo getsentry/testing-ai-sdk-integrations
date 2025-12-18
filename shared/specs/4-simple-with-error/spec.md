@@ -1,4 +1,4 @@
-# 3-simple-with-error: Basic Completion with Application Error
+# 4-simple-with-error: Basic Completion with Application Error
 
 ## Level & Category
 - **Level**: 1 (Basic)
