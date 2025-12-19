@@ -598,7 +598,7 @@ function validateSpanRelationships(items, spanMap, errors) {
       if (childSpan && parentSpan) {
         if (!isChildOf(childSpan, parentSpan)) {
           errors.push(
-            `Span with op="${itemExpectation.op}" should be child of span with id="${itemExpectation.parent}"`
+            `Span with op="${formatOpDescription(itemExpectation.op)}" should be child of span with id="${itemExpectation.parent}"`
           );
         }
       }

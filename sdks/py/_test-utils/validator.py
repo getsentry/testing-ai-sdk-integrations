@@ -526,7 +526,7 @@ def validate_span_relationships(items: List[Dict[str, Any]], span_map: Dict[str,
             if child_span and parent_span:
                 if not is_child_of(child_span, parent_span):
                     errors.append(
-                        f'Span with op="{item_expectation["op"]}" should be child of '
+                        f'Span with op="{format_op_description(item_expectation["op"])}" should be child of '
                         f'span with id="{item_expectation["parent"]}"'
                     )
 
