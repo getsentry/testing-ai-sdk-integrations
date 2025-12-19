@@ -172,7 +172,7 @@ When an SDK has multiple test cases (e.g., 1-simple, 2-multi-step), fail-fast mo
   - `py` - All Python SDKs
   - `js/openai` - Specific SDK
 - `--case <id>` - Run specific test case (e.g., 1-simple)
-- `-f, --fail-fast` - Stop SDK tests on first failure (useful for debugging)
+- `-f, --fail-fast` - Stop SDK tests on first failure
 - `-v, --verbose` - Show detailed output including LLM responses
 - `-o, --output-dir <path>` - Output directory for reports (default: ./test-results)
 - `-r, --reports <formats>` - Generate reports: ctrf, html, or all (default: all)
