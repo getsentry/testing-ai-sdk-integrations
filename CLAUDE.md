@@ -101,7 +101,7 @@ This is the main context file. For detailed guides, see:
 - 🚀 Run all tests: `cd shared/orchestration && npm run cli run -- --all`
 - 📝 List available SDKs: `npm run cli list`
 - 🔍 Run specific SDK: `npm run cli run js/vercel`
-- 🐛 Debug mode (fail-fast): `npm run cli run -- --sdk js/openai --fail-fast`
+- 💨 fail-fast: `npm run cli run -- --sdk js/openai --fail-fast`
 
 ## Coding Standards & File Types
 
