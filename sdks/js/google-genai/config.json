@@ -6,6 +6,11 @@
       "model": "gemini-2.5-flash-lite",
       "gen_ai.request.model": "gemini-2.5-flash-lite",
       "gen_ai.response.model": "gemini-2.5-flash-lite"
+    },
+    "2-multi-step": {
+      "model": "gemini-2.5-flash-lite",
+      "gen_ai.request.model": "gemini-2.5-flash-lite",
+      "gen_ai.response.model": "gemini-2.5-flash-lite"
     }
   }
 }
