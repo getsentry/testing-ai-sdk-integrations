@@ -6,7 +6,7 @@ import { spawn } from 'child_process';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import type { SDK, TestCase, TestResult, LifecycleHooks, SDKConfig, LocalSentryOptions } from './types.js';
+import type { SDK, TestCase, TestResult, LifecycleHooks, SDKConfig, RunOptions, LocalSentryOptions } from './types.js';
 import { loadSetupHooks } from './discovery.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,7 +15,7 @@ const __dirname = dirname(__filename);
 /**
  * Run a single test case
  */
-async function runTestCase(testCase: TestCase, hooks: LifecycleHooks, sdk: SDK, options?: LocalSentryOptions): Promise<TestResult> {
+async function runTestCase(testCase: TestCase, hooks: LifecycleHooks, sdk: SDK, options?: RunOptions): Promise<TestResult> {
   const startTime = Date.now();
 
   try {
@@ -139,7 +139,7 @@ function runJavaScriptTest(filePath: string, caseId: string, config?: SDKConfig,
 /**
  * Run a Python test file
  */
-function runPythonTest(filePath: string, caseId: string, config?: SDKConfig, sdkPath?: string, options?: LocalSentryOptions): Promise<void> {
+function runPythonTest(filePath: string, caseId: string, config?: SDKConfig, sdkPath?: string, options?: RunOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     // Get the SDK directory (2 levels up from test file)
     const sdkDir = dirname(dirname(filePath));
@@ -240,7 +240,7 @@ function runPythonTest(filePath: string, caseId: string, config?: SDKConfig, sdk
 /**
  * Run all test cases for a single SDK
  */
-export async function runSDKTests(sdk: SDK, options?: LocalSentryOptions): Promise<TestResult[]> {
+export async function runSDKTests(sdk: SDK, options?: RunOptions): Promise<TestResult[]> {
   const results: TestResult[] = [];
 
   // Run each test case in its own subprocess (for isolation)
@@ -248,10 +248,10 @@ export async function runSDKTests(sdk: SDK, options?: LocalSentryOptions): Promi
     const result = await runTestCase(testCase, {}, sdk, options);
     results.push(result);
 
-    // Stop on first failure (optional - can be made configurable)
-    // if (result.status === 'failed') {
-    //   break;
-    // }
+    // Stop on first failure if fail-fast is enabled
+    if (options?.failFast && result.status === 'failed') {
+      break;
+    }
   }
 
   return results;
@@ -260,7 +260,7 @@ export async function runSDKTests(sdk: SDK, options?: LocalSentryOptions): Promi
 /**
  * Run tests for multiple SDKs
  */
-export async function runTests(sdks: SDK[], options?: LocalSentryOptions): Promise<TestResult[]> {
+export async function runTests(sdks: SDK[], options?: RunOptions): Promise<TestResult[]> {
   const allResults: TestResult[] = [];
 
   for (const sdk of sdks) {
