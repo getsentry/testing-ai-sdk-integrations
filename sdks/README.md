@@ -217,7 +217,8 @@ config({ path: resolve(__dirname, ".env") });
 
 // Initialize Sentry
 // Note: This template uses @sentry/node where AI integrations are auto-enabled.
-// If using a different Sentry package (e.g., @sentry/browser), you'll need to manually add integrations.
+// If using a different Sentry package (e.g., @sentry/browser), You must use 
+// manual instrumentation techniques to capture AI agent spans.
 Sentry.init({
   dsn: process.env.SENTRY_DSN || "https://public@127.0.0.1/1",
   tracesSampleRate: 1.0,
