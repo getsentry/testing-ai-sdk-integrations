@@ -8,8 +8,9 @@ branding:
 
 inputs:
   language:
-    description: "SDK language to test. One of: js, python"
-    required: true
+    description: "SDK language to test. One of: js, py, or leave empty for both"
+    required: false
+    default: ""
   openai-api-key:
     description: "OpenAI API key"
     required: true
@@ -34,6 +35,7 @@ runs:
         node-version: "20"
 
     - name: Setup Python
+      if: inputs.language == 'py' || inputs.language == ''
       uses: actions/setup-python@v5
       with:
         python-version: "3.13"
@@ -49,8 +51,10 @@ runs:
       run: |
         if [ "${{ inputs.language }}" = "python" ]; then
           npm run cli setup -- --local-sentry-python ../../sentry-python
-        else
+        elif [ -z "${{ inputs.language }}" ]; then
           npm run cli setup
+        else
+          npm run cli setup ${{ inputs.language }}
         fi
 
     - name: Run tests
@@ -63,7 +67,11 @@ runs:
         GOOGLE_API_KEY: ${{ inputs.google-api-key }}
       run: |
         set +e
-        npm run cli run ${{ inputs.language }} --reports ctrf
+        if [ -z "${{ inputs.language }}" ]; then
+          npm run cli run -- --all --reports ctrf
+        else
+          npm run cli run ${{ inputs.language }} -- --reports ctrf
+        fi
         EXIT_CODE=$?
         set -e
 
@@ -81,30 +89,92 @@ runs:
       with:
         script: |
           const fs = require('fs');
-          const path = require('path');
-          const language = '${{ inputs.language }}';
           const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-          // Try to read test results from CTRF report
+          // Helper functions
+          const formatDuration = (ms) => ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
+          const getStatusIcon = (status) => {
+            const icons = { passed: '✓', failed: '✗', skipped: '○' };
+            return icons[status] || '-';
+          };
+
+          // Try to read and format test results from CTRF report
           let resultsContent = 'Test execution failed. Check the [workflow run](' + runUrl + ') for details.';
           const ctrfPath = '${{ github.action_path }}/shared/orchestration/test-results/ctrf-report.json';
 
           if (fs.existsSync(ctrfPath)) {
             try {
-              const results = JSON.parse(fs.readFileSync(ctrfPath, 'utf8'));
-              resultsContent = '### Test Results\n\n```json\n' + JSON.stringify(results, null, 2) + '\n```';
+              const report = JSON.parse(fs.readFileSync(ctrfPath, 'utf8'));
+              const summary = report.results.summary;
+              const tests = report.results.tests;
+              const duration = summary.stop - summary.start;
+
+              // Build summary table
+              let content = '## 📊 Summary\n\n';
+              content += '| Metric | Value |\n|--------|-------|\n';
+              content += `| **Total Tests** | ${summary.tests} |\n`;
+              content += `| **✓ Passed** | ${summary.passed} |\n`;
+              content += `| **✗ Failed** | ${summary.failed} |\n`;
+              content += `| **Duration** | ${formatDuration(duration)} |\n\n`;
+
+              // Build test matrix
+              const sdks = [...new Set(tests.map(t => (t.suite?.[0] || 'unknown')))].sort();
+              const testCases = [...new Set(tests.map(t => t.name.split(' :: ')[1] || t.name))].sort();
+
+              const testMap = new Map();
+              tests.forEach(test => {
+                const caseId = test.name.split(' :: ')[1] || test.name;
+                const suite = test.suite?.[0] || 'unknown';
+                testMap.set(`${suite}::${caseId}`, test);
+              });
+
+              content += '## 🧪 Test Matrix\n\n';
+              content += '| SDK | ' + testCases.join(' | ') + ' |\n';
+              content += '|-----|' + testCases.map(() => '-----').join('|') + '|\n';
+
+              sdks.forEach(sdk => {
+                content += `| **${sdk}** |`;
+                testCases.forEach(caseId => {
+                  const test = testMap.get(`${sdk}::${caseId}`);
+                  content += test ? ` ${getStatusIcon(test.status)} |` : ' - |';
+                });
+                content += '\n';
+              });
+              content += '\n';
+
+              // Build failed tests details
+              const failedTests = tests.filter(t => t.status === 'failed');
+              if (failedTests.length > 0) {
+                content += '## ❌ Failed Tests Details\n\n';
+                failedTests.forEach(test => {
+                  const caseId = test.name.split(' :: ')[1] || test.name;
+                  const suite = test.suite?.[0] || 'unknown';
+                  content += `<details>\n<summary><strong>${suite}</strong> :: ${caseId} (${test.duration}ms)</summary>\n\n`;
+                  if (test.trace) content += '```\n' + test.trace + '\n```\n';
+                  content += '</details>\n\n';
+                });
+              }
+
+              resultsContent = content;
             } catch (e) {
               console.log('Could not parse test results:', e.message);
             }
           }
 
           const issueLabel = 'ai-integration-test-failure';
-          const today = new Date().toISOString().split('T')[0];
-
+          const date = new Date();
+          const formattedDate = date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'UTC',
+            timeZoneName: 'short'
+          });
           const body = `## AI Integration Test Failure
 
-          **Language**: ${language}
-          **Date**: ${new Date().toISOString()}
+          **Date**: ${formattedDate}
           **Workflow Run**: ${runUrl}
 
           ${resultsContent}
@@ -132,12 +202,12 @@ runs:
             console.log(`Updated existing issue #${issues.data[0].number}`);
           } else {
             // Create new issue
-            const newIssue = await github.rest.issues.create({
+            await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `AI Integration Tests Failed (${language}) - ${today}`,
+              title: '❌ AI Integration Tests Failed',
               body: body,
               labels: [issueLabel, 'automated']
             });
-            console.log(`Created new issue #${newIssue.data.number}`);
+            console.log('Created new issue');
           }

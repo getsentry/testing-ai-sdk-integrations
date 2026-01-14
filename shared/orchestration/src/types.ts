@@ -46,13 +46,14 @@ export interface LocalSentryOptions {
 }
 
 export interface SetupOptions extends LocalSentryOptions {
-  // Future: add other setup-specific options here
+  language?: 'js' | 'py';  // Filter by language (e.g., "js" or "py")
 }
 
 export interface RunOptions extends LocalSentryOptions {
   sdk?: string;         // Filter by SDK (e.g., "js/openai")
   case?: string;        // Filter by case (e.g., "G1")
   all?: boolean;        // Run all tests
+  failFast?: boolean;   // Stop SDK tests on first failure
 }
 
 export interface TestResult {

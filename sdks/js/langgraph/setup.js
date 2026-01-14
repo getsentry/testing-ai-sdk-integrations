@@ -20,7 +20,7 @@ Sentry.init({
   transport: createMockTransport(createTransport),
   sendDefaultPii: true,
   integrations: [
-    Sentry.langChainIntegration({
+    Sentry.langGraphIntegration({
       recordInputs: true,
       recordOutputs: true,
     }),

@@ -10,6 +10,11 @@
       "model": "claude-haiku-4-5",
       "gen_ai.request.model": "claude-haiku-4-5",
       "gen_ai.response.model": "claude-haiku-4-5*"
+    },
+    "2-multi-step": {
+      "model": "claude-haiku-4-5",
+      "gen_ai.request.model": "claude-haiku-4-5",
+      "gen_ai.response.model": "claude-haiku-4-5*"
     }
   }
 }

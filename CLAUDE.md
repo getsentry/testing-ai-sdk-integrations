@@ -101,6 +101,7 @@ This is the main context file. For detailed guides, see:
 - 🚀 Run all tests: `cd shared/orchestration && npm run cli run -- --all`
 - 📝 List available SDKs: `npm run cli list`
 - 🔍 Run specific SDK: `npm run cli run js/vercel`
+- 💨 fail-fast: `npm run cli run -- --sdk js/openai --fail-fast`
 
 ## Coding Standards & File Types
 
@@ -294,10 +295,10 @@ Test cases are identified by spec ID (e.g., "1-simple", "2-multi-step"). Each ha
 
 **Planned:**
 
-- **3-simple-with-error**: Basic completion with application error
-- **4-streaming**: Basic streaming
-- **5-streaming-with-error**: Streaming with application error
-- **6-agent-success**: Agentic workflow - success path
+- **3-agent-success**: Agentic workflow - success path
+- **4-simple-with-error**: Basic completion with application error
+- **5-streaming**: Basic streaming
+- **6-streaming-with-error**: Streaming with application error
 - **7-agent-llm-error**: Agentic workflow - error during LLM call
 - **8-agent-tool-error**: Agentic workflow - error during tool execution
 

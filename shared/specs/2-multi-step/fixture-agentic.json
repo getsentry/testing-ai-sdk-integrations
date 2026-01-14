@@ -10,18 +10,25 @@
   },
   "expectations": {
     "spans": {
-      "min_count": 3,
+      "min_count": 4,
       "items": [
         {
-          "$ref": "common-spans#/invoke_agent"
+          "$ref": "common-spans#/invoke_agent",
+          "id": "invoke_agent_1"
         },
         {
           "$ref": "common-spans#/llm_call",
-          "parent": "invoke_agent"
+          "id": "llm_call_1",
+          "parent": "invoke_agent_1"
+        },
+        {
+          "$ref": "common-spans#/invoke_agent",
+          "id": "invoke_agent_2"
         },
         {
           "$ref": "common-spans#/llm_call",
-          "parent": "invoke_agent"
+          "id": "llm_call_2",
+          "parent": "invoke_agent_2"
         }
       ]
     },
