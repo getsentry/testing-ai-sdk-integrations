@@ -25,13 +25,10 @@ load_dotenv(dotenv_path=env_path)
 # Pre-initialize mock transport (required for Python)
 mt._mock_transport_capture = MockTransportCapture()
 
-mock_transport_instance = create_mock_transport(
-    options={"dsn": os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1")}
-)
+mock_transport_instance = create_mock_transport()
 
 # Initialize Sentry with Google GenAI integration
 sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1"),
     traces_sample_rate=1.0,
     transport=mock_transport_instance,
     send_default_pii=True,
