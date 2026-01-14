@@ -402,7 +402,6 @@ def before_all():
 
     # Initialize Sentry
     sentry_sdk.init(
-        dsn=os.getenv("SENTRY_DSN", "https://public@127.0.0.1/1"),
         traces_sample_rate=1.0,
         transport=mock_transport_instance,
         integrations=[

@@ -135,7 +135,7 @@ class MockTransportCapture:
 _mock_transport_capture: Optional[MockTransportCapture] = None
 
 
-def create_mock_transport(options: Dict[str, Any]) -> Any:
+def create_mock_transport(options: Optional[Dict[str, Any]] = None) -> Any:
     """
     Create a mock transport factory (to be passed to sentry_sdk.init)
 
