@@ -229,6 +229,14 @@ Sentry.init({
 module.exports = { Sentry };
 ```
 
+**How to find the correct integration name:**
+
+If you need to manually add integrations (e.g., for a different Sentry package), you can discover available AI integrations:
+
+```bash
+node -e "const Sentry = require('@sentry/node'); console.log(Object.keys(Sentry).filter(k => k.toLowerCase().includes('ai')).join('\n'))"
+```
+
 ### Step 5: Implement Test Case (e.g., 1-simple.js)
 
 **CRITICAL: Use the `runTestCase` helper from test-runner.cjs**
