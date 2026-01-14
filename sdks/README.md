@@ -10,7 +10,6 @@ When adding a new SDK, ensure you:
 - [ ] Pin **exact versions** in `package.json` or `requirements.txt` (no `^`, `~`, or `>=`)
 - [ ] Use `runTestCase` helper from `test-runner.cjs` (JS) or `test_runner.py` (Python)
 - [ ] **Never hardcode model mappings** - use config.json overrides
-- [ ] Find correct Sentry integration name (use the node/python command in docs)
 - [ ] Follow existing SDK patterns (`vercel`, `anthropic` for JS; `google-genai` for Python)
 - [ ] Test with `npm run cli run {language}/{sdk-name}`
 
@@ -216,28 +215,17 @@ const { createMockTransport } = require("../_test-utils/mock-transport.cjs");
 // Load environment variables
 config({ path: resolve(__dirname, ".env") });
 
-// Initialize Sentry with your SDK's integration
+// Initialize Sentry
+// Note: This template uses @sentry/node where AI integrations are auto-enabled.
+// If using a different Sentry package (e.g., @sentry/browser), you'll need to manually add integrations.
 Sentry.init({
   dsn: process.env.SENTRY_DSN || "https://public@127.0.0.1/1",
   tracesSampleRate: 1.0,
   transport: createMockTransport,
   sendDefaultPii: true,
-  integrations: [
-    // Find the correct integration name for your SDK
-    // Examples:
-    // - Sentry.vercelAIIntegration({ recordInputs: true, recordOutputs: true })
-    // - Sentry.anthropicAIIntegration({ recordInputs: true, recordOutputs: true })
-    // - Sentry.openAIIntegration({ recordInputs: true, recordOutputs: true })
-  ],
 });
 
 module.exports = { Sentry };
-```
-
-**How to find the correct integration name:**
-
-```bash
-node -e "const Sentry = require('@sentry/node'); console.log(Object.keys(Sentry).filter(k => k.toLowerCase().includes('ai')).join('\n'))"
 ```
 
 ### Step 5: Implement Test Case (e.g., 1-simple.js)
@@ -294,7 +282,6 @@ module.exports = runTestCase("1-simple", testLogic, Sentry);
 2. **Pin exact versions** in package.json (no `^` or `~`)
 3. **Use the runTestCase helper** - don't manually handle fixtures/validation
 4. **Check existing SDKs** (`vercel`, `anthropic`) for current patterns before implementing
-5. **Find correct integration name** using the node command shown above
 
 ### Step 6: Test Your Implementation
 
@@ -401,12 +388,10 @@ def before_all():
     )
 
     # Initialize Sentry
+    # Note: AI integrations are auto-enabled in Python - no need to manually add them
     sentry_sdk.init(
         traces_sample_rate=1.0,
         transport=mock_transport_instance,
-        integrations=[
-            # Add your SDK's Sentry integration here
-        ],
     )
 
     print("  ✓ Sentry initialized with mock transport")
