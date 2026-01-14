@@ -46,7 +46,12 @@ runs:
     - name: Setup SDK dependencies
       shell: bash
       working-directory: ${{ github.action_path }}
-      run: npm run cli setup
+      run: |
+        if [ "${{ inputs.language }}" = "python" ]; then
+          npm run cli setup -- --local-sentry-python ../../sentry-python
+        else
+          npm run cli setup
+        fi
 
     - name: Run tests
       id: run-tests
