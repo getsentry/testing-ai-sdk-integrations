@@ -13,20 +13,20 @@
       "min_count": 4,
       "items": [
         {
-          "$ref": "common-spans#/invoke_agent",
+          "$ref": "common-spans#/agent_invoke_agent",
           "id": "invoke_agent_1"
         },
         {
-          "$ref": "common-spans#/llm_call",
+          "$ref": "common-spans#/agent_llm_call",
           "id": "llm_call_1",
           "parent": "invoke_agent_1"
         },
         {
-          "$ref": "common-spans#/invoke_agent",
+          "$ref": "common-spans#/agent_invoke_agent",
           "id": "invoke_agent_2"
         },
         {
-          "$ref": "common-spans#/llm_call",
+          "$ref": "common-spans#/agent_llm_call",
           "id": "llm_call_2",
           "parent": "invoke_agent_2"
         }

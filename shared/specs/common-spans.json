@@ -56,5 +56,49 @@
         "items_have": ["role", "content"]
       }
     }
+  },
+  "agent_llm_call": {
+    "id": "llm_call",
+    "op": {
+      "pattern": "gen_ai.*",
+      "not": [
+        "gen_ai.invoke_agent",
+        "gen_ai.create_agent",
+        "gen_ai.execute_tool"
+      ]
+    },
+    "required_attributes": {
+      "gen_ai.agent.name": true,
+      "gen_ai.operation.name": true,
+      "gen_ai.request.model": "gpt-5-nano",
+      "gen_ai.response.model": "gpt-5-nano*",
+      "gen_ai.usage.input_tokens": true,
+      "gen_ai.usage.output_tokens": true,
+      "gen_ai.usage.total_tokens": true,
+      "gen_ai.response.text": true,
+      "gen_ai.request.messages": {
+        "type": "json_array",
+        "min_length": 2,
+        "items_have": ["role", "content"]
+      }
+    }
+  },
+  "agent_invoke_agent": {
+    "id": "invoke_agent",
+    "op": "gen_ai.invoke_agent",
+    "required_attributes": {
+      "gen_ai.agent.name": true,
+      "gen_ai.operation.name": true,
+      "gen_ai.request.model": "gpt-5-nano",
+      "gen_ai.response.model": "gpt-5-nano*",
+      "gen_ai.usage.input_tokens": true,
+      "gen_ai.usage.output_tokens": true,
+      "gen_ai.usage.total_tokens": true,
+      "gen_ai.request.messages": {
+        "type": "json_array",
+        "min_length": 2,
+        "items_have": ["role", "content"]
+      }
+    }
   }
 }
