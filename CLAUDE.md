@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-This repository contains a comprehensive testing framework for Sentry's AI SDK integrations. Sentry SDKs (JavaScript and Python) have auto-enabled integrations for popular AI SDKs. This project ensures those integrations work correctly across all supported AI SDKs and captures breakages when new AI SDK versions are released.
+This repository contains a comprehensive testing framework for Sentry's AI SDK integrations. Sentry's `@sentry/node` (JavaScript) and `sentry-sdk` (Python) have auto-enabled integrations for popular AI SDKs. This project ensures those integrations work correctly across all supported AI SDKs and captures breakages when new AI SDK versions are released.
 
 ## Goals
 

@@ -150,12 +150,10 @@ def before_all():
     )
 
     # Initialize Sentry
+    # Note: AI integrations are auto-enabled in Python - no need to manually add them
     sentry_sdk.init(
         traces_sample_rate=1.0,
         transport=mock_transport_instance,
-        integrations=[
-            # Your SDK's Sentry integration here
-        ],
     )
 
     print("  ✓ Sentry initialized with mock transport")
