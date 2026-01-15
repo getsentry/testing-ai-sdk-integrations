@@ -354,14 +354,16 @@ function matchesPattern(actualValue, pattern) {
  *
  * @param {*} attrValue - The actual attribute value
  * @param {Object} schema - Schema object with validation rules
+ * @param {Object} span - The span object (needed for cross-attribute constraints like lte)
  * @returns {boolean} True if value matches schema
  *
  * Supported schema formats:
  * - { type: "json_array", min_length: 2, items_have: ["role", "content"] }
  * - { type: "json_array", length: 2, items_have: ["role"] }
  * - { type: "plain_string", min_length: 1, pattern: "*hello*" }
+ * - { type: "number", lte: "other.attribute.name" } - value must be <= other attribute
  */
-function validateSchema(attrValue, schema) {
+function validateSchema(attrValue, schema, span = null) {
   if (!schema || typeof schema !== "object") {
     return false;
   }
@@ -457,6 +459,27 @@ function validateSchema(attrValue, schema) {
     return true;
   }
 
+  // Handle number type with constraints
+  if (schema.type === "number") {
+    // Must be a number
+    if (typeof attrValue !== "number") {
+      return false;
+    }
+
+    // Validate lte (less than or equal to another attribute)
+    if (schema.lte !== undefined && span !== null) {
+      const otherValue = getAttribute(span, schema.lte);
+      // Only validate if the other attribute exists and is a number
+      if (otherValue !== undefined && typeof otherValue === "number") {
+        if (attrValue > otherValue) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   // Unknown schema type
   return false;
 }
@@ -483,7 +506,7 @@ function attributeMatches(span, attributeName, value) {
     !Array.isArray(value) &&
     value.type
   ) {
-    return validateSchema(attrValue, value);
+    return validateSchema(attrValue, value, span);
   }
 
   // Otherwise use pattern matching
