@@ -56,7 +56,11 @@ def normalize_op_to_list(op: Any, spans: List[Dict[str, Any]]) -> List[str]:
         matching_ops = set()
         for s in spans:
             span_op = s.get("op")
-            if span_op and matches_pattern(span_op, pattern) and span_op not in not_list:
+            if (
+                span_op
+                and matches_pattern(span_op, pattern)
+                and span_op not in not_list
+            ):
                 matching_ops.add(span_op)
 
         return list(matching_ops)
@@ -66,7 +70,9 @@ def normalize_op_to_list(op: Any, spans: List[Dict[str, Any]]) -> List[str]:
         return op
 
 
-def validate_span_attributes(span: Dict[str, Any], required_attributes: Dict[str, Any]) -> Dict[str, List]:
+def validate_span_attributes(
+    span: Dict[str, Any], required_attributes: Dict[str, Any]
+) -> Dict[str, List]:
     """
     Validate span attributes and collect errors
 
@@ -92,11 +98,13 @@ def validate_span_attributes(span: Dict[str, Any], required_attributes: Dict[str
                 if actual_value is None:
                     errors["missing"].append(attr)
                 else:
-                    errors["mismatched"].append({
-                        "attr": attr,
-                        "expected": expected_value,
-                        "actual": actual_value
-                    })
+                    errors["mismatched"].append(
+                        {
+                            "attr": attr,
+                            "expected": expected_value,
+                            "actual": actual_value,
+                        }
+                    )
 
     return errors
 
@@ -191,13 +199,16 @@ def matches_pattern(actual_value: Any, pattern: Any) -> bool:
     return actual_value == pattern
 
 
-def validate_schema(attr_value: Any, schema: Dict[str, Any]) -> bool:
+def validate_schema(
+    attr_value: Any, schema: Dict[str, Any], span: Dict[str, Any] = None
+) -> bool:
     """
     Validate an attribute against a schema object
 
     Args:
         attr_value: The actual attribute value
         schema: Schema object with validation rules
+        span: The span object (needed for cross-attribute constraints like lte)
 
     Returns:
         True if value matches schema
@@ -206,6 +217,7 @@ def validate_schema(attr_value: Any, schema: Dict[str, Any]) -> bool:
         - {"type": "json_array", "min_length": 2, "items_have": ["role", "content"]}
         - {"type": "json_array", "length": 2, "items_have": ["role"]}
         - {"type": "plain_string", "min_length": 1, "pattern": "*hello*"}
+        - {"type": "number", "lte": "other.attribute.name"} - value must be <= other attribute
     """
     if not schema or not isinstance(schema, dict):
         return False
@@ -274,6 +286,22 @@ def validate_schema(attr_value: Any, schema: Dict[str, Any]) -> bool:
 
         return True
 
+    # Handle number type with constraints
+    if schema.get("type") == "number":
+        # Must be a number
+        if not isinstance(attr_value, (int, float)):
+            return False
+
+        # Validate lte (less than or equal to another attribute)
+        if "lte" in schema and span is not None:
+            other_value = get_attribute(span, schema["lte"])
+            # Only validate if the other attribute exists and is a number
+            if other_value is not None and isinstance(other_value, (int, float)):
+                if attr_value > other_value:
+                    return False
+
+        return True
+
     # Unknown schema type
     return False
 
@@ -282,12 +310,18 @@ def attribute_matches(span: Dict[str, Any], attribute_name: str, value: Any) -> 
     """Check if a span has an attribute with a specific value"""
     attr_value = get_attribute(span, attribute_name)
 
+    # Check if value is a schema object with optional flag
+    if isinstance(value, dict) and "type" in value:
+        # If attribute is missing and schema marks it as optional, that's OK
+        if attr_value is None and value.get("optional") is True:
+            return True
+        if attr_value is None:
+            return False
+        return validate_schema(attr_value, value, span)
+
+    # For non-schema values, missing attribute means no match
     if attr_value is None:
         return False
-
-    # Check if value is a schema object
-    if isinstance(value, dict) and "type" in value:
-        return validate_schema(attr_value, value)
 
     # Otherwise use pattern matching
     return matches_pattern(attr_value, value)
@@ -317,7 +351,12 @@ def contains_attributes(span: Dict[str, Any], attributes: Dict[str, Any]) -> boo
     return True
 
 
-def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str, Any] = None, used_spans: set = None) -> Dict[str, Any]:
+def get_span(
+    spans: List[Dict[str, Any]],
+    op: Any,
+    required_attributes: Dict[str, Any] = None,
+    used_spans: set = None,
+) -> Dict[str, Any]:
     """
     Get a single span by operation name(s) and/or attributes
     Raises if zero or more than one span is found
@@ -357,15 +396,18 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
         if len(spans_with_op) == 0:
             # No spans with that op at all
             error_msg = f'No span found with op="{op_desc}"'
-            error_msg += '\n  Available spans:'
+            error_msg += "\n  Available spans:"
             for i, s in enumerate(spans, 1):
                 error_msg += f'\n    {i}. op="{s.get("op")}"'
             raise ValueError(error_msg)
         else:
             # Spans with that op exist, but don't match required attributes
             import os
+
             is_verbose = os.getenv("SENTRY_AI_TEST_VERBOSE") == "true"
-            error_msg = f'Found span with op="{op_desc}" but missing required attributes'
+            error_msg = (
+                f'Found span with op="{op_desc}" but missing required attributes'
+            )
 
             if required_attributes:
                 span = spans_with_op[0]
@@ -382,26 +424,28 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
                         if actual_val is None:
                             missing.append(attr)
                         elif expected_val is not True and actual_val != expected_val:
-                            mismatched.append(f'{attr} (expected: {repr(expected_val)}, got: {repr(actual_val)})')
+                            mismatched.append(
+                                f"{attr} (expected: {repr(expected_val)}, got: {repr(actual_val)})"
+                            )
 
                     if missing:
-                        error_msg += f'\n  Missing: {", ".join(missing)}'
+                        error_msg += f"\n  Missing: {', '.join(missing)}"
                     if mismatched:
-                        error_msg += f'\n  Mismatched: {", ".join(mismatched)}'
-                    error_msg += '\n  (run with --verbose for full details)'
+                        error_msg += f"\n  Mismatched: {', '.join(mismatched)}"
+                    error_msg += "\n  (run with --verbose for full details)"
                 else:
                     # Verbose mode: Show everything
-                    error_msg += '\n  Required attributes:'
+                    error_msg += "\n  Required attributes:"
                     for attr, val in required_attributes.items():
                         val_str = "(any value)" if val is True else repr(val)
-                        error_msg += f'\n    - {attr}: {val_str}'
+                        error_msg += f"\n    - {attr}: {val_str}"
 
-                    error_msg += '\n  Span\'s actual attributes:'
+                    error_msg += "\n  Span's actual attributes:"
                     if span_data:
                         for key, value in span_data.items():
-                            error_msg += f'\n    - {key}: {repr(value)}'
+                            error_msg += f"\n    - {key}: {repr(value)}"
                     else:
-                        error_msg += '\n    (no attributes)'
+                        error_msg += "\n    (no attributes)"
 
             raise ValueError(error_msg)
 
@@ -412,9 +456,11 @@ def get_span(spans: List[Dict[str, Any]], op: Any, required_attributes: Dict[str
 
         # Otherwise, multiple matches is an error
         op_desc = format_op_description(op)
-        error_msg = f'Found {len(matching)} spans matching op="{op_desc}", expected exactly 1'
+        error_msg = (
+            f'Found {len(matching)} spans matching op="{op_desc}", expected exactly 1'
+        )
 
-        error_msg += '\n  Matching spans:'
+        error_msg += "\n  Matching spans:"
         for i, s in enumerate(matching, 1):
             span_id = s.get("span_id", "?")[:8]
             error_msg += f'\n    {i}. op="{s.get("op")}" span_id={span_id}'
@@ -460,7 +506,9 @@ def is_child_of(child_span: Dict[str, Any], parent_span: Dict[str, Any]) -> bool
 # ============================================================================
 
 
-def validate_transactions(transactions: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]) -> None:
+def validate_transactions(
+    transactions: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]
+) -> None:
     """
     Validate transaction count
 
@@ -472,10 +520,14 @@ def validate_transactions(transactions: List[Dict[str, Any]], expectations: Dict
     if "transactions" in expectations:
         min_count = expectations["transactions"].get("min_count")
         if min_count is not None and len(transactions) < min_count:
-            errors.append(f"Expected at least {min_count} transaction(s), got {len(transactions)}")
+            errors.append(
+                f"Expected at least {min_count} transaction(s), got {len(transactions)}"
+            )
 
 
-def validate_span_counts(spans: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]) -> None:
+def validate_span_counts(
+    spans: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]
+) -> None:
     """
     Validate span count
 
@@ -489,10 +541,14 @@ def validate_span_counts(spans: List[Dict[str, Any]], expectations: Dict[str, An
         min_count = expectations["spans"].get("min_count")
         min_span_count = min_count if min_count is not None else count
         if min_span_count is not None and len(spans) < min_span_count:
-            errors.append(f"Expected at least {min_span_count} span(s), got {len(spans)}")
+            errors.append(
+                f"Expected at least {min_span_count} span(s), got {len(spans)}"
+            )
 
 
-def validate_events(events: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]) -> None:
+def validate_events(
+    events: List[Dict[str, Any]], expectations: Dict[str, Any], errors: List[str]
+) -> None:
     """
     Validate events
 
@@ -506,10 +562,14 @@ def validate_events(events: List[Dict[str, Any]], expectations: Dict[str, Any], 
         if error_count is not None:
             actual_error_count = len([e for e in events if e.get("level") == "error"])
             if actual_error_count != error_count:
-                errors.append(f"Expected {error_count} error event(s), got {actual_error_count}")
+                errors.append(
+                    f"Expected {error_count} error event(s), got {actual_error_count}"
+                )
 
 
-def validate_span_relationships(items: List[Dict[str, Any]], span_map: Dict[str, Dict[str, Any]], errors: List[str]) -> None:
+def validate_span_relationships(
+    items: List[Dict[str, Any]], span_map: Dict[str, Dict[str, Any]], errors: List[str]
+) -> None:
     """
     Validate parent-child relationships between spans
 
@@ -531,7 +591,9 @@ def validate_span_relationships(items: List[Dict[str, Any]], span_map: Dict[str,
                     )
 
 
-def validate_span_items(spans: List[Dict[str, Any]], items: List[Dict[str, Any]], errors: List[str]) -> Dict[str, Dict[str, Any]]:
+def validate_span_items(
+    spans: List[Dict[str, Any]], items: List[Dict[str, Any]], errors: List[str]
+) -> Dict[str, Dict[str, Any]]:
     """
     Validate individual span items from fixture expectations
 
@@ -565,7 +627,12 @@ def validate_span_items(spans: List[Dict[str, Any]], items: List[Dict[str, Any]]
             # Validate required attributes and collect errors
             if required_attrs:
                 if fixture_id not in span_errors:
-                    span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": span.get("op"), "missing": [], "mismatched": []}
+                    span_errors[fixture_id] = {
+                        "expected_op": expected_op,
+                        "actual_op": span.get("op"),
+                        "missing": [],
+                        "mismatched": [],
+                    }
 
                 span_error = span_errors[fixture_id]
 
@@ -582,22 +649,37 @@ def validate_span_items(spans: List[Dict[str, Any]], items: List[Dict[str, Any]]
                 if required_attrs:
                     # Find the span by op only (without attribute filtering)
                     op_list = normalize_op_to_list(item_expectation["op"], spans)
-                    matching_span = next((s for s in spans if s.get("op") in op_list), None)
+                    matching_span = next(
+                        (s for s in spans if s.get("op") in op_list), None
+                    )
 
                     if matching_span:
                         if fixture_id not in span_errors:
-                            span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": matching_span.get("op"), "missing": [], "mismatched": []}
+                            span_errors[fixture_id] = {
+                                "expected_op": expected_op,
+                                "actual_op": matching_span.get("op"),
+                                "missing": [],
+                                "mismatched": [],
+                            }
 
                         span_error = span_errors[fixture_id]
 
                         # Validate attributes and collect errors
-                        attr_errors = validate_span_attributes(matching_span, required_attrs)
+                        attr_errors = validate_span_attributes(
+                            matching_span, required_attrs
+                        )
                         span_error["missing"].extend(attr_errors["missing"])
                         span_error["mismatched"].extend(attr_errors["mismatched"])
             elif "No span found with op=" in error_msg:
                 # Span doesn't exist at all
                 if fixture_id not in span_errors:
-                    span_errors[fixture_id] = {"expected_op": expected_op, "actual_op": None, "missing": [], "mismatched": [], "not_found": True}
+                    span_errors[fixture_id] = {
+                        "expected_op": expected_op,
+                        "actual_op": None,
+                        "missing": [],
+                        "mismatched": [],
+                        "not_found": True,
+                    }
             else:
                 # Other error - just append it
                 errors.append(error_msg)
@@ -605,7 +687,9 @@ def validate_span_items(spans: List[Dict[str, Any]], items: List[Dict[str, Any]]
     # Format span errors in a structured way
     for fixture_id, error_details in span_errors.items():
         if error_details.get("not_found"):
-            errors.append(f"    {fixture_id} (expected: {error_details['expected_op']}): span not found")
+            errors.append(
+                f"    {fixture_id} (expected: {error_details['expected_op']}): span not found"
+            )
         elif error_details["missing"] or error_details["mismatched"]:
             error_msg = f"    {fixture_id} ({error_details['actual_op']}):"
 
@@ -613,7 +697,7 @@ def validate_span_items(spans: List[Dict[str, Any]], items: List[Dict[str, Any]]
                 error_msg += f"\n       {attr}: missing"
 
             for mismatch in error_details["mismatched"]:
-                error_msg += f'\n       {mismatch["attr"]}: mismatch (expected: {repr(mismatch["expected"])}, got: {repr(mismatch["actual"])})'
+                error_msg += f"\n       {mismatch['attr']}: mismatch (expected: {repr(mismatch['expected'])}, got: {repr(mismatch['actual'])})"
 
             errors.append(error_msg)
 
@@ -651,20 +735,21 @@ def validate_fixture(
 
     # Log captured spans in verbose mode
     import os
+
     if os.getenv("SENTRY_AI_TEST_VERBOSE") == "true":
-        print('\n    === Captured Spans (Verbose) ===')
+        print("\n    === Captured Spans (Verbose) ===")
         if len(spans) == 0:
-            print('    No spans captured')
+            print("    No spans captured")
         else:
             for index, span in enumerate(spans):
-                print(f'    Span {index + 1}:')
-                print(f'      op: {span.get("op", "N/A")}')
-                print(f'      description: {span.get("description", "N/A")}')
-                print(f'      span_id: {span.get("span_id", "N/A")}')
-                print(f'      parent_span_id: {span.get("parent_span_id", "N/A")}')
+                print(f"    Span {index + 1}:")
+                print(f"      op: {span.get('op', 'N/A')}")
+                print(f"      description: {span.get('description', 'N/A')}")
+                print(f"      span_id: {span.get('span_id', 'N/A')}")
+                print(f"      parent_span_id: {span.get('parent_span_id', 'N/A')}")
                 if span.get("data") and len(span["data"]) > 0:
-                    print(f'      data keys: {", ".join(span["data"].keys())}')
-        print('    === End Captured Spans ===\n')
+                    print(f"      data keys: {', '.join(span['data'].keys())}")
+        print("    === End Captured Spans ===\n")
 
     # Validate transactions
     validate_transactions(transactions, fixture["expectations"], errors)
@@ -673,7 +758,10 @@ def validate_fixture(
     validate_span_counts(spans, fixture["expectations"], errors)
 
     # Validate individual spans and relationships
-    if "spans" in fixture["expectations"] and "items" in fixture["expectations"]["spans"]:
+    if (
+        "spans" in fixture["expectations"]
+        and "items" in fixture["expectations"]["spans"]
+    ):
         items = fixture["expectations"]["spans"]["items"]
         span_map = validate_span_items(spans, items, errors)
         validate_span_relationships(items, span_map, errors)

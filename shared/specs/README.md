@@ -329,6 +329,29 @@ For attributes with structured data (like `gen_ai.request.messages`), use schema
 - `max_length: N` - Maximum string length
 - `pattern: "value*"` - Wildcard pattern matching
 
+**`number`** - Validates numeric values with cross-attribute constraints
+
+- `lte: "other.attribute.name"` - Value must be less than or equal to another attribute
+- `optional: true` - If attribute is missing, validation passes (applies to any schema type)
+
+**Optional Attribute Support:**
+
+All schema types support the `optional: true` property. When set:
+- If the attribute exists → validate according to schema rules
+- If the attribute is missing → validation passes (attribute is not required)
+
+This is useful for attributes that may or may not be present depending on the provider:
+
+```json
+{
+  "gen_ai.usage.input_tokens.cached": {
+    "type": "number",
+    "lte": "gen_ai.usage.input_tokens",
+    "optional": true
+  }
+}
+```
+
 **Example use cases:**
 
 ```json
@@ -342,6 +365,14 @@ For attributes with structured data (like `gen_ai.request.messages`), use schema
     "type": "plain_string",
     "min_length": 1,
     "pattern": "*hello world*"
+  },
+  "gen_ai.usage.input_tokens.cached": {
+    "type": "number",
+    "lte": "gen_ai.usage.input_tokens"
+  },
+  "gen_ai.usage.output_tokens.reasoning": {
+    "type": "number",
+    "lte": "gen_ai.usage.output_tokens"
   }
 }
 ```

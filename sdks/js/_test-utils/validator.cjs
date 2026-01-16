@@ -354,14 +354,16 @@ function matchesPattern(actualValue, pattern) {
  *
  * @param {*} attrValue - The actual attribute value
  * @param {Object} schema - Schema object with validation rules
+ * @param {Object} span - The span object (needed for cross-attribute constraints like lte)
  * @returns {boolean} True if value matches schema
  *
  * Supported schema formats:
  * - { type: "json_array", min_length: 2, items_have: ["role", "content"] }
  * - { type: "json_array", length: 2, items_have: ["role"] }
  * - { type: "plain_string", min_length: 1, pattern: "*hello*" }
+ * - { type: "number", lte: "other.attribute.name" } - value must be <= other attribute
  */
-function validateSchema(attrValue, schema) {
+function validateSchema(attrValue, schema, span = null) {
   if (!schema || typeof schema !== "object") {
     return false;
   }
@@ -457,6 +459,27 @@ function validateSchema(attrValue, schema) {
     return true;
   }
 
+  // Handle number type with constraints
+  if (schema.type === "number") {
+    // Must be a number
+    if (typeof attrValue !== "number") {
+      return false;
+    }
+
+    // Validate lte (less than or equal to another attribute)
+    if (schema.lte !== undefined && span !== null) {
+      const otherValue = getAttribute(span, schema.lte);
+      // Only validate if the other attribute exists and is a number
+      if (otherValue !== undefined && typeof otherValue === "number") {
+        if (attrValue > otherValue) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   // Unknown schema type
   return false;
 }
@@ -472,18 +495,26 @@ function validateSchema(attrValue, schema) {
 function attributeMatches(span, attributeName, value) {
   const attrValue = getAttribute(span, attributeName);
 
-  if (attrValue === undefined) {
-    return false;
-  }
-
-  // Check if value is a schema object
+  // Check if value is a schema object with optional flag
   if (
     typeof value === "object" &&
     value !== null &&
     !Array.isArray(value) &&
     value.type
   ) {
-    return validateSchema(attrValue, value);
+    // If attribute is missing and schema marks it as optional, that's OK
+    if (attrValue === undefined && value.optional === true) {
+      return true;
+    }
+    if (attrValue === undefined) {
+      return false;
+    }
+    return validateSchema(attrValue, value, span);
+  }
+
+  // For non-schema values, missing attribute means no match
+  if (attrValue === undefined) {
+    return false;
   }
 
   // Otherwise use pattern matching
