@@ -310,12 +310,18 @@ def attribute_matches(span: Dict[str, Any], attribute_name: str, value: Any) -> 
     """Check if a span has an attribute with a specific value"""
     attr_value = get_attribute(span, attribute_name)
 
+    # Check if value is a schema object with optional flag
+    if isinstance(value, dict) and "type" in value:
+        # If attribute is missing and schema marks it as optional, that's OK
+        if attr_value is None and value.get("optional") is True:
+            return True
+        if attr_value is None:
+            return False
+        return validate_schema(attr_value, value, span)
+
+    # For non-schema values, missing attribute means no match
     if attr_value is None:
         return False
-
-    # Check if value is a schema object
-    if isinstance(value, dict) and "type" in value:
-        return validate_schema(attr_value, value, span)
 
     # Otherwise use pattern matching
     return matches_pattern(attr_value, value)

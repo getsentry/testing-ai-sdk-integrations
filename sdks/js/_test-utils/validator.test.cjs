@@ -329,5 +329,129 @@ console.log('\n--- Number Schema with lte Constraint Tests ---\n');
   }
 }
 
+// ============================================================================
+// Optional Schema Attribute Tests
+// ============================================================================
+
+console.log('\n--- Optional Schema Attribute Tests ---\n');
+
+// Test 18: Optional attribute missing - should pass
+{
+  const span = {
+    data: {
+      'gen_ai.usage.input_tokens': 100
+      // gen_ai.usage.input_tokens.cached is NOT present
+    }
+  };
+  const schema = { type: 'number', lte: 'gen_ai.usage.input_tokens', optional: true };
+  const result = attributeMatches(span, 'gen_ai.usage.input_tokens.cached', schema);
+
+  if (result === true) {
+    console.log('✓ Test 18: Optional attribute missing - passes');
+    passed++;
+  } else {
+    console.log('✗ Test 18: FAILED - Should pass when optional attribute is missing');
+    failed++;
+  }
+}
+
+// Test 19: Optional attribute present and valid - should pass
+{
+  const span = {
+    data: {
+      'gen_ai.usage.input_tokens': 100,
+      'gen_ai.usage.input_tokens.cached': 50
+    }
+  };
+  const schema = { type: 'number', lte: 'gen_ai.usage.input_tokens', optional: true };
+  const result = attributeMatches(span, 'gen_ai.usage.input_tokens.cached', schema);
+
+  if (result === true) {
+    console.log('✓ Test 19: Optional attribute present and valid (50 <= 100) - passes');
+    passed++;
+  } else {
+    console.log('✗ Test 19: FAILED - Should pass when optional attribute is present and valid');
+    failed++;
+  }
+}
+
+// Test 20: Optional attribute present but invalid - should fail
+{
+  const span = {
+    data: {
+      'gen_ai.usage.input_tokens': 50,
+      'gen_ai.usage.input_tokens.cached': 100  // Invalid: 100 > 50
+    }
+  };
+  const schema = { type: 'number', lte: 'gen_ai.usage.input_tokens', optional: true };
+  const result = attributeMatches(span, 'gen_ai.usage.input_tokens.cached', schema);
+
+  if (result === false) {
+    console.log('✓ Test 20: Optional attribute present but invalid (100 > 50) - fails');
+    passed++;
+  } else {
+    console.log('✗ Test 20: FAILED - Should fail when optional attribute is present but invalid');
+    failed++;
+  }
+}
+
+// Test 21: Required (non-optional) attribute missing - should fail
+{
+  const span = {
+    data: {
+      'gen_ai.usage.input_tokens': 100
+      // gen_ai.usage.input_tokens.cached is NOT present
+    }
+  };
+  const schema = { type: 'number', lte: 'gen_ai.usage.input_tokens' };  // No optional: true
+  const result = attributeMatches(span, 'gen_ai.usage.input_tokens.cached', schema);
+
+  if (result === false) {
+    console.log('✓ Test 21: Required (non-optional) attribute missing - fails');
+    passed++;
+  } else {
+    console.log('✗ Test 21: FAILED - Should fail when required attribute is missing');
+    failed++;
+  }
+}
+
+// Test 22: Optional with json_array type - missing attribute
+{
+  const span = {
+    data: {
+      // gen_ai.request.messages is NOT present
+    }
+  };
+  const schema = { type: 'json_array', min_length: 1, optional: true };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 22: Optional json_array attribute missing - passes');
+    passed++;
+  } else {
+    console.log('✗ Test 22: FAILED - Should pass when optional json_array attribute is missing');
+    failed++;
+  }
+}
+
+// Test 23: Optional with plain_string type - missing attribute
+{
+  const span = {
+    data: {
+      // gen_ai.response.text is NOT present
+    }
+  };
+  const schema = { type: 'plain_string', min_length: 1, optional: true };
+  const result = attributeMatches(span, 'gen_ai.response.text', schema);
+
+  if (result === true) {
+    console.log('✓ Test 23: Optional plain_string attribute missing - passes');
+    passed++;
+  } else {
+    console.log('✗ Test 23: FAILED - Should pass when optional plain_string attribute is missing');
+    failed++;
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

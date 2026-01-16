@@ -266,5 +266,111 @@ else:
     print("✗ Test 17: FAILED - Should fail when value > other")
     failed += 1
 
+# ============================================================================
+# Optional Schema Attribute Tests
+# ============================================================================
+
+print("\n--- Optional Schema Attribute Tests ---\n")
+
+# Test 18: Optional attribute missing - should pass
+span = {
+    "data": {
+        "gen_ai.usage.input_tokens": 100
+        # gen_ai.usage.input_tokens.cached is NOT present
+    }
+}
+schema = {"type": "number", "lte": "gen_ai.usage.input_tokens", "optional": True}
+result = attribute_matches(span, "gen_ai.usage.input_tokens.cached", schema)
+
+if result == True:
+    print("✓ Test 18: Optional attribute missing - passes")
+    passed += 1
+else:
+    print("✗ Test 18: FAILED - Should pass when optional attribute is missing")
+    failed += 1
+
+# Test 19: Optional attribute present and valid - should pass
+span = {
+    "data": {
+        "gen_ai.usage.input_tokens": 100,
+        "gen_ai.usage.input_tokens.cached": 50,
+    }
+}
+schema = {"type": "number", "lte": "gen_ai.usage.input_tokens", "optional": True}
+result = attribute_matches(span, "gen_ai.usage.input_tokens.cached", schema)
+
+if result == True:
+    print("✓ Test 19: Optional attribute present and valid (50 <= 100) - passes")
+    passed += 1
+else:
+    print("✗ Test 19: FAILED - Should pass when optional attribute is present and valid")
+    failed += 1
+
+# Test 20: Optional attribute present but invalid - should fail
+span = {
+    "data": {
+        "gen_ai.usage.input_tokens": 50,
+        "gen_ai.usage.input_tokens.cached": 100,  # Invalid: 100 > 50
+    }
+}
+schema = {"type": "number", "lte": "gen_ai.usage.input_tokens", "optional": True}
+result = attribute_matches(span, "gen_ai.usage.input_tokens.cached", schema)
+
+if result == False:
+    print("✓ Test 20: Optional attribute present but invalid (100 > 50) - fails")
+    passed += 1
+else:
+    print("✗ Test 20: FAILED - Should fail when optional attribute is present but invalid")
+    failed += 1
+
+# Test 21: Required (non-optional) attribute missing - should fail
+span = {
+    "data": {
+        "gen_ai.usage.input_tokens": 100
+        # gen_ai.usage.input_tokens.cached is NOT present
+    }
+}
+schema = {"type": "number", "lte": "gen_ai.usage.input_tokens"}  # No optional: True
+result = attribute_matches(span, "gen_ai.usage.input_tokens.cached", schema)
+
+if result == False:
+    print("✓ Test 21: Required (non-optional) attribute missing - fails")
+    passed += 1
+else:
+    print("✗ Test 21: FAILED - Should fail when required attribute is missing")
+    failed += 1
+
+# Test 22: Optional with json_array type - missing attribute
+span = {
+    "data": {
+        # gen_ai.request.messages is NOT present
+    }
+}
+schema = {"type": "json_array", "min_length": 1, "optional": True}
+result = attribute_matches(span, "gen_ai.request.messages", schema)
+
+if result == True:
+    print("✓ Test 22: Optional json_array attribute missing - passes")
+    passed += 1
+else:
+    print("✗ Test 22: FAILED - Should pass when optional json_array attribute is missing")
+    failed += 1
+
+# Test 23: Optional with plain_string type - missing attribute
+span = {
+    "data": {
+        # gen_ai.response.text is NOT present
+    }
+}
+schema = {"type": "plain_string", "min_length": 1, "optional": True}
+result = attribute_matches(span, "gen_ai.response.text", schema)
+
+if result == True:
+    print("✓ Test 23: Optional plain_string attribute missing - passes")
+    passed += 1
+else:
+    print("✗ Test 23: FAILED - Should pass when optional plain_string attribute is missing")
+    failed += 1
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed > 0 else 0)

@@ -495,18 +495,26 @@ function validateSchema(attrValue, schema, span = null) {
 function attributeMatches(span, attributeName, value) {
   const attrValue = getAttribute(span, attributeName);
 
-  if (attrValue === undefined) {
-    return false;
-  }
-
-  // Check if value is a schema object
+  // Check if value is a schema object with optional flag
   if (
     typeof value === "object" &&
     value !== null &&
     !Array.isArray(value) &&
     value.type
   ) {
+    // If attribute is missing and schema marks it as optional, that's OK
+    if (attrValue === undefined && value.optional === true) {
+      return true;
+    }
+    if (attrValue === undefined) {
+      return false;
+    }
     return validateSchema(attrValue, value, span);
+  }
+
+  // For non-schema values, missing attribute means no match
+  if (attrValue === undefined) {
+    return false;
   }
 
   // Otherwise use pattern matching
