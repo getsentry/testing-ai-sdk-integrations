@@ -12,10 +12,10 @@
       "min_count": 2,
       "items": [
         {
-          "$ref": "common-spans#/invoke_agent"
+          "$ref": "common-spans#/agent_invoke_agent"
         },
         {
-          "$ref": "common-spans#/llm_call",
+          "$ref": "common-spans#/agent_llm_call",
           "parent": "invoke_agent"
         }
       ]
