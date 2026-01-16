@@ -1,0 +1,174 @@
+name: PR Test Comparison
+
+on:
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: pr-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test-main:
+    name: Test (main)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: shared/orchestration/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Cache Python venvs
+        uses: actions/cache@v4
+        with:
+          path: sdks/py/*/.venv
+          key: py-venvs-${{ runner.os }}-${{ hashFiles('sdks/py/*/requirements.txt') }}
+          restore-keys: |
+            py-venvs-${{ runner.os }}-
+
+      - name: Install orchestration dependencies
+        working-directory: shared/orchestration
+        run: npm install
+
+      - name: Setup SDK dependencies
+        run: npm run cli setup
+
+      - name: Run tests
+        id: run-tests
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
+        run: npm run cli run -- --all --reports ctrf
+
+      - name: Upload CTRF report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctrf-main
+          path: shared/orchestration/test-results/ctrf-report.json
+          retention-days: 1
+
+  test-pr:
+    name: Test (PR)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: shared/orchestration/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Cache Python venvs
+        uses: actions/cache@v4
+        with:
+          path: sdks/py/*/.venv
+          key: py-venvs-${{ runner.os }}-${{ hashFiles('sdks/py/*/requirements.txt') }}
+          restore-keys: |
+            py-venvs-${{ runner.os }}-
+
+      - name: Install orchestration dependencies
+        working-directory: shared/orchestration
+        run: npm install
+
+      - name: Setup SDK dependencies
+        run: npm run cli setup
+
+      - name: Run tests
+        id: run-tests
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
+        run: npm run cli run -- --all --reports ctrf
+
+      - name: Upload CTRF report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctrf-pr
+          path: shared/orchestration/test-results/ctrf-report.json
+          retention-days: 1
+
+  compare-results:
+    name: Compare Results
+    needs: [test-main, test-pr]
+    runs-on: ubuntu-latest
+    if: always() && needs.test-main.result != 'cancelled' && needs.test-pr.result != 'cancelled'
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Download main CTRF report
+        uses: actions/download-artifact@v4
+        with:
+          name: ctrf-main
+          path: ctrf-main
+
+      - name: Download PR CTRF report
+        uses: actions/download-artifact@v4
+        with:
+          name: ctrf-pr
+          path: ctrf-pr
+
+      - name: Run comparison
+        id: compare
+        run: |
+          node .github/scripts/compare-ctrf.cjs \
+            ctrf-main/ctrf-report.json \
+            ctrf-pr/ctrf-report.json \
+            comparison-output.md
+
+          # Check if there are regressions
+          if grep -q "^HAS_REGRESSIONS=true$" comparison-output.env 2>/dev/null; then
+            echo "has_regressions=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_regressions=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Write job summary
+        run: cat comparison-output.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "AI SDK Integration Test Results"
+
+      - name: Create or update PR comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          edit-mode: replace
+          body-path: comparison-output.md
+
+      - name: Fail if regressions
+        if: steps.compare.outputs.has_regressions == 'true'
+        run: |
+          echo "::error::Test regressions detected! Tests that were passing on main are now failing."
+          exit 1
