@@ -11,5 +11,8 @@
     "sentry",
     "ai",
     "testing"
-  ]
+  ],
+  "volta": {
+    "node": "22.22.0"
+  }
 }

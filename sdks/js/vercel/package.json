@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "2.0.62",
-    "@sentry/node": "10.29.0",
+    "@sentry/node": "10.34.0",
     "ai": "5.0.87",
     "dotenv": "17.2.3"
   }
