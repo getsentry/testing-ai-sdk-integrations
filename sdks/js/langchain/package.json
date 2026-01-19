@@ -4,7 +4,7 @@
   "description": "LangChain SDK integration tests for Sentry",
   "dependencies": {
     "@sentry/node": "10.34.0",
-    "@langchain/core": "1.1.0",
+    "@langchain/core": "1.1.15",
     "@langchain/openai": "1.1.3",
     "dotenv": "17.2.3"
   }
