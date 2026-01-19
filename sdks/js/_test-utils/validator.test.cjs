@@ -453,5 +453,249 @@ console.log('\n--- Optional Schema Attribute Tests ---\n');
   }
 }
 
+// ============================================================================
+// JSON Array length_lte Constraint Tests
+// ============================================================================
+
+console.log('\n--- JSON Array length_lte Constraint Tests ---\n');
+
+// Test 24: Valid length_lte constraint (array length 2 <= original_length 5)
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'system', content: 'Hello' },
+        { role: 'user', content: 'Hi' }
+      ]),
+      'gen_ai.request.messages.original_length': 5
+    }
+  };
+  const schema = { type: 'json_array', length_lte: 'gen_ai.request.messages.original_length' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 24: Valid length_lte constraint (array length 2 <= original_length 5)');
+    passed++;
+  } else {
+    console.log('✗ Test 24: FAILED - Should pass when array length <= other attribute');
+    failed++;
+  }
+}
+
+// Test 25: Invalid length_lte constraint (array length 3 > original_length 2)
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'system', content: 'Hello' },
+        { role: 'user', content: 'Hi' },
+        { role: 'assistant', content: 'Bye' }
+      ]),
+      'gen_ai.request.messages.original_length': 2
+    }
+  };
+  const schema = { type: 'json_array', length_lte: 'gen_ai.request.messages.original_length' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === false) {
+    console.log('✓ Test 25: Invalid length_lte constraint detected (array length 3 > original_length 2)');
+    passed++;
+  } else {
+    console.log('✗ Test 25: FAILED - Should fail when array length > other attribute');
+    failed++;
+  }
+}
+
+// Test 26: Edge case - length_lte with equal values (array length 3 <= original_length 3)
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'system', content: 'Hello' },
+        { role: 'user', content: 'Hi' },
+        { role: 'assistant', content: 'Bye' }
+      ]),
+      'gen_ai.request.messages.original_length': 3
+    }
+  };
+  const schema = { type: 'json_array', length_lte: 'gen_ai.request.messages.original_length' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 26: Edge case - length_lte with equal values (array length 3 <= original_length 3)');
+    passed++;
+  } else {
+    console.log('✗ Test 26: FAILED - Should pass when array length == other attribute');
+    failed++;
+  }
+}
+
+// Test 27: length_lte passes when other attribute is missing
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'user', content: 'Hi' }
+      ])
+      // gen_ai.request.messages.original_length is NOT present
+    }
+  };
+  const schema = { type: 'json_array', length_lte: 'gen_ai.request.messages.original_length' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 27: length_lte passes when other attribute is missing');
+    passed++;
+  } else {
+    console.log('✗ Test 27: FAILED - Should pass when other attribute is missing');
+    failed++;
+  }
+}
+
+// Test 28: length_lte combined with items_have
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'system', content: 'Hello' },
+        { role: 'user', content: 'Hi' }
+      ]),
+      'gen_ai.request.messages.original_length': 5
+    }
+  };
+  const schema = { 
+    type: 'json_array', 
+    length_lte: 'gen_ai.request.messages.original_length',
+    items_have: ['role', 'content']
+  };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 28: length_lte combined with items_have - passes');
+    passed++;
+  } else {
+    console.log('✗ Test 28: FAILED - Should pass with valid length_lte and items_have');
+    failed++;
+  }
+}
+
+// Test 29: length_lte passes but items_have fails
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'system' },  // Missing 'content'
+        { role: 'user', content: 'Hi' }
+      ]),
+      'gen_ai.request.messages.original_length': 5
+    }
+  };
+  const schema = { 
+    type: 'json_array', 
+    length_lte: 'gen_ai.request.messages.original_length',
+    items_have: ['role', 'content']
+  };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === false) {
+    console.log('✓ Test 29: length_lte passes but items_have fails - overall fails');
+    passed++;
+  } else {
+    console.log('✗ Test 29: FAILED - Should fail when items_have validation fails');
+    failed++;
+  }
+}
+
+// ============================================================================
+// JSON Array contains Constraint Tests
+// ============================================================================
+
+console.log('\n--- JSON Array contains Constraint Tests ---\n');
+
+// Test 30: Valid contains - JSON string contains "[Blob substitute]"
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'user', content: [{ type: 'text', text: 'Describe this image' }, { type: 'image', data: '[Blob substitute]' }] }
+      ])
+    }
+  };
+  const schema = { type: 'json_array', contains: '[Blob substitute]' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 30: Valid contains - JSON string contains "[Blob substitute]"');
+    passed++;
+  } else {
+    console.log('✗ Test 30: FAILED - Should pass when JSON contains the substring');
+    failed++;
+  }
+}
+
+// Test 31: Invalid contains - JSON string does not contain "[Blob substitute]"
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'user', content: 'Hello world' }
+      ])
+    }
+  };
+  const schema = { type: 'json_array', contains: '[Blob substitute]' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === false) {
+    console.log('✓ Test 31: Invalid contains - JSON string does not contain "[Blob substitute]"');
+    passed++;
+  } else {
+    console.log('✗ Test 31: FAILED - Should fail when JSON does not contain the substring');
+    failed++;
+  }
+}
+
+// Test 32: contains combined with min_length
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'system', content: 'You are helpful' },
+        { role: 'user', content: '[Blob substitute]' }
+      ])
+    }
+  };
+  const schema = { type: 'json_array', min_length: 2, contains: '[Blob substitute]' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === true) {
+    console.log('✓ Test 32: contains combined with min_length - passes');
+    passed++;
+  } else {
+    console.log('✗ Test 32: FAILED - Should pass with valid contains and min_length');
+    failed++;
+  }
+}
+
+// Test 33: contains passes but min_length fails
+{
+  const span = {
+    data: {
+      'gen_ai.request.messages': JSON.stringify([
+        { role: 'user', content: '[Blob substitute]' }
+      ])
+    }
+  };
+  const schema = { type: 'json_array', min_length: 3, contains: '[Blob substitute]' };
+  const result = attributeMatches(span, 'gen_ai.request.messages', schema);
+
+  if (result === false) {
+    console.log('✓ Test 33: contains passes but min_length fails - overall fails');
+    passed++;
+  } else {
+    console.log('✗ Test 33: FAILED - Should fail when min_length validation fails');
+    failed++;
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

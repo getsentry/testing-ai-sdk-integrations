@@ -29,6 +29,8 @@ Test cases are identified by spec ID (e.g., "1-simple", "2-multi-step"). Each ha
 
 - **1-simple**: Basic Completion - Single prompt with system message
 - **2-multi-step**: Multi-step conversation - Two API calls with conversation history
+- **9-message-truncation**: Message Truncation - Tests array length vs original_length constraint
+- **10-binary-content-redaction**: Binary Content Redaction - Tests that binary data is redacted with "[Blob substitute]"
 
 ### Planned
 
@@ -321,6 +323,8 @@ For attributes with structured data (like `gen_ai.request.messages`), use schema
 - `length: N` - Exact array length
 - `min_length: N` - Minimum array length
 - `max_length: N` - Maximum array length
+- `length_lte: "other.attribute.name"` - Array length must be less than or equal to another attribute's value
+- `contains: "substring"` - Raw JSON string must contain this substring
 - `items_have: ["prop1", "prop2"]` - All items must contain these properties
 
 **`plain_string`** - Validates plain strings (NOT stringified JSON)
@@ -373,6 +377,16 @@ This is useful for attributes that may or may not be present depending on the pr
   "gen_ai.usage.output_tokens.reasoning": {
     "type": "number",
     "lte": "gen_ai.usage.output_tokens"
+  },
+  "gen_ai.request.messages_truncated": {
+    "type": "json_array",
+    "min_length": 1,
+    "length_lte": "gen_ai.request.messages.original_length"
+  },
+  "gen_ai.request.messages_with_redacted_binary": {
+    "type": "json_array",
+    "min_length": 1,
+    "contains": "[Blob substitute]"
   }
 }
 ```

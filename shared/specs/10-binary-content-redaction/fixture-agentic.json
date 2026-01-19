@@ -1,0 +1,52 @@
+{
+  "spec_id": "10-binary-content-redaction",
+  "name": "Binary Content Redaction",
+  "description": "Tests that binary data (like images) is redacted with '[Blob substitute]' marker in captured spans",
+  "inputs": {
+    "model": "gpt-5-nano",
+    "image_type": "png"
+  },
+  "expectations": {
+    "spans": {
+      "min_count": 2,
+      "items": [
+        {
+          "id": "invoke_agent",
+          "op": "gen_ai.invoke_agent",
+          "required_attributes": {
+            "gen_ai.operation.name": true,
+            "gen_ai.request.model": "gpt-5-nano",
+            "gen_ai.usage.input_tokens": true,
+            "gen_ai.usage.output_tokens": true
+          }
+        },
+        {
+          "id": "llm_call",
+          "op": {
+            "pattern": "gen_ai.*",
+            "not": [
+              "gen_ai.invoke_agent",
+              "gen_ai.create_agent",
+              "gen_ai.execute_tool"
+            ]
+          },
+          "parent": "invoke_agent",
+          "required_attributes": {
+            "gen_ai.operation.name": true,
+            "gen_ai.request.model": "gpt-5-nano",
+            "gen_ai.usage.input_tokens": true,
+            "gen_ai.usage.output_tokens": true,
+            "gen_ai.request.messages": {
+              "type": "json_array",
+              "min_length": 1,
+              "contains": "[Blob substitute]"
+            }
+          }
+        }
+      ]
+    },
+    "events": {
+      "error_count": 0
+    }
+  }
+}
