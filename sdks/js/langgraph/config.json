@@ -1,5 +1,5 @@
 {
   "sdk_name": "langgraph",
-  "framework_type": "agentic",
+  "framework_type": "low-level",
   "overrides": {}
 }
