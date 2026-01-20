@@ -7,35 +7,23 @@ replaces it with a substitute marker.
 """
 
 import os
-import io
 import base64
+from pathlib import Path
 from agents import Agent, Runner
 from test_runner import run_test_case
-from PIL import Image
-
-
-def create_minimal_png():
-    """
-    Create a minimal valid PNG image using PIL.
-    Returns the PNG bytes that OpenAI can process.
-    """
-    # Create a small 10x10 red image
-    img = Image.new("RGB", (10, 10), color="red")
-
-    # Save to bytes buffer
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return buffer.read()
 
 
 async def test_logic(inputs):
     """The actual test logic"""
     model = inputs["model"]
 
-    # Create binary image data
-    image_data = create_minimal_png()
+    # Load static test image
+    # Path: cases -> openai-agents -> py -> sdks -> repo_root
+    repo_root = Path(__file__).parent.parent.parent.parent.parent
+    image_path = repo_root / "shared" / "test-assets" / "test-image-10x10-red.png"
+
+    with open(image_path, "rb") as f:
+        image_data = f.read()
     base64_image = base64.standard_b64encode(image_data).decode("utf-8")
 
     # Create an agent that can handle images

@@ -7,27 +7,10 @@ replaces it with a substitute marker.
 """
 
 import os
-import io
+from pathlib import Path
 from google import genai
 from google.genai import types
 from test_runner import run_test_case
-from PIL import Image
-
-
-def create_minimal_png():
-    """
-    Create a minimal valid PNG image using PIL.
-    Returns the PNG bytes.
-    """
-    # Create a small 10x10 red image
-    img = Image.new("RGB", (10, 10), color="red")
-
-    # Save to bytes buffer
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return buffer.read()
 
 
 async def test_logic(inputs):
@@ -36,8 +19,13 @@ async def test_logic(inputs):
 
     client = genai.Client(api_key=os.getenv("GOOGLE_GENAI_API_KEY"))
 
-    # Create binary image data
-    image_data = create_minimal_png()
+    # Load static test image
+    # Path: cases -> google-genai -> py -> sdks -> repo_root
+    repo_root = Path(__file__).parent.parent.parent.parent.parent
+    image_path = repo_root / "shared" / "test-assets" / "test-image-10x10-red.png"
+
+    with open(image_path, "rb") as f:
+        image_data = f.read()
 
     # Google GenAI accepts images as Part objects
     image_part = types.Part.from_bytes(data=image_data, mime_type="image/png")
