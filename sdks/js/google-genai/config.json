@@ -11,6 +11,16 @@
       "model": "gemini-2.5-flash-lite",
       "gen_ai.request.model": "gemini-2.5-flash-lite",
       "gen_ai.response.model": "gemini-2.5-flash-lite"
+    },
+    "9-message-truncation": {
+      "model": "gemini-2.5-flash-lite",
+      "gen_ai.request.model": "gemini-2.5-flash-lite",
+      "gen_ai.response.model": "gemini-2.5-flash-lite"
+    },
+    "10-binary-content-redaction": {
+      "model": "gemini-2.5-flash-lite",
+      "gen_ai.request.model": "gemini-2.5-flash-lite",
+      "gen_ai.response.model": "gemini-2.5-flash-lite"
     }
   }
 }

@@ -412,6 +412,9 @@ function validateSchema(attrValue, schema, span = null) {
 
   // Handle json_array type
   if (schema.type === "json_array") {
+    // Store the original string for 'contains' check
+    const originalString = typeof attrValue === "string" ? attrValue : JSON.stringify(attrValue);
+
     // Parse JSON if it's a string
     let parsed;
     if (typeof attrValue === "string") {
@@ -440,6 +443,24 @@ function validateSchema(attrValue, schema, span = null) {
 
     if (schema.max_length !== undefined && parsed.length > schema.max_length) {
       return false;
+    }
+
+    // Validate length_lte (array length must be <= another attribute's value)
+    if (schema.length_lte !== undefined && span !== null) {
+      const otherValue = getAttribute(span, schema.length_lte);
+      // Only validate if the other attribute exists and is a number
+      if (otherValue !== undefined && typeof otherValue === "number") {
+        if (parsed.length > otherValue) {
+          return false;
+        }
+      }
+    }
+
+    // Validate contains (raw JSON string must contain this substring)
+    if (schema.contains !== undefined) {
+      if (!originalString.includes(schema.contains)) {
+        return false;
+      }
     }
 
     // Validate items_have (each item must have these properties)

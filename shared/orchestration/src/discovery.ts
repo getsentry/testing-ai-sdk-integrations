@@ -34,6 +34,34 @@ function loadSDKConfig(absolutePath: string): SDKConfig | undefined {
 }
 
 /**
+ * Natural sort comparator that handles numeric prefixes correctly.
+ * E.g., "1-simple" < "2-multi" < "10-binary" (not lexical "1" < "10" < "2")
+ */
+function naturalSortCompare(a: string, b: string): number {
+  // Extract numeric prefix if present (e.g., "10-binary" -> 10)
+  const aMatch = a.match(/^(\d+)/);
+  const bMatch = b.match(/^(\d+)/);
+
+  // If both have numeric prefixes, compare numerically
+  if (aMatch && bMatch) {
+    const aNum = parseInt(aMatch[1], 10);
+    const bNum = parseInt(bMatch[1], 10);
+    if (aNum !== bNum) {
+      return aNum - bNum;
+    }
+    // If numeric prefixes are equal, compare the rest lexically
+    return a.localeCompare(b);
+  }
+
+  // If only one has a numeric prefix, it comes first
+  if (aMatch) return -1;
+  if (bMatch) return 1;
+
+  // Neither has a numeric prefix, compare lexically
+  return a.localeCompare(b);
+}
+
+/**
  * Discovers all SDKs and their test cases
  */
 export async function discoverSDKs(): Promise<SDK[]> {
@@ -96,7 +124,7 @@ export async function discoverSDKs(): Promise<SDK[]> {
       name: data.name,
       path: sdkPath,
       absolutePath: data.absolutePath,
-      cases: cases.sort((a, b) => a.id.localeCompare(b.id)),
+      cases: cases.sort((a, b) => naturalSortCompare(a.id, b.id)),
       hasSetup,
       config
     });

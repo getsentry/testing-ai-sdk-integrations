@@ -252,6 +252,11 @@ def validate_schema(
 
     # Handle json_array type
     if schema.get("type") == "json_array":
+        # Store the original string for 'contains' check
+        original_string = (
+            attr_value if isinstance(attr_value, str) else json.dumps(attr_value)
+        )
+
         # Parse JSON if it's a string
         if isinstance(attr_value, str):
             try:
@@ -274,6 +279,19 @@ def validate_schema(
 
         if "max_length" in schema and len(parsed) > schema["max_length"]:
             return False
+
+        # Validate length_lte (array length must be <= another attribute's value)
+        if "length_lte" in schema and span is not None:
+            other_value = get_attribute(span, schema["length_lte"])
+            # Only validate if the other attribute exists and is a number
+            if other_value is not None and isinstance(other_value, (int, float)):
+                if len(parsed) > other_value:
+                    return False
+
+        # Validate contains (raw JSON string must contain this substring)
+        if "contains" in schema:
+            if schema["contains"] not in original_string:
+                return False
 
         # Validate items_have (each item must have these properties)
         if "items_have" in schema and isinstance(schema["items_have"], list):
