@@ -1,0 +1,41 @@
+/**
+ * Generated test file for {{ testName }}
+ * Framework: {{ frameworkName }}
+ */
+
+{% block imports %}
+import * as Sentry from '@sentry/node';
+{% endblock %}
+
+{% block sdk_setup %}
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  sendDefaultPii: true,
+});
+{% endblock %}
+
+{% block setup %}
+// Use this to run code before the test to setup stuff
+{% endblock %}
+
+async function main() {
+  {% block test %}
+  // Implement test logic here
+  console.log('Test not implemented');
+  {% endblock %}
+}
+
+{% block teardown %}
+// Use this to run code after the test
+{% endblock %}
+
+// Execute test
+main()
+  .catch((error) => {
+    console.error('Test failed:', error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    // Ensure Sentry flushes all events
+    await Sentry.flush(5000);
+  });

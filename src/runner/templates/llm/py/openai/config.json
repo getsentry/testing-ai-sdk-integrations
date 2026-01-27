@@ -1,0 +1,25 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI Python SDK",
+  "type": "llm-only",
+  "platform": "py",
+  "executionMode": "both",
+  "dependencies": [
+    {
+      "package": "openai",
+      "version": "framework"
+    }
+  ],
+  "versions": [
+    "2.15.0"
+  ],
+  "sentryVersions": [
+    "2.19.2",
+    "latest"
+  ],
+  "matrix": {
+    "modelProviders": [
+      "openai"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "openai-agents",
+  "displayName": "OpenAI Agents SDK",
+  "type": "agentic",
+  "platform": "py",
+  "executionMode": "async",
+  "dependencies": [
+    {
+      "package": "openai-agents",
+      "version": "framework"
+    }
+  ],
+  "versions": [
+    "0.0.19"
+  ],
+  "sentryVersions": [
+    "2.19.2",
+    "latest"
+  ]
+}

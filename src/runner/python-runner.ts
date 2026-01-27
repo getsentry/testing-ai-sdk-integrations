@@ -1,0 +1,270 @@
+/**
+ * Python-specific test runner
+ * Handles Python environment setup, dependency installation, and test execution
+ */
+
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { RunnerContext } from '../types.js';
+
+const execAsync = promisify(exec);
+
+export class PythonRunner {
+  /**
+   * Check if Python environment needs setup
+   */
+  async needsSetup(workDir: string): Promise<boolean> {
+    const venvPath = path.join(workDir, '.venv');
+    try {
+      await fs.access(venvPath);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Setup Python virtual environment and install dependencies
+   */
+  async setupEnvironment(context: RunnerContext): Promise<void> {
+    const { workDir, framework } = context;
+    
+    console.log(`  Setting up Python environment in ${workDir}...`);
+
+    // Check if uv is available
+    const useUv = await this.isUvAvailable();
+    
+    if (useUv) {
+      console.log('  Using uv for dependency management');
+      
+      // Create pyproject.toml
+      const pyproject = this.generatePyprojectToml(context);
+      await fs.writeFile(path.join(workDir, 'pyproject.toml'), pyproject);
+      console.log('  ✓ pyproject.toml generated');
+      
+      // Create virtual environment with uv
+      await execAsync('uv venv .venv', { cwd: workDir });
+      console.log('  ✓ Virtual environment created');
+      
+      // Install dependencies with uv
+      console.log('  Installing dependencies...');
+      
+      // Check for local Sentry SDK path
+      const localSentryPath = process.env.SENTRY_PYTHON_PATH;
+      if (localSentryPath && framework.sentryVersion === 'local') {
+        console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
+        await execAsync(`uv pip install -e "${localSentryPath}"`, { 
+          cwd: workDir,
+          env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
+        });
+      } else {
+        // Install Sentry SDK from PyPI
+        await execAsync(`uv pip install sentry-sdk==${framework.sentryVersion}`, { 
+          cwd: workDir,
+          env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
+        });
+      }
+      
+      // Install project dependencies from pyproject.toml
+      await execAsync('uv pip install .', { 
+        cwd: workDir,
+        env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
+      });
+      
+      console.log('  ✓ Dependencies installed');
+    } else {
+      // Fallback to traditional pip-based approach
+      console.log('  Using pip for dependency management');
+      
+      // Create virtual environment
+      await execAsync('python3 -m venv .venv', { cwd: workDir });
+      console.log('  ✓ Virtual environment created');
+
+      const pipPath = path.join(workDir, '.venv', 'bin', 'pip');
+      await execAsync(`${pipPath} install --upgrade pip`, { cwd: workDir });
+
+      // Check for local Sentry SDK path
+      const localSentryPath = process.env.SENTRY_PYTHON_PATH;
+      if (localSentryPath && framework.sentryVersion === 'local') {
+        console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
+        await execAsync(`${pipPath} install -e "${localSentryPath}"`, { cwd: workDir });
+      } else {
+        await execAsync(`${pipPath} install sentry-sdk==${framework.sentryVersion}`, { cwd: workDir });
+      }
+
+      // Create requirements.txt for other dependencies
+      const requirements = this.generateRequirements(context);
+      await fs.writeFile(path.join(workDir, 'requirements.txt'), requirements);
+      console.log('  ✓ requirements.txt generated');
+
+      // Install other dependencies
+      console.log('  Installing dependencies...');
+      await execAsync(`${pipPath} install -r requirements.txt`, { 
+        cwd: workDir,
+        env: { ...process.env, PIP_NO_CACHE_DIR: '1' }
+      });
+      console.log('  ✓ Dependencies installed');
+    }
+  }
+
+  /**
+   * Check if uv is available
+   */
+  private async isUvAvailable(): Promise<boolean> {
+    try {
+      await execAsync('uv --version');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Generate pyproject.toml content
+   */
+  private generatePyprojectToml(context: RunnerContext): string {
+    const { framework } = context;
+    
+    const dependencies: string[] = [];
+    
+    // Add framework dependencies from config
+    if (framework.dependencies && framework.dependencies.length > 0) {
+      for (const dep of framework.dependencies) {
+        let version = dep.version;
+        
+        // Replace "framework" with actual framework version
+        if (version === 'framework') {
+          version = framework.version;
+        }
+        
+        // Add version specifier
+        if (version === 'latest') {
+          dependencies.push(`"${dep.package}"`);
+        } else {
+          dependencies.push(`"${dep.package}==${version}"`);
+        }
+      }
+    } else {
+      // Fallback: Add framework package with framework version
+      dependencies.push(`"${framework.name}==${framework.version}"`);
+    }
+
+    return `[project]
+name = "sentry-test-${framework.name}"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+${dependencies.map(d => `    ${d},`).join('\n')}
+]
+`;
+  }
+
+  /**
+   * Generate requirements.txt content (for pip fallback, without sentry-sdk)
+   */
+  private generateRequirements(context: RunnerContext): string {
+    const { framework } = context;
+    const requirements: string[] = [];
+
+    // Add framework dependencies from config (but NOT sentry-sdk, handled separately)
+    if (framework.dependencies && framework.dependencies.length > 0) {
+      for (const dep of framework.dependencies) {
+        let version = dep.version;
+        
+        // Replace "framework" with actual framework version
+        if (version === 'framework') {
+          version = framework.version;
+        }
+        
+        // Add version specifier if not "latest"
+        if (version === 'latest') {
+          requirements.push(dep.package);
+        } else {
+          requirements.push(`${dep.package}==${version}`);
+        }
+      }
+    } else {
+      // Fallback: Add framework package with framework version
+      requirements.push(`${framework.name}==${framework.version}`);
+    }
+
+    return requirements.join('\n');
+  }
+
+  /**
+   * Generate test case ID from test name
+   */
+  private generateTestCaseId(testName: string): string {
+    return testName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  /**
+   * Execute Python test
+   */
+  async executeTest(context: RunnerContext): Promise<void> {
+    const { workDir, sentryDsn, runId, isAsync, testDefinition } = context;
+
+    console.log('  Executing Python test...');
+
+    const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
+    
+    // Generate test case ID and determine filename
+    const testCaseId = this.generateTestCaseId(testDefinition.name);
+    const mode = isAsync ? 'async' : 'sync';
+    const testFile = path.join(workDir, `test-${testCaseId}-${mode}.py`);
+
+    const env = {
+      ...process.env,
+      SENTRY_DSN: sentryDsn,
+      RUN_ID: runId,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || '',
+    };
+
+    try {
+      const { stdout, stderr } = await execAsync(`${pythonPath} ${testFile}`, {
+        cwd: workDir,
+        env,
+        timeout: 60000, // 60 second timeout
+      });
+
+      if (stdout) {
+        console.log('  Test output:');
+        stdout.split('\n').forEach(line => {
+          if (line.trim()) console.log(`    ${line}`);
+        });
+      }
+
+      if (stderr) {
+        console.error('  Test errors:');
+        stderr.split('\n').forEach(line => {
+          if (line.trim()) console.error(`    ${line}`);
+        });
+      }
+    } catch (error: any) {
+      if (error.code === 'ETIMEDOUT') {
+        throw new Error('Test execution timed out (60s)');
+      }
+      throw new Error(`Test execution failed: ${error.message}\n${error.stderr || ''}`);
+    }
+  }
+
+  /**
+   * Get Python version
+   */
+  async getPythonVersion(workDir: string): Promise<string> {
+    const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
+    try {
+      const { stdout } = await execAsync(`${pythonPath} --version`);
+      return stdout.trim();
+    } catch {
+      return 'Unknown';
+    }
+  }
+}
