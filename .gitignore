@@ -56,3 +56,6 @@ coverage/
 .nyc_output/
 test-results/
 *.log
+
+# Test execution and preview directories
+runs/

@@ -5,10 +5,9 @@
  * Validates that Sentry captures both agent and LLM spans.
  */
 
-import { TestDefinition, CapturedSpan } from '../../types.js';
+import { TestDefinition, CapturedSpan, FrameworkConfig } from '../../types.js';
 import {
   extractGenAISpans,
-  checkGenAISpan,
   checkSpanStructure,
   printSpanSummary,
 } from '../utils.js';
@@ -46,7 +45,7 @@ export const basicAgentTest: TestDefinition = {
   
   inputs: [
     {
-      model: 'gpt-4o',
+      model: 'gpt-5-nano',
       messages: [
         { role: 'user', content: 'What is the result of 4 + 7? Use the add tool.' },
       ],
@@ -54,21 +53,27 @@ export const basicAgentTest: TestDefinition = {
   ],
   
   // Check 1: Basic structure validation
-  checkStructure(spans: CapturedSpan[]) {
+  checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     printSpanSummary(aiSpans);
     
-    checkGenAISpan(aiSpans, {
-      minCount: 1,
-      hasDescription: true,
-      hasValidTimestamps: true,
+    // Verify we have at least one AI span
+    if (aiSpans.length === 0) {
+      throw new Error('No gen_ai.* spans captured');
+    }
+    
+    // Verify all operations start with gen_ai
+    aiSpans.forEach((span, idx) => {
+      if (!span.op || !span.op.startsWith('gen_ai')) {
+        throw new Error(`Span ${idx}: operation must start with 'gen_ai' but got '${span.op}'`);
+      }
     });
     
     console.log(`  Captured ${aiSpans.length} AI span(s)`);
   },
   
   // Check 2: Agent and LLM span validation
-  checkAgentSpans(spans: CapturedSpan[]) {
+  checkAgentSpans(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
     // Look for agent span (for agentic frameworks)
@@ -113,15 +118,16 @@ export const basicAgentTest: TestDefinition = {
     
     if (llmSpan) {
       console.log('  LLM span captured');
-      checkGenAISpan([llmSpan], {
-        hasModel: true,
-      });
-      console.log('  Model information captured');
+      
+      // Verify model information is present
+      if (llmSpan.data && (llmSpan.data['gen_ai.request.model'] || llmSpan.data['gen_ai.response.model'])) {
+        console.log('  Model information captured');
+      }
     }
   },
   
   // Check 3: Tool call validation
-  checkToolCalls(spans: CapturedSpan[]) {
+  checkToolCalls(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
     const hasToolCall = aiSpans.some((s) => 

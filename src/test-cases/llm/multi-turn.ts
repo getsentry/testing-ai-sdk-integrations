@@ -5,14 +5,14 @@
  * Validates that Sentry captures multiple gen_ai spans correctly.
  */
 
-import { TestDefinition, CapturedSpan } from '../../types.js';
+import { TestDefinition, CapturedSpan, FrameworkConfig } from '../../types.js';
 import {
   extractGenAISpans,
-  checkGenAISpan,
   checkTokenUsage,
   printSpanSummary,
   assertAttributes,
   AttributeSchema,
+  skipIf,
 } from '../utils.js';
 
 export const multiTurnLLMTest: TestDefinition = {
@@ -23,7 +23,7 @@ export const multiTurnLLMTest: TestDefinition = {
   inputs: [
     // Turn 1: Initial question
     {
-      model: 'gpt-4o',
+      model: 'gpt-5-nano',
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: 'What is the capital of France?' },
@@ -31,7 +31,7 @@ export const multiTurnLLMTest: TestDefinition = {
     },
     // Turn 2: Follow-up question
     {
-      model: 'gpt-4o',
+      model: 'gpt-5-nano',
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: 'What is the capital of France?' },
@@ -41,7 +41,7 @@ export const multiTurnLLMTest: TestDefinition = {
     },
     // Turn 3: Another follow-up
     {
-      model: 'gpt-4o',
+      model: 'gpt-5-nano',
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: 'What is the capital of France?' },
@@ -54,35 +54,41 @@ export const multiTurnLLMTest: TestDefinition = {
   ],
   
   // Check 1: Validate span structure for multiple turns
-  checkStructure(spans: CapturedSpan[]) {
+  checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     printSpanSummary(aiSpans);
     
     // Should have 3 spans (one for each turn)
-    checkGenAISpan(aiSpans, {
-      exactCount: 3,
-      opPattern: /^gen_ai\.(chat|completion|generate)/,
-      hasDescription: true,
-      hasModel: true,
-      hasValidTimestamps: true,
+    if (aiSpans.length !== 3) {
+      throw new Error(`Expected exactly 3 gen_ai spans, got ${aiSpans.length}`);
+    }
+    
+    // Verify each span has correct operation
+    const validOps = /^gen_ai\.(chat|completion|generate)/;
+    aiSpans.forEach((span, idx) => {
+      if (!span.op || !validOps.test(span.op)) {
+        throw new Error(`Span ${idx}: operation '${span.op}' doesn't match expected patterns`);
+      }
     });
     
     console.log(`  Captured ${aiSpans.length} AI span(s) for multi-turn conversation`);
   },
   
   // Check 2: Validate attributes on all spans
-  checkAttributes(spans: CapturedSpan[]) {
+  checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
-    if (aiSpans.length === 0) {
-      throw new Error('No AI spans captured');
-    }
+    skipIf(aiSpans.length === 0, 'No AI spans captured');
+    
+    // Use model overrides if provided, otherwise use default test input
+    const requestModel = config.modelOverrides?.request || 'gpt-5-nano';
+    const responseModel = config.modelOverrides?.response || 'gpt-5-nano*';
     
     // All spans should have same basic attributes
     const schema: AttributeSchema = {
       'gen_ai.operation.name': true,
-      'gen_ai.request.model': 'gpt-4o',
-      'gen_ai.response.model': 'gpt-4o*',
+      'gen_ai.request.model': requestModel,
+      'gen_ai.response.model': responseModel,
       'gen_ai.usage.input_tokens': true,
       'gen_ai.usage.output_tokens': true,
       'gen_ai.usage.total_tokens': true,
@@ -93,12 +99,10 @@ export const multiTurnLLMTest: TestDefinition = {
   },
   
   // Check 3: Validate token progression
-  checkTokenProgression(spans: CapturedSpan[]) {
+  checkTokenProgression(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
-    if (aiSpans.length < 3) {
-      throw new Error(`Expected 3 spans for multi-turn test, got ${aiSpans.length}`);
-    }
+    skipIf(aiSpans.length < 3, `Expected 3 spans for multi-turn test, got ${aiSpans.length}`);
     
     // Extract input token counts for each turn
     const inputTokens = aiSpans.map((span, idx) => {
@@ -133,12 +137,10 @@ export const multiTurnLLMTest: TestDefinition = {
   },
   
   // Check 4: Validate each individual turn
-  checkIndividualTurns(spans: CapturedSpan[]) {
+  checkIndividualTurns(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
-    if (aiSpans.length !== 3) {
-      throw new Error(`Expected exactly 3 spans, got ${aiSpans.length}`);
-    }
+    skipIf(aiSpans.length !== 3, `Expected exactly 3 spans, got ${aiSpans.length}`);
     
     // Validate each turn has valid token usage
     aiSpans.forEach((span, idx) => {

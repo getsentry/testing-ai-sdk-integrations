@@ -4,7 +4,9 @@
 
 import { SpanCollector } from './span-collector/server.js';
 import { Runner } from './runner/runner.js';
-import { Validator } from './validator.js';
+import { Validator, ValidationError } from './validator.js';
+import { generateCTRFReport, writeCTRFReport } from './reporters/ctrf-reporter.js';
+import { LiveStatusReporter } from './reporters/live-status.js';
 import {
   TestDefinition,
   FrameworkConfig,
@@ -17,12 +19,16 @@ export class Orchestrator {
   private spanCollector: SpanCollector;
   private runner: Runner;
   private validator: Validator;
+  private liveStatus: LiveStatusReporter;
   private testRuns: TestRun[] = [];
+  private useLiveStatus: boolean = false;
 
-  constructor() {
+  constructor(options: { liveStatus?: boolean } = {}) {
     this.spanCollector = new SpanCollector();
     this.runner = new Runner();
     this.validator = new Validator();
+    this.liveStatus = new LiveStatusReporter();
+    this.useLiveStatus = options.liveStatus === true; // Default to false (opt-in)
   }
 
   /**
@@ -51,16 +57,52 @@ export class Orchestrator {
 
     // Generate test matrix
     const testMatrix = this.generateTestMatrix(frameworks, testDefinitions);
-    console.log(`Running ${testMatrix.length} tests across ${frameworks.length} frameworks`);
+    
+    if (this.useLiveStatus) {
+      // Register all tests with live status
+      for (const testRun of testMatrix) {
+        this.liveStatus.registerTest(testRun);
+      }
+      
+      // Start live status display
+      this.liveStatus.start();
+      
+      console.log(`\nRunning ${testMatrix.length} tests across ${frameworks.length} frameworks\n`);
+    } else {
+      console.log(`Running ${testMatrix.length} tests across ${frameworks.length} frameworks`);
+    }
 
     // Execute tests
     for (const testRun of testMatrix) {
       await this.executeTest(testRun);
     }
 
+    // Stop live status display
+    if (this.useLiveStatus) {
+      this.liveStatus.stop();
+    }
+
     // Generate report
     const endTime = Date.now();
-    return this.generateReport(startTime, endTime);
+    const report = this.generateReport(startTime, endTime);
+
+    // Generate and write CTRF report
+    await this.writeCTRFReport(report);
+
+    return report;
+  }
+
+  /**
+   * Write CTRF report to file
+   */
+  async writeCTRFReport(report: TestReport): Promise<void> {
+    try {
+      const ctrfReport = generateCTRFReport(report);
+      const filePath = await writeCTRFReport(ctrfReport, './test-results');
+      console.log(`\n✓ CTRF report written to: ${filePath}`);
+    } catch (error) {
+      console.error('Failed to write CTRF report:', error);
+    }
   }
 
   /**
@@ -74,12 +116,20 @@ export class Orchestrator {
 
     for (const framework of frameworks) {
       for (const testDefinition of testDefinitions) {
+        // Check if test is explicitly skipped for this framework
+        if (framework.skip?.tests?.includes(testDefinition.name)) {
+          console.log(
+            `⊘ Skipping ${testDefinition.name} on ${framework.name} (explicitly skipped in config)`
+          );
+          continue;
+        }
+
         // Skip incompatible combinations based on test type
         const isCompatible = this.isCompatible(framework, testDefinition);
         
         if (!isCompatible.compatible) {
           console.log(
-            `Skipping ${testDefinition.name} on ${framework.name} (${isCompatible.reason})`
+            `⊘ Skipping ${testDefinition.name} on ${framework.name} (${isCompatible.reason})`
           );
           continue;
         }
@@ -151,13 +201,20 @@ export class Orchestrator {
     this.testRuns.push(testRun);
     testRun.status = 'running';
     testRun.startTime = Date.now();
+    
+    // Update live status
+    if (this.useLiveStatus) {
+      this.liveStatus.updateTestStatus(testRun, 'running');
+    }
 
     // Build display name with execution mode suffix for Python
     const displayName = testRun.framework.platform === 'py' && testRun.framework.executionMode
       ? `${testRun.testDefinition.name} (${testRun.framework.executionMode})`
       : testRun.testDefinition.name;
 
-    console.log(`\n[${testRun.framework.name}] Running: ${displayName}`);
+    if (!this.useLiveStatus) {
+      console.log(`\n[${testRun.framework.name}] Running: ${displayName}`);
+    }
 
     try {
       // Register run with span collector
@@ -177,6 +234,7 @@ export class Orchestrator {
         sentryDsn,
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
+        verbose: !this.useLiveStatus, // Suppress verbose output when live status is active
       });
 
       // Wait for spans to be collected
@@ -187,14 +245,50 @@ export class Orchestrator {
       testRun.spans = spans;
 
       // Validate spans using test definition's check methods
-      await this.validator.validate(spans, testRun.testDefinition);
+      const checkResults = await this.validator.validate(
+        spans, 
+        testRun.testDefinition, 
+        testRun.framework,
+        // Pass callback to update live status for each check
+        this.useLiveStatus ? (checkName: string) => {
+          this.liveStatus.updateCurrentCheck(testRun, checkName);
+        } : undefined,
+        // Pass callback to update check result
+        this.useLiveStatus ? (checkResult) => {
+          this.liveStatus.updateCheckResult(testRun, checkResult);
+        } : undefined
+      );
+      testRun.checkResults = checkResults;
 
       testRun.status = 'passed';
-      console.log(`✓ ${displayName} passed`);
+      
+      // Update live status
+      if (this.useLiveStatus) {
+        this.liveStatus.updateTestStatus(testRun, 'passed');
+      }
+      
+      if (!this.useLiveStatus) {
+        console.log(`✓ ${displayName} passed`);
+      }
     } catch (error) {
       testRun.status = 'failed';
-      testRun.error = error instanceof Error ? error.message : String(error);
-      console.error(`✗ ${displayName} failed:`, testRun.error);
+      
+      // Extract check results from ValidationError if available
+      if (error instanceof ValidationError) {
+        testRun.checkResults = error.checkResults;
+        testRun.error = error.message;
+      } else {
+        testRun.error = error instanceof Error ? error.message : String(error);
+      }
+      
+      // Update live status
+      if (this.useLiveStatus) {
+        this.liveStatus.updateTestStatus(testRun, 'failed', testRun.error);
+      }
+      
+      if (!this.useLiveStatus) {
+        console.error(`✗ ${displayName} failed:`, testRun.error);
+      }
     } finally {
       testRun.endTime = Date.now();
       this.spanCollector.clearRun(testRun.id);
@@ -229,12 +323,14 @@ export class Orchestrator {
     const passed = this.testRuns.filter((r) => r.status === 'passed').length;
     const failed = this.testRuns.filter((r) => r.status === 'failed').length;
     const errors = this.testRuns.filter((r) => r.status === 'error').length;
+    const skipped = this.testRuns.filter((r) => r.status === 'skipped').length;
 
     return {
       totalTests: this.testRuns.length,
       passed,
       failed,
       errors,
+      skipped,
       duration: endTime - startTime,
       runs: this.testRuns,
     };
@@ -248,27 +344,97 @@ export class Orchestrator {
   }
 
   /**
-   * Print test report
+   * Print test report with colors and detailed check breakdown
    */
   printReport(report: TestReport): void {
-    console.log('\n='.repeat(60));
-    console.log('Test Report');
-    console.log('='.repeat(60));
-    console.log(`Total: ${report.totalTests}`);
-    console.log(`Passed: ${report.passed}`);
-    console.log(`Failed: ${report.failed}`);
-    console.log(`Errors: ${report.errors}`);
-    console.log(`Duration: ${(report.duration / 1000).toFixed(2)}s`);
-    console.log('='.repeat(60));
+    // ANSI color codes
+    const colors = {
+      reset: '\x1b[0m',
+      bright: '\x1b[1m',
+      dim: '\x1b[2m',
+      green: '\x1b[32m',
+      red: '\x1b[31m',
+      yellow: '\x1b[33m',
+      blue: '\x1b[34m',
+      cyan: '\x1b[36m',
+      gray: '\x1b[90m',
+    };
 
-    if (report.failed > 0 || report.errors > 0) {
-      console.log('\nFailures:');
-      for (const run of report.runs) {
-        if (run.status === 'failed' || run.status === 'error') {
-          console.log(`  [${run.framework.name}] ${run.testDefinition.name}`);
-          console.log(`    ${run.error}`);
-        }
+    console.log('\n' + colors.bright + '='.repeat(70) + colors.reset);
+    console.log(colors.bright + colors.cyan + '📊 Test Results Summary' + colors.reset);
+    console.log(colors.bright + '='.repeat(70) + colors.reset);
+    
+    // Summary stats with colors
+    console.log(`${colors.bright}Total Tests:${colors.reset}  ${report.totalTests}`);
+    console.log(`${colors.green}✓ Passed:${colors.reset}     ${report.passed}`);
+    console.log(`${colors.red}✗ Failed:${colors.reset}     ${report.failed}`);
+    if (report.skipped > 0) {
+      console.log(`${colors.yellow}⊘ Skipped:${colors.reset}    ${report.skipped}`);
+    }
+    if (report.errors > 0) {
+      console.log(`${colors.yellow}⚠ Errors:${colors.reset}     ${report.errors}`);
+    }
+    console.log(`${colors.blue}⏱ Duration:${colors.reset}    ${(report.duration / 1000).toFixed(2)}s`);
+    console.log(colors.bright + '='.repeat(70) + colors.reset);
+
+    // Detailed test breakdown
+    console.log('\n' + colors.bright + colors.cyan + '📋 Detailed Results' + colors.reset);
+    console.log(colors.gray + '─'.repeat(70) + colors.reset);
+
+    for (const run of report.runs) {
+      const executionMode = run.framework.executionMode 
+        ? ` ${colors.dim}(${run.framework.executionMode})${colors.reset}`
+        : '';
+      
+      // Test header
+      if (run.status === 'passed') {
+        console.log(`\n${colors.green}✓${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset}${executionMode} ${run.testDefinition.name}`);
+      } else {
+        console.log(`\n${colors.red}✗${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset}${executionMode} ${run.testDefinition.name}`);
       }
+
+      // Check results breakdown
+      if (run.checkResults && run.checkResults.length > 0) {
+        for (const check of run.checkResults) {
+          if (check.status === 'passed') {
+            console.log(`  ${colors.green}✓${colors.reset} ${colors.dim}${check.name}${colors.reset}`);
+          } else if (check.status === 'skipped') {
+            const reason = check.skipReason || 'Not supported';
+            console.log(`  ${colors.yellow}⊘${colors.reset} ${colors.dim}${check.name}${colors.reset} ${colors.gray}(${reason})${colors.reset}`);
+          } else {
+            console.log(`  ${colors.red}✗${colors.reset} ${colors.bright}${check.name}${colors.reset}`);
+            if (check.error) {
+              // Print error message with indentation
+              const errorLines = check.error.split('\n');
+              for (const line of errorLines) {
+                console.log(`    ${colors.dim}${line}${colors.reset}`);
+              }
+            }
+          }
+        }
+      } else if (run.status === 'skipped') {
+        // Show skip reason for skipped tests
+        const reason = run.skipReason || 'Test skipped';
+        console.log(`  ${colors.yellow}⊘${colors.reset} ${colors.dim}${reason}${colors.reset}`);
+      } else if (run.status === 'failed' && run.error) {
+        // Fallback for tests without check results
+        console.log(`  ${colors.red}Error:${colors.reset} ${colors.dim}${run.error}${colors.reset}`);
+      }
+
+      // Duration
+      if (run.startTime && run.endTime) {
+        const duration = ((run.endTime - run.startTime) / 1000).toFixed(2);
+        console.log(`  ${colors.gray}⏱  ${duration}s${colors.reset}`);
+      }
+    }
+
+    console.log('\n' + colors.gray + '─'.repeat(70) + colors.reset);
+    
+    // Final summary
+    if (report.failed === 0 && report.errors === 0) {
+      console.log(`\n${colors.green}${colors.bright}✓ All tests passed!${colors.reset} 🎉\n`);
+    } else {
+      console.log(`\n${colors.red}${colors.bright}✗ ${report.failed + report.errors} test(s) failed${colors.reset}\n`);
     }
   }
 }

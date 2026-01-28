@@ -35,6 +35,7 @@ export class Runner {
    */
   async runTest(context: RunnerContext): Promise<void> {
     const workDir = context.workDir;
+    const verbose = context.verbose !== false; // Default to true
 
     // Ensure work directory exists
     await fs.mkdir(workDir, { recursive: true });
@@ -48,7 +49,7 @@ export class Runner {
     const needsSetup = await platformRunner.needsSetup(workDir);
     if (needsSetup) {
       await platformRunner.setupEnvironment(context);
-    } else {
+    } else if (verbose) {
       console.log('  Using cached environment');
     }
 
@@ -76,7 +77,10 @@ export class Runner {
    * Render template
    */
   private async renderTemplate(context: RunnerContext): Promise<void> {
-    console.log(`  Rendering template for ${context.framework.name}...`);
+    const verbose = context.verbose !== false; // Default to true
+    if (verbose) {
+      console.log(`  Rendering template for ${context.framework.name}...`);
+    }
     
     const { workDir, framework, testDefinition, isAsync } = context;
     
@@ -95,6 +99,15 @@ export class Runner {
     
     const testPath = path.join(workDir, testFile);
     
+    // Apply model overrides to inputs if specified in framework config
+    let processedInputs = testDefinition.inputs;
+    if (framework.modelOverrides) {
+      processedInputs = testDefinition.inputs.map(input => ({
+        ...input,
+        model: framework.modelOverrides?.request || input.model,
+      }));
+    }
+    
     // Build template context
     const templateContext = {
       testName: testDefinition.name,
@@ -103,7 +116,7 @@ export class Runner {
       runId: context.runId,
       isAsync: isAsync || false, // Boolean flag for templates
       ...(testDefinition.agent && { agent: testDefinition.agent }),
-      inputs: testDefinition.inputs,
+      inputs: processedInputs,
     };
     
     // Render framework template if available, otherwise base template

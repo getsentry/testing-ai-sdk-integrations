@@ -16,6 +16,7 @@ interface CLIOptions {
   platform?: 'js' | 'py';
   sentryPythonPath?: string;
   sentryJavaScriptPath?: string;
+  liveStatus?: boolean;
 }
 
 function parseArgs(): CLIOptions {
@@ -46,6 +47,9 @@ function parseArgs(): CLIOptions {
       case '--sentry-javascript':
         options.sentryJavaScriptPath = args[++i];
         break;
+      case '--live-status':
+        options.liveStatus = true;
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -71,6 +75,7 @@ Options:
   --framework              Filter by framework name
   --test                   Filter by test name
   --platform               Filter by platform (js or py)
+  --live-status            Enable live status display (real-time tree view)
   --sentry-python <path>   Use local Sentry Python SDK (editable install)
   --sentry-javascript <path>  Use local Sentry JavaScript SDK (link)
   --help, -h               Show this help message
@@ -80,6 +85,7 @@ Examples:
   npm start run
   npm start run -- --framework openai
   npm start run -- --platform py --test "Basic LLM"
+  npm start run -- --framework openai --live-status
   npm start run -- --framework openai --sentry-python ~/sentry-python
   `);
 }
@@ -95,7 +101,9 @@ async function main() {
     return;
   }
 
-  const orchestrator = new Orchestrator();
+  const orchestrator = new Orchestrator({ 
+    liveStatus: options.liveStatus 
+  });
 
   try {
     // Start orchestrator
@@ -160,6 +168,8 @@ async function main() {
         category: df.category,
         dependencies: df.dependencies,
         executionMode: df.executionMode, // Pass through execution mode
+        modelOverrides: df.modelOverrides, // Pass through model overrides
+        skip: df.skip, // Pass through skip configuration
       };
     });
 

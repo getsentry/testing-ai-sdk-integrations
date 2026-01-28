@@ -66,17 +66,38 @@ export interface FrameworkConfig {
   dependencies?: Array<{ package: string; version: string }>;
   // Python only: execution mode for the framework
   executionMode?: 'sync' | 'async' | 'both';
+  // Model overrides: Some frameworks use different models than requested
+  modelOverrides?: {
+    request?: string;
+    response?: string;
+  };
+  // Skip configuration: Tests or checks that should be skipped
+  skip?: {
+    tests?: string[];  // Array of test names to skip entirely
+    checks?: {         // Per-test check skipping
+      [testName: string]: string[];  // Array of check method names to skip
+    };
+  };
+}
+
+export interface CheckResult {
+  name: string;
+  status: 'passed' | 'failed' | 'skipped';
+  error?: string;
+  skipReason?: string;
 }
 
 export interface TestRun {
   id: string;
   framework: FrameworkConfig;
   testDefinition: TestDefinition;
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'error';
+  status: 'pending' | 'running' | 'passed' | 'failed' | 'error' | 'skipped';
   startTime?: number;
   endTime?: number;
   error?: string;
   spans?: CapturedSpan[];
+  checkResults?: CheckResult[];
+  skipReason?: string;
 }
 
 export interface TestReport {
@@ -84,6 +105,7 @@ export interface TestReport {
   passed: number;
   failed: number;
   errors: number;
+  skipped: number;
   duration: number;
   runs: TestRun[];
 }
@@ -96,4 +118,6 @@ export interface RunnerContext {
   workDir: string;
   // Python only: if true, render async version; if false, render sync version
   isAsync?: boolean;
+  // Controls whether to print verbose console output (default: true)
+  verbose?: boolean;
 }

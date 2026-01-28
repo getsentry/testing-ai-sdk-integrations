@@ -4,6 +4,35 @@
 
 import { expect } from 'chai';
 import { CapturedSpan } from '../types.js';
+import { SkipCheckError } from '../validator.js';
+
+/**
+ * Skip the current check with a reason
+ * @param reason - Why the check is being skipped
+ * @throws {SkipCheckError}
+ * @example
+ * if (!spans.length) {
+ *   skip('No spans captured - cannot validate attributes');
+ * }
+ */
+export function skip(reason: string): never {
+  throw new SkipCheckError(reason);
+}
+
+/**
+ * Conditionally skip the current check
+ * @param condition - If true, skip the check
+ * @param reason - Why the check is being skipped
+ * @throws {SkipCheckError}
+ * @example
+ * skipIf(spans.length === 0, 'No spans captured');
+ * skipIf(!config.supportsStreaming, 'Framework does not support streaming');
+ */
+export function skipIf(condition: boolean, reason: string): void {
+  if (condition) {
+    throw new SkipCheckError(reason);
+  }
+}
 
 /**
  * Attribute schema for validation
@@ -24,83 +53,7 @@ export function extractGenAISpans(spans: CapturedSpan[]): CapturedSpan[] {
   return spans.filter((s) => s.op && s.op.startsWith('gen_ai'));
 }
 
-/**
- * Check general GenAI span attributes
- */
-export interface GenAISpanChecks {
-  /** Check for operation pattern (e.g., /^gen_ai\.(chat|completion)/) */
-  opPattern?: RegExp;
-  /** Check for minimum number of spans */
-  minCount?: number;
-  /** Check for exact number of spans */
-  exactCount?: number;
-  /** Check for description field */
-  hasDescription?: boolean;
-  /** Check for model information */
-  hasModel?: boolean;
-  /** Check for timestamp validity */
-  hasValidTimestamps?: boolean;
-}
 
-export function checkGenAISpan(spans: CapturedSpan[], checks: GenAISpanChecks = {}): void {
-  const {
-    opPattern,
-    minCount,
-    exactCount,
-    hasDescription = true,
-    hasModel = true,
-    hasValidTimestamps = true,
-  } = checks;
-
-  // Check span count
-  if (minCount !== undefined) {
-    expect(spans.length).to.be.at.least(minCount, `Should have at least ${minCount} AI span(s)`);
-  }
-  if (exactCount !== undefined) {
-    expect(spans.length).to.equal(exactCount, `Should have exactly ${exactCount} AI span(s)`);
-  }
-
-  if (spans.length === 0) {
-    return; // No spans to check
-  }
-
-  const span = spans[0];
-
-  // Check operation pattern
-  if (opPattern) {
-    expect(span.op).to.match(opPattern, 'Span operation should match expected pattern');
-  }
-
-  // Check description
-  if (hasDescription) {
-    expect(span.description).to.exist;
-  }
-
-  // Check timestamps
-  if (hasValidTimestamps) {
-    expect(span.start_timestamp).to.exist;
-    expect(span.timestamp).to.exist;
-
-    // Convert timestamps to numbers if they're strings
-    const startTime =
-      typeof span.start_timestamp === 'string'
-        ? new Date(span.start_timestamp).getTime()
-        : span.start_timestamp;
-    const endTime =
-      typeof span.timestamp === 'string' ? new Date(span.timestamp).getTime() : span.timestamp;
-
-    expect(endTime).to.be.greaterThan(startTime, 'End timestamp should be after start timestamp');
-  }
-
-  // Check model information
-  if (hasModel && span.data) {
-    const hasModelInfo =
-      span.data['gen_ai.request.model'] ||
-      span.data['gen_ai.response.model'];
-
-    expect(hasModelInfo).to.exist;
-  }
-}
 
 /**
  * Check token usage attributes

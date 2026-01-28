@@ -1,0 +1,24 @@
+{
+  "name": "anthropic",
+  "displayName": "Anthropic Python SDK",
+  "type": "llm-only",
+  "platform": "py",
+  "executionMode": "both",
+  "dependencies": [
+    {
+      "package": "anthropic",
+      "version": "framework"
+    }
+  ],
+  "versions": [
+    "0.43.0"
+  ],
+  "sentryVersions": [
+    "2.19.2",
+    "latest"
+  ],
+  "modelOverrides": {
+    "request": "claude-haiku-4-5",
+    "response": "claude-haiku-4-5*"
+  }
+}

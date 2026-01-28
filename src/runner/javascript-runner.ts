@@ -120,12 +120,16 @@ export class JavaScriptRunner {
    */
   async executeTest(context: RunnerContext): Promise<void> {
     const { workDir, sentryDsn, runId, testDefinition } = context;
+    const verbose = context.verbose !== false; // Default to true
 
-    console.log('  Executing JavaScript test...');
+    if (verbose) {
+      console.log('  Executing JavaScript test...');
+    }
 
     // Generate test case ID and determine filename
     const testCaseId = this.generateTestCaseId(testDefinition.name);
     const testFile = path.join(workDir, `test-${testCaseId}.js`);
+    const logFile = path.join(workDir, `test-${testCaseId}.log`);
 
     const env = {
       ...process.env,
@@ -143,20 +147,70 @@ export class JavaScriptRunner {
         timeout: 60000, // 60 second timeout
       });
 
-      if (stdout) {
-        console.log('  Test output:');
-        stdout.split('\n').forEach(line => {
-          if (line.trim()) console.log(`    ${line}`);
-        });
-      }
+      // Write stdout and stderr to log file
+      const logContent = [
+        '=== Test Execution Log ===',
+        `Test: ${testDefinition.name}`,
+        `Timestamp: ${new Date().toISOString()}`,
+        '',
+        '=== STDOUT ===',
+        stdout || '(no output)',
+        '',
+        '=== STDERR ===',
+        stderr || '(no errors)',
+        '',
+        '=== End of Log ===',
+      ].join('\n');
 
-      if (stderr) {
-        console.error('  Test errors:');
-        stderr.split('\n').forEach(line => {
-          if (line.trim()) console.error(`    ${line}`);
-        });
+      await fs.writeFile(logFile, logContent, 'utf-8');
+      
+      if (verbose) {
+        console.log(`  Log written to: ${path.basename(logFile)}`);
+
+        if (stdout) {
+          console.log('  Test output:');
+          stdout.split('\n').forEach(line => {
+            if (line.trim()) console.log(`    ${line}`);
+          });
+        }
+
+        if (stderr) {
+          console.error('  Test errors:');
+          stderr.split('\n').forEach(line => {
+            if (line.trim()) console.error(`    ${line}`);
+          });
+        }
       }
     } catch (error: any) {
+      // Write error to log file even on failure
+      const errorContent = [
+        '=== Test Execution Log (FAILED) ===',
+        `Test: ${testDefinition.name}`,
+        `Timestamp: ${new Date().toISOString()}`,
+        '',
+        '=== ERROR ===',
+        error.message || 'Unknown error',
+        '',
+        '=== STDOUT ===',
+        error.stdout || '(no output)',
+        '',
+        '=== STDERR ===',
+        error.stderr || '(no errors)',
+        '',
+        '=== End of Log ===',
+      ].join('\n');
+
+      try {
+        await fs.writeFile(logFile, errorContent, 'utf-8');
+        if (verbose) {
+          console.log(`  Log written to: ${path.basename(logFile)}`);
+        }
+      } catch (writeError) {
+        if (verbose) {
+          console.error('  Failed to write log file:', writeError);
+        }
+      }
+
       if (error.code === 'ETIMEDOUT') {
         throw new Error('Test execution timed out (60s)');
       }

@@ -5,13 +5,34 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "cli": "cd shared/orchestration && npm run cli --"
+    "build": "tsc && npm run copy-templates",
+    "copy-templates": "mkdir -p dist/runner/templates && cp -r src/runner/templates/* dist/runner/templates/",
+    "test": "node dist/cli.js",
+    "test-templates": "node test-templates.js",
+    "render-templates": "node dist/render-templates.js",
+    "dev": "npm run build && node dist/cli.js"
   },
   "keywords": [
     "sentry",
     "ai",
     "testing"
   ],
+  "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "@types/nunjucks": "^3.2.6",
+    "chai": "^5.1.2",
+    "cli-spinners": "^3.4.0",
+    "ctrf": "^0.0.17",
+    "dotenv": "^17.2.3",
+    "hono": "^4.11.5",
+    "log-update": "^7.0.2",
+    "nunjucks": "^3.2.4"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  },
   "volta": {
     "node": "22.22.0"
   }

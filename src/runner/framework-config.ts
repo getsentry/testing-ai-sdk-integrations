@@ -27,6 +27,20 @@ export interface FrameworkConfig {
   /** Python only: execution mode for the framework */
   executionMode?: 'sync' | 'async' | 'both';
   
+  /** Model overrides: Some frameworks use different models than requested */
+  modelOverrides?: {
+    request?: string;
+    response?: string;
+  };
+  
+  /** Skip configuration: Tests or checks that should be skipped */
+  skip?: {
+    tests?: string[];  // Array of test names to skip entirely
+    checks?: {         // Per-test check skipping
+      [testName: string]: string[];  // Array of check method names to skip
+    };
+  };
+  
   /** Optional: Additional test matrix axes */
   matrix?: {
     /** Model providers to test (e.g., ["openai", "anthropic"]) */

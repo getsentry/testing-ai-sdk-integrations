@@ -208,8 +208,11 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    */
   async executeTest(context: RunnerContext): Promise<void> {
     const { workDir, sentryDsn, runId, isAsync, testDefinition } = context;
+    const verbose = context.verbose !== false; // Default to true
 
-    console.log('  Executing Python test...');
+    if (verbose) {
+      console.log('  Executing Python test...');
+    }
 
     const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
     
@@ -217,6 +220,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
     const testCaseId = this.generateTestCaseId(testDefinition.name);
     const mode = isAsync ? 'async' : 'sync';
     const testFile = path.join(workDir, `test-${testCaseId}-${mode}.py`);
+    const logFile = path.join(workDir, `test-${testCaseId}-${mode}.log`);
 
     const env = {
       ...process.env,
@@ -234,11 +238,32 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         timeout: 60000, // 60 second timeout
       });
 
-      if (stdout) {
-        console.log('  Test output:');
-        stdout.split('\n').forEach(line => {
-          if (line.trim()) console.log(`    ${line}`);
-        });
+      // Write stdout and stderr to log file
+      const logContent = [
+        '=== Test Execution Log ===',
+        `Timestamp: ${new Date().toISOString()}`,
+        `Test: ${testDefinition.name}`,
+        `Framework: ${context.framework.name}`,
+        `Execution Mode: ${mode}`,
+        '',
+        '=== STDOUT ===',
+        stdout,
+        '',
+        '=== STDERR ===',
+        stderr,
+      ].join('\n');
+
+      await fs.writeFile(logFile, logContent);
+      
+      if (verbose) {
+        console.log(`  Log written to: ${path.basename(logFile)}`);
+
+        if (stdout.trim()) {
+          console.log('  Test output:');
+          for (const line of stdout.split('\n')) {
+            if (line.trim()) console.log(`    ${line}`);
+          }
+        }
       }
 
       if (stderr) {
@@ -248,6 +273,36 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         });
       }
     } catch (error: any) {
+      // Write error to log file even on failure
+      const errorContent = [
+        '=== Test Execution Failed ===',
+        `Timestamp: ${new Date().toISOString()}`,
+        `Test: ${testDefinition.name}`,
+        `Framework: ${context.framework.name}`,
+        `Execution Mode: ${mode}`,
+        '',
+        '=== STDOUT ===',
+        error.stdout || '',
+        '',
+        '=== STDERR ===',
+        error.stderr || '',
+        '',
+        '=== ERROR ===',
+        error.message,
+      ].join('\n');
+
+      try {
+        await fs.writeFile(logFile, errorContent);
+        
+        if (verbose) {
+          console.log(`  Log written to: ${path.basename(logFile)}`);
+        }
+      } catch (writeError) {
+        if (verbose) {
+          console.error('  Failed to write log file:', writeError);
+        }
+      }
+
       if (error.code === 'ETIMEDOUT') {
         throw new Error('Test execution timed out (60s)');
       }

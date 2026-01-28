@@ -1,0 +1,52 @@
+{% extends "base.py.njk" %}
+
+{% block imports %}
+{{ super() }}
+{% if isAsync %}
+from anthropic import AsyncAnthropic
+{% else %}
+from anthropic import Anthropic
+{% endif %}
+{% endblock %}
+
+{% block setup %}
+# Initialize Anthropic client
+{% if isAsync %}
+client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+{% else %}
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+{% endif %}
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}: Create message
+{% if isAsync %}
+    response = await client.messages.create(
+{% else %}
+    response = client.messages.create(
+{% endif %}
+        model="{{ input.model }}",
+        max_tokens=1024,
+        messages=[
+{% for message in input.messages %}
+    {% if message.role != 'system' %}
+            {"role": "{{ message.role }}", "content": "{{ message.content }}"},
+    {% endif %}
+{% endfor %}
+        ],
+{% if input.messages[0].role == 'system' %}
+        system="{{ input.messages[0].content }}",
+{% endif %}
+    )
+
+    # Print response
+    content = response.content[0].text if hasattr(response.content[0], 'text') else str(response.content[0])
+    print(f"Turn {{ loop.index }} Response: {content}")
+    print(f"Model: {response.model}")
+    print(f"Tokens - Input: {response.usage.input_tokens}, Output: {response.usage.output_tokens}")
+{% if not loop.last %}
+    print()  # Blank line between turns
+{% endif %}
+{% endfor %}
+{% endblock %}
