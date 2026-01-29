@@ -49,10 +49,34 @@ client = Anthropic()
     if system_prompt:
         kwargs["system"] = system_prompt
 
+{% if isStreaming %}
+{# Streaming mode: iterate over events #}
+{% if isAsync %}
+    async with client.messages.stream(**kwargs) as stream:
+        collected_content = []
+        async for event in stream:
+            if event.type == "content_block_delta":
+                collected_content.append(event.delta.text)
+        
+        full_response = "".join(collected_content)
+        print(f"Response: {full_response}")
+{% else %}
+    with client.messages.stream(**kwargs) as stream:
+        collected_content = []
+        for event in stream:
+            if event.type == "content_block_delta":
+                collected_content.append(event.delta.text)
+        
+        full_response = "".join(collected_content)
+        print(f"Response: {full_response}")
+{% endif %}
+{% else %}
+{# Non-streaming mode: single response #}
 {% if isAsync %}
     response = await client.messages.create(**kwargs)
 {% else %}
     response = client.messages.create(**kwargs)
 {% endif %}
     print(f"Response: {response.content[0].text}")
+{% endif %}
 {% endblock %}

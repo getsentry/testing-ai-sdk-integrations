@@ -234,7 +234,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    * Execute Python test
    */
   async executeTest(context: RunnerContext): Promise<void> {
-    const { workDir, sentryDsn, runId, isAsync, testDefinition } = context;
+    const { workDir, sentryDsn, runId, isAsync, isStreaming, testDefinition, framework } = context;
     const verbose = context.verbose === true;
 
     if (verbose) {
@@ -243,11 +243,16 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
 
     const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
     
-    // Generate test case ID and determine filename
+    // Generate test case ID and determine filename (must match runner.ts logic)
     const testCaseId = this.generateTestCaseId(testDefinition.name);
-    const mode = isAsync ? 'async' : 'sync';
-    const testFile = path.join(workDir, `test-${testCaseId}-${mode}.py`);
-    const logFile = path.join(workDir, `test-${testCaseId}-${mode}.log`);
+    const modeParts: string[] = [];
+    modeParts.push(isAsync ? 'async' : 'sync');
+    if (framework.streamingMode) {
+      modeParts.push(isStreaming ? 'streaming' : 'blocking');
+    }
+    const modeSuffix = modeParts.join('-');
+    const testFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.py`);
+    const logFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.log`);
 
     const env = {
       ...process.env,
@@ -271,7 +276,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         `Timestamp: ${new Date().toISOString()}`,
         `Test: ${testDefinition.name}`,
         `Framework: ${context.framework.name}`,
-        `Execution Mode: ${mode}`,
+        `Mode: ${modeSuffix}`,
         '',
         '=== STDOUT ===',
         stdout,
@@ -306,7 +311,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         `Timestamp: ${new Date().toISOString()}`,
         `Test: ${testDefinition.name}`,
         `Framework: ${context.framework.name}`,
-        `Execution Mode: ${mode}`,
+        `Mode: ${modeSuffix}`,
         '',
         '=== STDOUT ===',
         error.stdout || '',

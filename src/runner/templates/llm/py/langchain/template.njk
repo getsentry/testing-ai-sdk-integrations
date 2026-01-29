@@ -35,10 +35,25 @@ chat = ChatOpenAI(model="{{ input.model }}")
     {% endif %}
 {% endfor %}
     ]
+{% if isStreaming %}
+{% if isAsync %}
+    chunks = []
+    async for chunk in chat.astream(messages):
+        chunks.append(chunk.content)
+    response_content = "".join(chunks)
+{% else %}
+    chunks = []
+    for chunk in chat.stream(messages):
+        chunks.append(chunk.content)
+    response_content = "".join(chunks)
+{% endif %}
+    print(f"Response: {response_content}")
+{% else %}
 {% if isAsync %}
     response = await chat.ainvoke(messages)
 {% else %}
     response = chat.invoke(messages)
 {% endif %}
     print(f"Response: {response.content}")
+{% endif %}
 {% endblock %}

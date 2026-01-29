@@ -4,6 +4,7 @@
   "type": "llm-only",
   "platform": "py",
   "executionMode": "both",
+  "streamingMode": "both",
   "dependencies": [
     {
       "package": "litellm",

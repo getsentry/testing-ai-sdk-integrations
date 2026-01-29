@@ -30,6 +30,31 @@ sentry_sdk.init(
 
 {% block test %}
 {% set input = inputs[0] %}
+{% if isStreaming %}
+{# Streaming mode: iterate over chunks #}
+{% if isAsync %}
+    stream = await litellm.acompletion(
+{% else %}
+    stream = litellm.completion(
+{% endif %}
+        model="openai/{{ input.model }}",
+        messages={{ input.messages | dump }},
+        stream=True,
+    )
+    
+    collected_content = []
+{% if isAsync %}
+    async for chunk in stream:
+{% else %}
+    for chunk in stream:
+{% endif %}
+        if chunk.choices[0].delta.content is not None:
+            collected_content.append(chunk.choices[0].delta.content)
+    
+    full_response = "".join(collected_content)
+    print(f"Response: {full_response}")
+{% else %}
+{# Non-streaming mode: single response #}
 {% if isAsync %}
     response = await litellm.acompletion(
 {% else %}
@@ -39,4 +64,5 @@ sentry_sdk.init(
         messages={{ input.messages | dump }},
     )
     print(f"Response: {response.choices[0].message.content}")
+{% endif %}
 {% endblock %}
