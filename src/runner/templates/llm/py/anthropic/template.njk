@@ -7,46 +7,52 @@ from anthropic import AsyncAnthropic
 {% else %}
 from anthropic import Anthropic
 {% endif %}
+{% if causeAPIError %}
+import respx
+import httpx
+{% endif %}
+{% endblock %}
+
+{% block inject_api_error %}
+{% if causeAPIError %}
+respx.route(host="api.anthropic.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.mock.start()
+{% endif %}
 {% endblock %}
 
 {% block setup %}
-# Initialize Anthropic client
 {% if isAsync %}
-client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = AsyncAnthropic()
 {% else %}
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Anthropic()
 {% endif %}
 {% endblock %}
 
 {% block test %}
-{% for input in inputs %}
-    # Turn {{ loop.index }}: Create message
-{% if isAsync %}
-    response = await client.messages.create(
-{% else %}
-    response = client.messages.create(
-{% endif %}
-        model="{{ input.model }}",
-        max_tokens=1024,
-        messages=[
+{% set input = inputs[0] %}
+{# Build messages list and extract system prompt #}
+    system_prompt = None
+    messages = []
 {% for message in input.messages %}
-    {% if message.role != 'system' %}
-            {"role": "{{ message.role }}", "content": "{{ message.content }}"},
-    {% endif %}
-{% endfor %}
-        ],
-{% if input.messages[0].role == 'system' %}
-        system="{{ input.messages[0].content }}",
+{% if message.role == 'system' %}
+    system_prompt = "{{ message.content }}"
+{% else %}
+    messages.append({"role": "{{ message.role }}", "content": "{{ message.content }}"})
 {% endif %}
-    )
+{% endfor %}
 
-    # Print response
-    content = response.content[0].text if hasattr(response.content[0], 'text') else str(response.content[0])
-    print(f"Turn {{ loop.index }} Response: {content}")
-    print(f"Model: {response.model}")
-    print(f"Tokens - Input: {response.usage.input_tokens}, Output: {response.usage.output_tokens}")
-{% if not loop.last %}
-    print()  # Blank line between turns
+    kwargs = {
+        "model": "{{ input.model }}",
+        "max_tokens": 1024,
+        "messages": messages,
+    }
+    if system_prompt:
+        kwargs["system"] = system_prompt
+
+{% if isAsync %}
+    response = await client.messages.create(**kwargs)
+{% else %}
+    response = client.messages.create(**kwargs)
 {% endif %}
-{% endfor %}
+    print(f"Response: {response.content[0].text}")
 {% endblock %}

@@ -8,6 +8,10 @@
     {
       "package": "litellm",
       "version": "framework"
+    },
+    {
+      "package": "respx",
+      "version": "latest"
     }
   ],
   "versions": [

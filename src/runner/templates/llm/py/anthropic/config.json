@@ -8,6 +8,10 @@
     {
       "package": "anthropic",
       "version": "framework"
+    },
+    {
+      "package": "respx",
+      "version": "latest"
     }
   ],
   "versions": [

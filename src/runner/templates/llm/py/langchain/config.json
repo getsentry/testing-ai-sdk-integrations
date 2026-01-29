@@ -12,6 +12,10 @@
     {
       "package": "langchain-openai",
       "version": "latest"
+    },
+    {
+      "package": "respx",
+      "version": "latest"
     }
   ],
   "versions": [
