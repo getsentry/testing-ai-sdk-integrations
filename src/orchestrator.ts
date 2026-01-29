@@ -87,6 +87,13 @@ export class Orchestrator {
     // Print test tree
     this.printTestTree(testMatrix);
     
+    // Phase 1: Setup environments and render all templates first
+    console.log('Setting up environments and rendering templates...\n');
+    const renderedTests = await this.setupAndRenderAll(testMatrix);
+    
+    // Print rendered files summary
+    this.printRenderedFiles(renderedTests);
+    
     if (this.useLiveStatus) {
       // Register all tests with live status
       for (const testRun of testMatrix) {
@@ -97,7 +104,8 @@ export class Orchestrator {
       this.liveStatus.start();
     }
 
-    // Execute tests
+    // Phase 2: Execute all tests
+    console.log('Executing tests...\n');
     for (const testRun of testMatrix) {
       await this.executeTest(testRun);
     }
@@ -120,6 +128,110 @@ export class Orchestrator {
     await this.writeCTRFReport(report);
 
     return report;
+  }
+
+  /**
+   * Setup environments and render templates for all tests
+   * Returns map of test run ID to rendered file path
+   */
+  private async setupAndRenderAll(testMatrix: TestRun[]): Promise<Map<string, string>> {
+    const renderedTests = new Map<string, string>();
+    
+    // Group tests by framework to avoid redundant environment setup
+    const testsByFramework = new Map<string, TestRun[]>();
+    for (const testRun of testMatrix) {
+      const key = `${testRun.framework.platform}/${testRun.framework.name}`;
+      if (!testsByFramework.has(key)) {
+        testsByFramework.set(key, []);
+      }
+      testsByFramework.get(key)!.push(testRun);
+    }
+    
+    // Setup each framework's environment once, then render all its templates
+    for (const [frameworkKey, runs] of testsByFramework) {
+      const firstRun = runs[0];
+      const workDir = this.runner.getWorkDir(firstRun.framework);
+      
+      // Setup environment once per framework
+      if (this.verbose) {
+        console.log(`[${frameworkKey}] Setting up environment...`);
+      }
+      
+      const isAsync = firstRun.framework.platform === 'py' && firstRun.framework.executionMode === 'async';
+      const isStreaming = firstRun.framework.streamingMode === 'streaming';
+      
+      await this.runner.setupEnvironmentOnly({
+        runId: firstRun.id,
+        framework: firstRun.framework,
+        testDefinition: firstRun.testDefinition,
+        sentryDsn: 'https://dummy@sentry.io/123', // Dummy DSN for setup
+        workDir,
+        isAsync,
+        isStreaming,
+        verbose: this.verbose,
+      });
+      
+      // Render all templates for this framework
+      for (const testRun of runs) {
+        const displayName = this.buildDisplayName(testRun);
+        if (this.verbose) {
+          console.log(`[${frameworkKey}] Rendering: ${displayName}`);
+        }
+        
+        const testIsAsync = testRun.framework.platform === 'py' && testRun.framework.executionMode === 'async';
+        const testIsStreaming = testRun.framework.streamingMode === 'streaming';
+        
+        const testPath = await this.runner.renderTemplateOnly({
+          runId: testRun.id,
+          framework: testRun.framework,
+          testDefinition: testRun.testDefinition,
+          sentryDsn: 'https://dummy@sentry.io/123', // Will be replaced during execution
+          workDir,
+          isAsync: testIsAsync,
+          isStreaming: testIsStreaming,
+          verbose: false, // Suppress template rendering logs, we're logging above
+        });
+        
+        renderedTests.set(testRun.id, testPath);
+      }
+    }
+    
+    return renderedTests;
+  }
+
+  /**
+   * Print summary of rendered test files
+   */
+  private printRenderedFiles(renderedTests: Map<string, string>): void {
+    const colors = {
+      reset: '\x1b[0m',
+      dim: '\x1b[2m',
+      green: '\x1b[32m',
+      cyan: '\x1b[36m',
+    };
+    
+    console.log(`${colors.green}✓${colors.reset} Rendered ${renderedTests.size} test file(s)\n`);
+    
+    if (this.verbose) {
+      // Group by directory for cleaner output
+      const byDir = new Map<string, string[]>();
+      for (const [_, filePath] of renderedTests) {
+        const dir = path.dirname(filePath);
+        const file = path.basename(filePath);
+        if (!byDir.has(dir)) {
+          byDir.set(dir, []);
+        }
+        byDir.get(dir)!.push(file);
+      }
+      
+      for (const [dir, files] of byDir) {
+        console.log(`${colors.dim}${dir}/${colors.reset}`);
+        for (const file of files) {
+          console.log(`  ${colors.cyan}${file}${colors.reset}`);
+        }
+      }
+      console.log('');
+    }
   }
 
   /**
@@ -454,8 +566,8 @@ export class Orchestrator {
       // Determine isStreaming flag
       const isStreaming = testRun.framework.streamingMode === 'streaming';
 
-      // Execute test via runner
-      await this.runner.runTest({
+      // Execute test via runner (template already rendered in setup phase)
+      await this.runner.executeOnly({
         runId: testRun.id,
         framework: testRun.framework,
         testDefinition: testRun.testDefinition,

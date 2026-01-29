@@ -88,6 +88,57 @@ export class Runner {
   }
 
   /**
+   * Setup environment only (no template rendering)
+   * Used when we want to setup environments for all tests first, then render templates
+   */
+  async setupEnvironmentOnly(context: RunnerContext): Promise<void> {
+    const workDir = context.workDir;
+    const verbose = context.verbose !== false;
+
+    // Ensure work directory exists
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Get platform-specific runner
+    const platformRunner = context.framework.platform === 'py' 
+      ? this.pythonRunner 
+      : this.jsRunner;
+
+    // Check if environment needs setup
+    const needsSetup = await platformRunner.needsSetup(workDir);
+    if (needsSetup) {
+      await platformRunner.setupEnvironment(context);
+    } else if (verbose) {
+      console.log('  Using cached environment');
+    }
+  }
+
+  /**
+   * Render template only (assumes environment is already set up)
+   */
+  async renderTemplateOnly(context: RunnerContext): Promise<string> {
+    const workDir = context.workDir;
+
+    // Ensure work directory exists
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Render template and return the path
+    return await this.renderTemplate(context);
+  }
+
+  /**
+   * Execute test only (assumes template is already rendered)
+   */
+  async executeOnly(context: RunnerContext): Promise<void> {
+    // Get platform-specific runner
+    const platformRunner = context.framework.platform === 'py' 
+      ? this.pythonRunner 
+      : this.jsRunner;
+
+    // Execute test
+    await platformRunner.executeTest(context);
+  }
+
+  /**
    * Generate test case ID from test name
    * Converts "Basic LLM Test" to "basic-llm-test"
    */
@@ -99,9 +150,9 @@ export class Runner {
   }
 
   /**
-   * Render template
+   * Render template and return the test file path
    */
-  private async renderTemplate(context: RunnerContext): Promise<void> {
+  private async renderTemplate(context: RunnerContext): Promise<string> {
     const verbose = context.verbose !== false; // Default to true
     if (verbose) {
       console.log(`  Rendering template for ${context.framework.name}...`);
@@ -166,6 +217,7 @@ export class Runner {
     }
     
     await fs.writeFile(testPath, rendered);
+    return testPath;
   }
 
 
