@@ -1,7 +1,7 @@
 {
   "name": "google-genai",
   "displayName": "Google GenAI Python SDK",
-  "type": "llm-only",
+  "type": "agentic",
   "platform": "py",
   "executionMode": "both",
   "dependencies": [

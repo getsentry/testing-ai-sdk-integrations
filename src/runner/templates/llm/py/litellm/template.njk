@@ -5,6 +5,7 @@
 from time import sleep
 import litellm
 from sentry_sdk.integrations.litellm import LiteLLMIntegration
+from sentry_sdk.integrations.openai import OpenAIIntegration
 {% endblock %}
 
 {% block sdk_setup %}
@@ -13,6 +14,7 @@ sentry_sdk.init(
     traces_sample_rate=1.0,  # Capture 100% of transactions for testing
     send_default_pii=True,
     integrations=[LiteLLMIntegration(include_prompts=True)],
+    disabled_integrations=[OpenAIIntegration()],
 )
 {% endblock %}
 
