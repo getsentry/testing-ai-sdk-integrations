@@ -2,6 +2,8 @@
 
 {% block imports %}
 {{ super() }}
+import time
+
 import litellm
 from sentry_sdk.integrations.litellm import LiteLLMIntegration
 from sentry_sdk.integrations.openai import OpenAIIntegration
@@ -29,9 +31,9 @@ sentry_sdk.init(
 {% endblock %}
 
 {% block test %}
-{% set input = inputs[0] %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
 {% if isStreaming %}
-{# Streaming mode: iterate over chunks #}
 {% if isAsync %}
     stream = await litellm.acompletion(
 {% else %}
@@ -52,9 +54,8 @@ sentry_sdk.init(
             collected_content.append(chunk.choices[0].delta.content)
     
     full_response = "".join(collected_content)
-    print(f"Response: {full_response}")
+    print(f"Turn {{ loop.index }} Response: {full_response}")
 {% else %}
-{# Non-streaming mode: single response #}
 {% if isAsync %}
     response = await litellm.acompletion(
 {% else %}
@@ -63,6 +64,11 @@ sentry_sdk.init(
         model="openai/{{ input.model }}",
         messages={{ input.messages | dump }},
     )
-    print(f"Response: {response.choices[0].message.content}")
+    print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
 {% endif %}
+    time.sleep(0.1)  # sleep is necessary for LiteLLM because it needs threaded callbacks to finish
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
 {% endblock %}

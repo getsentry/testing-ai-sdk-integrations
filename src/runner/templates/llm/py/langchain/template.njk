@@ -23,7 +23,8 @@ chat = ChatOpenAI(model="{{ input.model }}")
 {% endblock %}
 
 {% block test %}
-{% set input = inputs[0] %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
     messages = [
 {% for message in input.messages %}
     {% if message.role == 'system' %}
@@ -47,13 +48,17 @@ chat = ChatOpenAI(model="{{ input.model }}")
         chunks.append(chunk.content)
     response_content = "".join(chunks)
 {% endif %}
-    print(f"Response: {response_content}")
+    print(f"Turn {{ loop.index }} Response: {response_content}")
 {% else %}
 {% if isAsync %}
     response = await chat.ainvoke(messages)
 {% else %}
     response = chat.invoke(messages)
 {% endif %}
-    print(f"Response: {response.content}")
+    print(f"Turn {{ loop.index }} Response: {response.content}")
 {% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
 {% endblock %}

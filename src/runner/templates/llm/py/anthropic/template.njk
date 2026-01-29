@@ -29,8 +29,8 @@ client = Anthropic()
 {% endblock %}
 
 {% block test %}
-{% set input = inputs[0] %}
-{# Build messages list and extract system prompt #}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
     system_prompt = None
     messages = []
 {% for message in input.messages %}
@@ -50,7 +50,6 @@ client = Anthropic()
         kwargs["system"] = system_prompt
 
 {% if isStreaming %}
-{# Streaming mode: iterate over events #}
 {% if isAsync %}
     async with client.messages.stream(**kwargs) as stream:
         collected_content = []
@@ -59,7 +58,7 @@ client = Anthropic()
                 collected_content.append(event.delta.text)
         
         full_response = "".join(collected_content)
-        print(f"Response: {full_response}")
+        print(f"Turn {{ loop.index }} Response: {full_response}")
 {% else %}
     with client.messages.stream(**kwargs) as stream:
         collected_content = []
@@ -68,15 +67,18 @@ client = Anthropic()
                 collected_content.append(event.delta.text)
         
         full_response = "".join(collected_content)
-        print(f"Response: {full_response}")
+        print(f"Turn {{ loop.index }} Response: {full_response}")
 {% endif %}
 {% else %}
-{# Non-streaming mode: single response #}
 {% if isAsync %}
     response = await client.messages.create(**kwargs)
 {% else %}
     response = client.messages.create(**kwargs)
 {% endif %}
-    print(f"Response: {response.content[0].text}")
+    print(f"Turn {{ loop.index }} Response: {response.content[0].text}")
 {% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
 {% endblock %}
