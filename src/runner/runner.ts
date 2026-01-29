@@ -115,6 +115,7 @@ export class Runner {
       sentryDsn: context.sentryDsn,
       runId: context.runId,
       isAsync: isAsync || false, // Boolean flag for templates
+      causeAPIError: testDefinition.causeAPIError || false, // Flag to intentionally cause API errors
       ...(testDefinition.agent && { agent: testDefinition.agent }),
       inputs: processedInputs,
     };

@@ -1,11 +1,20 @@
 /**
  * Generated test file for {{ testName }}
  * Framework: {{ frameworkName }}
+{% if causeAPIError %} * Cause API Error: yes{% endif %}
  */
 
 {% block imports %}
 import * as Sentry from '@sentry/node';
 {% endblock %}
+
+{# 
+  causeAPIError: When true, tests should use an invalid model name to trigger API errors.
+  Templates can use this to modify model names or other parameters.
+  
+  Usage in child templates:
+    model: {% if causeAPIError %}"invalid-model-that-does-not-exist"{% else %}"{{ input.model }}"{% endif %}
+#}
 
 {% block sdk_setup %}
 Sentry.init({

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && npm run copy-templates",
-    "copy-templates": "mkdir -p dist/runner/templates && cp -r src/runner/templates/* dist/runner/templates/",
+    "copy-templates": "rm -rf dist/runner/templates && mkdir -p dist/runner/templates && cp -r src/runner/templates/* dist/runner/templates/",
     "test": "node dist/cli.js",
     "test-templates": "node test-templates.js",
     "render-templates": "node dist/render-templates.js",

@@ -2,45 +2,41 @@
 
 {% block imports %}
 {{ super() }}
-import os
 {% if isAsync %}
 from openai import AsyncOpenAI
 {% else %}
 from openai import OpenAI
 {% endif %}
+{% if causeAPIError %}
+import respx
+import httpx
+{% endif %}
+{% endblock %}
+
+{% block inject_api_error %}
+{% if causeAPIError %}
+respx.route(host="api.openai.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.mock.start()
+{% endif %}
 {% endblock %}
 
 {% block setup %}
-# Initialize OpenAI client
 {% if isAsync %}
-client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = AsyncOpenAI()
 {% else %}
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI()
 {% endif %}
 {% endblock %}
 
 {% block test %}
-{% for input in inputs %}
-    # Turn {{ loop.index }}: Create chat completion
+{% set input = inputs[0] %}
 {% if isAsync %}
     response = await client.chat.completions.create(
 {% else %}
     response = client.chat.completions.create(
 {% endif %}
         model="{{ input.model }}",
-        messages=[
-{% for message in input.messages %}
-            {"role": "{{ message.role }}", "content": "{{ message.content }}"},
-{% endfor %}
-        ]
+        messages={{ input.messages | dump }},
     )
-
-    # Print response
-    print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
-    print(f"Model: {response.model}")
-    print(f"Tokens - Prompt: {response.usage.prompt_tokens}, Completion: {response.usage.completion_tokens}, Total: {response.usage.total_tokens}")
-{% if not loop.last %}
-    print()  # Blank line between turns
-{% endif %}
-{% endfor %}
+    print(f"Response: {response.choices[0].message.content}")
 {% endblock %}

@@ -7,6 +7,7 @@
 import { TestDefinition } from '../types.js';
 import { basicLLMTest } from './llm/basic.js';
 import { multiTurnLLMTest } from './llm/multi-turn.js';
+import { basicErrorLLMTest } from './llm/basic-error.js';
 import { basicAgentTest } from './agents/basic.js';
 
 /**
@@ -16,6 +17,7 @@ export const testCases = {
   llm: {
     basic: basicLLMTest,
     multiTurn: multiTurnLLMTest,
+    basicError: basicErrorLLMTest,
   },
   agents: {
     basic: basicAgentTest,

@@ -13,35 +13,31 @@ import asyncio
 {% endif %}
 {% endblock %}
 
+{% block inject_api_error %}
+{% endblock %}
+
 {% block sdk_setup %}
 sentry_sdk.init(
     dsn=os.environ.get("SENTRY_DSN"),
-    traces_sample_rate=1.0,  # Capture 100% of transactions for testing
+    traces_sample_rate=1.0,
     send_default_pii=True,
 )
 {% endblock %}
 
 {% block setup %}
-{# Use this to run code before the test to setup stuff #}
 {% endblock %}
 
 {% if isAsync %}
 async def main():
-    """Main test execution (async)"""
 {% else %}
 def main():
-    """Main test execution (sync)"""
 {% endif %}
 {% block test %}
-    {# Implement test logic here #}
-    print("Test not implemented")
-{% endblock %}
-
-{% block teardown %}
-{# Use this to run code after the test #}
+    pass
 {% endblock %}
 
 if __name__ == "__main__":
+{% if causeAPIError %}
     try:
         with sentry_sdk.start_transaction(op="test", name="{{ testName }}"):
 {% if isAsync %}
@@ -49,6 +45,17 @@ if __name__ == "__main__":
 {% else %}
             main()
 {% endif %}
+    except Exception as e:
+        print(f"Expected error: {type(e).__name__}: {e}")
+        sentry_sdk.capture_exception(e)
     finally:
-        # Ensure Sentry flushes all events
         sentry_sdk.flush(timeout=5)
+{% else %}
+    with sentry_sdk.start_transaction(op="test", name="{{ testName }}"):
+{% if isAsync %}
+        asyncio.run(main())
+{% else %}
+        main()
+{% endif %}
+    sentry_sdk.flush(timeout=5)
+{% endif %}

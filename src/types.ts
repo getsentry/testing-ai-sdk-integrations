@@ -9,6 +9,8 @@ export interface TestDefinition {
   type: 'llm' | 'agent';
   agent?: AgentDefinition;
   inputs: TestInput[];
+  /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
+  causeAPIError?: boolean;
   // Legacy: single checks function (still supported)
   checks?: (spans: CapturedSpan[]) => void | Promise<void>;
   // New: any method starting with "check" will be run as a check
