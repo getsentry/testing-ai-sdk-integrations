@@ -30,31 +30,44 @@ export class PythonRunner {
    */
   async setupEnvironment(context: RunnerContext): Promise<void> {
     const { workDir, framework } = context;
+    const verbose = context.verbose === true;
     
-    console.log(`  Setting up Python environment in ${workDir}...`);
+    if (verbose) {
+      console.log(`  Setting up Python environment in ${workDir}...`);
+    }
 
     // Check if uv is available
     const useUv = await this.isUvAvailable();
     
     if (useUv) {
-      console.log('  Using uv for dependency management');
+      if (verbose) {
+        console.log('  Using uv for dependency management');
+      }
       
       // Create pyproject.toml
       const pyproject = this.generatePyprojectToml(context);
       await fs.writeFile(path.join(workDir, 'pyproject.toml'), pyproject);
-      console.log('  ✓ pyproject.toml generated');
+      if (verbose) {
+        console.log('  ✓ pyproject.toml generated');
+      }
       
       // Create virtual environment with uv
       await execAsync('uv venv .venv', { cwd: workDir });
-      console.log('  ✓ Virtual environment created');
+      if (verbose) {
+        console.log('  ✓ Virtual environment created');
+      }
       
       // Install dependencies with uv
-      console.log('  Installing dependencies...');
+      if (verbose) {
+        console.log('  Installing dependencies...');
+      }
       
       // Check for local Sentry SDK path
       const localSentryPath = process.env.SENTRY_PYTHON_PATH;
       if (localSentryPath && framework.sentryVersion === 'local') {
-        console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
+        if (verbose) {
+          console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
+        }
         await execAsync(`uv pip install -e "${localSentryPath}"`, { 
           cwd: workDir,
           env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
@@ -73,14 +86,20 @@ export class PythonRunner {
         env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
       });
       
-      console.log('  ✓ Dependencies installed');
+      if (verbose) {
+        console.log('  ✓ Dependencies installed');
+      }
     } else {
       // Fallback to traditional pip-based approach
-      console.log('  Using pip for dependency management');
+      if (verbose) {
+        console.log('  Using pip for dependency management');
+      }
       
       // Create virtual environment
       await execAsync('python3 -m venv .venv', { cwd: workDir });
-      console.log('  ✓ Virtual environment created');
+      if (verbose) {
+        console.log('  ✓ Virtual environment created');
+      }
 
       const pipPath = path.join(workDir, '.venv', 'bin', 'pip');
       await execAsync(`${pipPath} install --upgrade pip`, { cwd: workDir });
@@ -88,7 +107,9 @@ export class PythonRunner {
       // Check for local Sentry SDK path
       const localSentryPath = process.env.SENTRY_PYTHON_PATH;
       if (localSentryPath && framework.sentryVersion === 'local') {
-        console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
+        if (verbose) {
+          console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
+        }
         await execAsync(`${pipPath} install -e "${localSentryPath}"`, { cwd: workDir });
       } else {
         await execAsync(`${pipPath} install sentry-sdk==${framework.sentryVersion}`, { cwd: workDir });
@@ -97,15 +118,21 @@ export class PythonRunner {
       // Create requirements.txt for other dependencies
       const requirements = this.generateRequirements(context);
       await fs.writeFile(path.join(workDir, 'requirements.txt'), requirements);
-      console.log('  ✓ requirements.txt generated');
+      if (verbose) {
+        console.log('  ✓ requirements.txt generated');
+      }
 
       // Install other dependencies
-      console.log('  Installing dependencies...');
+      if (verbose) {
+        console.log('  Installing dependencies...');
+      }
       await execAsync(`${pipPath} install -r requirements.txt`, { 
         cwd: workDir,
         env: { ...process.env, PIP_NO_CACHE_DIR: '1' }
       });
-      console.log('  ✓ Dependencies installed');
+      if (verbose) {
+        console.log('  ✓ Dependencies installed');
+      }
     }
   }
 
@@ -208,7 +235,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    */
   async executeTest(context: RunnerContext): Promise<void> {
     const { workDir, sentryDsn, runId, isAsync, testDefinition } = context;
-    const verbose = context.verbose !== false; // Default to true
+    const verbose = context.verbose === true;
 
     if (verbose) {
       console.log('  Executing Python test...');
@@ -264,13 +291,13 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
             if (line.trim()) console.log(`    ${line}`);
           }
         }
-      }
 
-      if (stderr) {
-        console.error('  Test errors:');
-        stderr.split('\n').forEach(line => {
-          if (line.trim()) console.error(`    ${line}`);
-        });
+        if (stderr) {
+          console.error('  Test errors:');
+          stderr.split('\n').forEach(line => {
+            if (line.trim()) console.error(`    ${line}`);
+          });
+        }
       }
     } catch (error: any) {
       // Write error to log file even on failure

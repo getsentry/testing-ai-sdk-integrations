@@ -26,6 +26,12 @@ export class SkipCheckError extends Error {
 }
 
 export class Validator {
+  private verbose: boolean = false;
+
+  setVerbose(verbose: boolean): void {
+    this.verbose = verbose;
+  }
+
   /**
    * Run validation checks on captured spans
    * Supports both legacy single checks function and new multiple check methods
@@ -90,7 +96,9 @@ export class Validator {
         };
         checkResults.push(result);
         onCheckResult?.(result);
-        console.log(`  ⊘ ${methodName} skipped (not supported)`);
+        if (this.verbose) {
+          console.log(`  ⊘ ${methodName} skipped (not supported)`);
+        }
         continue;
       }
 
@@ -99,7 +107,9 @@ export class Validator {
         const result: CheckResult = { name: methodName, status: 'passed' };
         checkResults.push(result);
         onCheckResult?.(result);
-        console.log(`  ✓ ${methodName} passed`);
+        if (this.verbose) {
+          console.log(`  ✓ ${methodName} passed`);
+        }
       } catch (error) {
         // Handle dynamic skip from within the check
         if (error instanceof SkipCheckError) {
@@ -110,7 +120,9 @@ export class Validator {
           };
           checkResults.push(result);
           onCheckResult?.(result);
-          console.log(`  ⊘ ${methodName} skipped: ${error.reason}`);
+          if (this.verbose) {
+            console.log(`  ⊘ ${methodName} skipped: ${error.reason}`);
+          }
           continue;
         }
         
@@ -119,7 +131,9 @@ export class Validator {
         const result: CheckResult = { name: methodName, status: 'failed', error: errorMsg };
         checkResults.push(result);
         onCheckResult?.(result);
-        console.error(`  ✗ ${methodName} failed: ${errorMsg}`);
+        if (this.verbose) {
+          console.error(`  ✗ ${methodName} failed: ${errorMsg}`);
+        }
         errors.push(error instanceof Error ? error : new Error(errorMsg));
       }
     }

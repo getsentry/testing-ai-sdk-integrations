@@ -30,8 +30,11 @@ export class JavaScriptRunner {
    */
   async setupEnvironment(context: RunnerContext): Promise<void> {
     const { workDir, framework } = context;
+    const verbose = context.verbose === true;
     
-    console.log(`  Setting up Node.js environment in ${workDir}...`);
+    if (verbose) {
+      console.log(`  Setting up Node.js environment in ${workDir}...`);
+    }
 
     // Create package.json
     const packageJson = this.generatePackageJson(context);
@@ -39,15 +42,21 @@ export class JavaScriptRunner {
       path.join(workDir, 'package.json'),
       JSON.stringify(packageJson, null, 2)
     );
-    console.log('  ✓ package.json generated');
+    if (verbose) {
+      console.log('  ✓ package.json generated');
+    }
 
     // Install dependencies
-    console.log('  Installing dependencies...');
+    if (verbose) {
+      console.log('  Installing dependencies...');
+    }
     
     // Check for local Sentry SDK path
     const localSentryPath = process.env.SENTRY_JAVASCRIPT_PATH;
     if (localSentryPath && framework.sentryVersion === 'local') {
-      console.log(`  Linking local Sentry SDK from: ${localSentryPath}`);
+      if (verbose) {
+        console.log(`  Linking local Sentry SDK from: ${localSentryPath}`);
+      }
       // Install other dependencies first
       await execAsync('npm install --no-save', { 
         cwd: workDir,
@@ -65,7 +74,9 @@ export class JavaScriptRunner {
       });
     }
     
-    console.log('  ✓ Dependencies installed');
+    if (verbose) {
+      console.log('  ✓ Dependencies installed');
+    }
   }
 
   /**
@@ -120,7 +131,7 @@ export class JavaScriptRunner {
    */
   async executeTest(context: RunnerContext): Promise<void> {
     const { workDir, sentryDsn, runId, testDefinition } = context;
-    const verbose = context.verbose !== false; // Default to true
+    const verbose = context.verbose === true;
 
     if (verbose) {
       console.log('  Executing JavaScript test...');

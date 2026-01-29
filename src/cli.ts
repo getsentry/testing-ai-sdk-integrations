@@ -14,9 +14,14 @@ interface CLIOptions {
   framework?: string;
   test?: string;
   platform?: 'js' | 'py';
+  sync?: boolean;
+  async?: boolean;
+  streaming?: boolean;
+  nonStreaming?: boolean;
   sentryPythonPath?: string;
   sentryJavaScriptPath?: string;
   liveStatus?: boolean;
+  verbose?: boolean;
 }
 
 function parseArgs(): CLIOptions {
@@ -41,6 +46,18 @@ function parseArgs(): CLIOptions {
       case '--platform':
         options.platform = args[++i] as 'js' | 'py';
         break;
+      case '--sync':
+        options.sync = true;
+        break;
+      case '--async':
+        options.async = true;
+        break;
+      case '--streaming':
+        options.streaming = true;
+        break;
+      case '--non-streaming':
+        options.nonStreaming = true;
+        break;
       case '--sentry-python':
         options.sentryPythonPath = args[++i];
         break;
@@ -49,6 +66,10 @@ function parseArgs(): CLIOptions {
         break;
       case '--live-status':
         options.liveStatus = true;
+        break;
+      case '--verbose':
+      case '-v':
+        options.verbose = true;
         break;
       case '--help':
       case '-h':
@@ -75,6 +96,11 @@ Options:
   --framework              Filter by framework name
   --test                   Filter by test name
   --platform               Filter by platform (js or py)
+  --sync                   Run only sync tests (default: both)
+  --async                  Run only async tests (default: both)
+  --streaming              Run only streaming tests (default: both)
+  --non-streaming          Run only non-streaming tests (default: both)
+  --verbose, -v            Show detailed output (test execution logs, etc.)
   --live-status            Enable live status display (real-time tree view)
   --sentry-python <path>   Use local Sentry Python SDK (editable install)
   --sentry-javascript <path>  Use local Sentry JavaScript SDK (link)
@@ -85,6 +111,8 @@ Examples:
   npm start run
   npm start run -- --framework openai
   npm start run -- --platform py --test "Basic LLM"
+  npm start run -- --platform py --sync
+  npm start run -- --platform py --async --verbose
   npm start run -- --framework openai --live-status
   npm start run -- --framework openai --sentry-python ~/sentry-python
   `);
@@ -102,7 +130,12 @@ async function main() {
   }
 
   const orchestrator = new Orchestrator({ 
-    liveStatus: options.liveStatus 
+    liveStatus: options.liveStatus,
+    verbose: options.verbose,
+    sync: options.sync,
+    async: options.async,
+    streaming: options.streaming,
+    nonStreaming: options.nonStreaming,
   });
 
   try {
@@ -173,7 +206,9 @@ async function main() {
       };
     });
 
-    console.log(`Testing ${frameworks.length} framework(s) with ${testDefinitions.length} test(s)\n`);
+    if (options.verbose) {
+      console.log(`Testing ${frameworks.length} framework(s) with ${testDefinitions.length} test(s)\n`);
+    }
 
     // Run tests
     const report = await orchestrator.runTests(frameworks, testDefinitions);

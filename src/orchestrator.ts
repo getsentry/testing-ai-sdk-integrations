@@ -2,6 +2,8 @@
  * Main orchestrator - coordinates test execution
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { SpanCollector } from './span-collector/server.js';
 import { Runner } from './runner/runner.js';
 import { Validator, ValidationError } from './validator.js';
@@ -22,13 +24,34 @@ export class Orchestrator {
   private liveStatus: LiveStatusReporter;
   private testRuns: TestRun[] = [];
   private useLiveStatus: boolean = false;
+  private verbose: boolean = false;
 
-  constructor(options: { liveStatus?: boolean } = {}) {
+  private syncFilter?: boolean;
+  private asyncFilter?: boolean;
+  private streamingFilter?: boolean;
+  private nonStreamingFilter?: boolean;
+
+  constructor(options: { 
+    liveStatus?: boolean;
+    verbose?: boolean;
+    sync?: boolean;
+    async?: boolean;
+    streaming?: boolean;
+    nonStreaming?: boolean;
+  } = {}) {
     this.spanCollector = new SpanCollector();
     this.runner = new Runner();
     this.validator = new Validator();
     this.liveStatus = new LiveStatusReporter();
     this.useLiveStatus = options.liveStatus === true; // Default to false (opt-in)
+    this.verbose = options.verbose === true; // Default to false
+    this.syncFilter = options.sync;
+    this.asyncFilter = options.async;
+    this.streamingFilter = options.streaming;
+    this.nonStreamingFilter = options.nonStreaming;
+    
+    // Set verbose on validator
+    this.validator.setVerbose(this.verbose);
   }
 
   /**
@@ -36,7 +59,9 @@ export class Orchestrator {
    */
   async start(): Promise<void> {
     await this.spanCollector.start();
-    console.log(`Span collector started on port ${this.spanCollector.getPort()}`);
+    if (this.verbose) {
+      console.log(`Span collector started on port ${this.spanCollector.getPort()}`);
+    }
   }
 
   /**
@@ -56,7 +81,34 @@ export class Orchestrator {
     const startTime = Date.now();
 
     // Generate test matrix
-    const testMatrix = this.generateTestMatrix(frameworks, testDefinitions);
+    let testMatrix = this.generateTestMatrix(frameworks, testDefinitions);
+    
+    // Filter by sync/async if specified (only one can be true, or neither for both)
+    if (this.syncFilter && !this.asyncFilter) {
+      testMatrix = testMatrix.filter(run => {
+        // JS tests don't have execution mode, exclude them when filtering
+        if (run.framework.platform === 'js') {
+          return false;
+        }
+        return run.framework.executionMode === 'sync';
+      });
+    } else if (this.asyncFilter && !this.syncFilter) {
+      testMatrix = testMatrix.filter(run => {
+        // JS tests don't have execution mode, exclude them when filtering
+        if (run.framework.platform === 'js') {
+          return false;
+        }
+        return run.framework.executionMode === 'async';
+      });
+    }
+    // If both or neither are specified, run all (no filtering needed)
+
+    // TODO: Filter by streaming/non-streaming when streaming tests are implemented
+    // if (this.streamingFilter && !this.nonStreamingFilter) { ... }
+    // if (this.nonStreamingFilter && !this.streamingFilter) { ... }
+
+    // Print test tree
+    this.printTestTree(testMatrix);
     
     if (this.useLiveStatus) {
       // Register all tests with live status
@@ -66,10 +118,6 @@ export class Orchestrator {
       
       // Start live status display
       this.liveStatus.start();
-      
-      console.log(`\nRunning ${testMatrix.length} tests across ${frameworks.length} frameworks\n`);
-    } else {
-      console.log(`Running ${testMatrix.length} tests across ${frameworks.length} frameworks`);
     }
 
     // Execute tests
@@ -80,6 +128,11 @@ export class Orchestrator {
     // Stop live status display
     if (this.useLiveStatus) {
       this.liveStatus.stop();
+    }
+    
+    // End progress line in non-verbose mode
+    if (!this.verbose && !this.useLiveStatus) {
+      console.log(''); // New line after progress dots
     }
 
     // Generate report
@@ -99,9 +152,13 @@ export class Orchestrator {
     try {
       const ctrfReport = generateCTRFReport(report);
       const filePath = await writeCTRFReport(ctrfReport, './test-results');
-      console.log(`\n✓ CTRF report written to: ${filePath}`);
+      if (this.verbose) {
+        console.log(`\n✓ CTRF report written to: ${filePath}`);
+      }
     } catch (error) {
-      console.error('Failed to write CTRF report:', error);
+      if (this.verbose) {
+        console.error('Failed to write CTRF report:', error);
+      }
     }
   }
 
@@ -118,9 +175,11 @@ export class Orchestrator {
       for (const testDefinition of testDefinitions) {
         // Check if test is explicitly skipped for this framework
         if (framework.skip?.tests?.includes(testDefinition.name)) {
-          console.log(
-            `⊘ Skipping ${testDefinition.name} on ${framework.name} (explicitly skipped in config)`
-          );
+          if (this.verbose) {
+            console.log(
+              `⊘ Skipping ${testDefinition.name} on ${framework.name} (explicitly skipped in config)`
+            );
+          }
           continue;
         }
 
@@ -128,9 +187,11 @@ export class Orchestrator {
         const isCompatible = this.isCompatible(framework, testDefinition);
         
         if (!isCompatible.compatible) {
-          console.log(
-            `⊘ Skipping ${testDefinition.name} on ${framework.name} (${isCompatible.reason})`
-          );
+          if (this.verbose) {
+            console.log(
+              `⊘ Skipping ${testDefinition.name} on ${framework.name} (${isCompatible.reason})`
+            );
+          }
           continue;
         }
 
@@ -166,6 +227,69 @@ export class Orchestrator {
     }
 
     return matrix;
+  }
+
+  /**
+   * Print a tree view of tests to be run
+   */
+  private printTestTree(testMatrix: TestRun[]): void {
+    const colors = {
+      reset: '\x1b[0m',
+      bright: '\x1b[1m',
+      dim: '\x1b[2m',
+      cyan: '\x1b[36m',
+      gray: '\x1b[90m',
+      yellow: '\x1b[33m',
+    };
+
+    // Group by platform -> framework -> tests
+    const tree = new Map<string, Map<string, TestRun[]>>();
+    
+    for (const run of testMatrix) {
+      const platform = run.framework.platform;
+      const framework = run.framework.name;
+      
+      if (!tree.has(platform)) {
+        tree.set(platform, new Map());
+      }
+      const platformMap = tree.get(platform)!;
+      
+      if (!platformMap.has(framework)) {
+        platformMap.set(framework, []);
+      }
+      platformMap.get(framework)!.push(run);
+    }
+
+    console.log(`\n${colors.cyan}${colors.bright}Tests to run:${colors.reset}`);
+    
+    for (const [platform, frameworks] of tree) {
+      const platformIcon = platform === 'py' ? '🐍' : '📦';
+      console.log(`${platformIcon} ${colors.bright}${platform.toUpperCase()}${colors.reset}`);
+      
+      const frameworkEntries = Array.from(frameworks.entries());
+      for (let fi = 0; fi < frameworkEntries.length; fi++) {
+        const [framework, runs] = frameworkEntries[fi];
+        const isLastFramework = fi === frameworkEntries.length - 1;
+        const frameworkPrefix = isLastFramework ? '└─' : '├─';
+        
+        console.log(`   ${frameworkPrefix} ${colors.bright}${framework}${colors.reset}`);
+        
+        for (let ri = 0; ri < runs.length; ri++) {
+          const run = runs[ri];
+          const isLast = ri === runs.length - 1;
+          const testPrefix = isLastFramework ? '      ' : '   │  ';
+          const testBranch = isLast ? '└─' : '├─';
+          
+          const mode = run.framework.executionMode 
+            ? ` ${colors.dim}(${run.framework.executionMode})${colors.reset}` 
+            : '';
+          
+          console.log(`${testPrefix}${testBranch} ${run.testDefinition.name}${mode}`);
+        }
+      }
+    }
+    
+    console.log(`\n${colors.dim}Total: ${testMatrix.length} test(s)${colors.reset}\n`);
   }
 
   /**
@@ -212,7 +336,7 @@ export class Orchestrator {
       ? `${testRun.testDefinition.name} (${testRun.framework.executionMode})`
       : testRun.testDefinition.name;
 
-    if (!this.useLiveStatus) {
+    if (this.verbose && !this.useLiveStatus) {
       console.log(`\n[${testRun.framework.name}] Running: ${displayName}`);
     }
 
@@ -234,7 +358,7 @@ export class Orchestrator {
         sentryDsn,
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
-        verbose: !this.useLiveStatus, // Suppress verbose output when live status is active
+        verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
 
       // Wait for spans to be collected
@@ -243,6 +367,9 @@ export class Orchestrator {
       // Get captured spans
       const spans = this.spanCollector.getSpans(testRun.id);
       testRun.spans = spans;
+
+      // Append spans to log file (always, with full detail)
+      await this.appendSpansToLogFile(testRun, spans);
 
       // Validate spans using test definition's check methods
       const checkResults = await this.validator.validate(
@@ -267,8 +394,11 @@ export class Orchestrator {
         this.liveStatus.updateTestStatus(testRun, 'passed');
       }
       
-      if (!this.useLiveStatus) {
+      if (this.verbose && !this.useLiveStatus) {
         console.log(`✓ ${displayName} passed`);
+      } else if (!this.useLiveStatus) {
+        // Pytest-style progress: dot for passed
+        process.stdout.write('\x1b[32m.\x1b[0m');
       }
     } catch (error) {
       testRun.status = 'failed';
@@ -286,8 +416,11 @@ export class Orchestrator {
         this.liveStatus.updateTestStatus(testRun, 'failed', testRun.error);
       }
       
-      if (!this.useLiveStatus) {
+      if (this.verbose && !this.useLiveStatus) {
         console.error(`✗ ${displayName} failed:`, testRun.error);
+      } else if (!this.useLiveStatus) {
+        // Pytest-style progress: F for failed
+        process.stdout.write('\x1b[31mF\x1b[0m');
       }
     } finally {
       testRun.endTime = Date.now();
@@ -341,6 +474,47 @@ export class Orchestrator {
    */
   private generateRunId(): string {
     return `run-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  /**
+   * Append captured spans to the test log file
+   */
+  private async appendSpansToLogFile(testRun: TestRun, spans: CapturedSpan[]): Promise<void> {
+    try {
+      const workDir = this.runner.getWorkDir(testRun.framework);
+      const testCaseId = testRun.testDefinition.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      
+      const mode = testRun.framework.executionMode || 'default';
+      const logFile = path.join(workDir, `test-${testCaseId}-${mode}.log`);
+      
+      // Build spans content with full JSON detail
+      const lines: string[] = [
+        '',
+        '=== CAPTURED SPANS ===',
+        `Total spans: ${spans.length}`,
+        '',
+      ];
+
+      if (spans.length === 0) {
+        lines.push('(no spans captured)');
+      } else {
+        for (let i = 0; i < spans.length; i++) {
+          const span = spans[i];
+          lines.push(`--- Span ${i + 1} ---`);
+          lines.push(JSON.stringify(span, null, 2));
+          lines.push('');
+        }
+      }
+
+      // Append to log file
+      await fs.appendFile(logFile, lines.join('\n'));
+    } catch (error) {
+      // Silently ignore errors writing to log file
+      console.error('  Warning: Could not append spans to log file:', error);
+    }
   }
 
   /**
