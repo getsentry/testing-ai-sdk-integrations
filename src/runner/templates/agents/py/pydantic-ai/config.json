@@ -1,0 +1,20 @@
+{
+  "name": "pydantic-ai",
+  "displayName": "Pydantic AI Python SDK",
+  "type": "agentic",
+  "platform": "py",
+  "executionMode": "async",
+  "dependencies": [
+    {
+      "package": "pydantic-ai",
+      "version": "framework"
+    }
+  ],
+  "versions": [
+    "0.2.14"
+  ],
+  "sentryVersions": [
+    "2.19.2",
+    "latest"
+  ]
+}

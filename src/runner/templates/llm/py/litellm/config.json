@@ -1,0 +1,20 @@
+{
+  "name": "litellm",
+  "displayName": "LiteLLM Python SDK",
+  "type": "llm-only",
+  "platform": "py",
+  "executionMode": "both",
+  "dependencies": [
+    {
+      "package": "litellm",
+      "version": "framework"
+    }
+  ],
+  "versions": [
+    "1.72.4"
+  ],
+  "sentryVersions": [
+    "2.19.2",
+    "latest"
+  ]
+}

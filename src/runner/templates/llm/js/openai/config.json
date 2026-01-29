@@ -1,0 +1,19 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI JavaScript SDK",
+  "type": "llm-only",
+  "platform": "js",
+  "dependencies": [
+    {
+      "package": "openai",
+      "version": "framework"
+    }
+  ],
+  "versions": [
+    "4.96.0"
+  ],
+  "sentryVersions": [
+    "9.19.0",
+    "latest"
+  ]
+}

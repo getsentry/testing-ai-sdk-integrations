@@ -1,0 +1,52 @@
+{% extends "base.js.njk" %}
+
+{% block imports %}
+{{ super() }}
+const Anthropic = require('@anthropic-ai/sdk');
+{% endblock %}
+
+{% block setup %}
+// Initialize Anthropic client
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+  // Turn {{ loop.index }}: Create message
+  {# Extract system message if present #}
+  {% set system_content = "" %}
+  {% for message in input.messages %}
+    {% if message.role == 'system' %}
+      {% set system_content = message.content %}
+    {% endif %}
+  {% endfor %}
+
+  const response{{ loop.index }} = await client.messages.create({
+    model: '{{ input.model }}',
+    max_tokens: 1024,
+{% if system_content %}
+    system: '{{ system_content }}',
+{% endif %}
+    messages: [
+{% for message in input.messages %}
+  {% if message.role != 'system' %}
+      { role: '{{ message.role }}', content: '{{ message.content }}' },
+  {% endif %}
+{% endfor %}
+    ],
+  });
+
+  // Print response
+  const content{{ loop.index }} = response{{ loop.index }}.content[0].type === 'text' 
+    ? response{{ loop.index }}.content[0].text 
+    : JSON.stringify(response{{ loop.index }}.content[0]);
+  console.log(`Turn {{ loop.index }} Response: ${content{{ loop.index }}}`);
+  console.log(`Model: ${response{{ loop.index }}.model}`);
+  console.log(`Tokens - Input: ${response{{ loop.index }}.usage.input_tokens}, Output: ${response{{ loop.index }}.usage.output_tokens}`);
+{% if not loop.last %}
+  console.log();  // Blank line between turns
+{% endif %}
+{% endfor %}
+{% endblock %}

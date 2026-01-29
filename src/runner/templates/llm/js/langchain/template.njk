@@ -1,0 +1,40 @@
+{% extends "base.js.njk" %}
+
+{% block imports %}
+{{ super() }}
+const { ChatOpenAI } = require('@langchain/openai');
+const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
+{% endblock %}
+
+{% block setup %}
+// Initialize LangChain ChatOpenAI
+const chat = new ChatOpenAI({
+  modelName: '{{ inputs[0].model }}',
+  apiKey: process.env.OPENAI_API_KEY,
+});
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+  // Turn {{ loop.index }}: Build messages
+  const messages{{ loop.index }} = [
+{% for message in input.messages %}
+  {% if message.role == 'system' %}
+    new SystemMessage('{{ message.content }}'),
+  {% elif message.role == 'user' %}
+    new HumanMessage('{{ message.content }}'),
+  {% elif message.role == 'assistant' %}
+    new AIMessage('{{ message.content }}'),
+  {% endif %}
+{% endfor %}
+  ];
+
+  const response{{ loop.index }} = await chat.invoke(messages{{ loop.index }});
+
+  // Print response
+  console.log(`Turn {{ loop.index }} Response: ${response{{ loop.index }}.content}`);
+{% if not loop.last %}
+  console.log();  // Blank line between turns
+{% endif %}
+{% endfor %}
+{% endblock %}

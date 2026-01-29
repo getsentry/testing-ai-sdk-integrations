@@ -1,0 +1,27 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain JavaScript SDK",
+  "type": "llm-only",
+  "platform": "js",
+  "dependencies": [
+    {
+      "package": "langchain",
+      "version": "framework"
+    },
+    {
+      "package": "@langchain/openai",
+      "version": "latest"
+    },
+    {
+      "package": "@langchain/core",
+      "version": "latest"
+    }
+  ],
+  "versions": [
+    "0.3.24"
+  ],
+  "sentryVersions": [
+    "9.19.0",
+    "latest"
+  ]
+}

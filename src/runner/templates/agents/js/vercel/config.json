@@ -1,0 +1,23 @@
+{
+  "name": "vercel",
+  "displayName": "Vercel AI SDK",
+  "type": "agentic",
+  "platform": "js",
+  "dependencies": [
+    {
+      "package": "ai",
+      "version": "framework"
+    },
+    {
+      "package": "@ai-sdk/openai",
+      "version": "latest"
+    }
+  ],
+  "versions": [
+    "4.3.16"
+  ],
+  "sentryVersions": [
+    "9.19.0",
+    "latest"
+  ]
+}
