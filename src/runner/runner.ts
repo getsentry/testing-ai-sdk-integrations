@@ -60,7 +60,32 @@ export class Runner {
     await platformRunner.executeTest(context);
   }
 
+  /**
+   * Setup only (environment + template) without executing the test
+   */
+  async setupOnly(context: RunnerContext): Promise<void> {
+    const workDir = context.workDir;
+    const verbose = context.verbose !== false;
 
+    // Ensure work directory exists
+    await fs.mkdir(workDir, { recursive: true });
+
+    // Get platform-specific runner
+    const platformRunner = context.framework.platform === 'py' 
+      ? this.pythonRunner 
+      : this.jsRunner;
+
+    // Check if environment needs setup
+    const needsSetup = await platformRunner.needsSetup(workDir);
+    if (needsSetup) {
+      await platformRunner.setupEnvironment(context);
+    } else if (verbose) {
+      console.log('  Using cached environment');
+    }
+
+    // Render template
+    await this.renderTemplate(context);
+  }
 
   /**
    * Generate test case ID from test name

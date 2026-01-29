@@ -10,7 +10,7 @@ import { discoverFrameworks, listFrameworks } from './runner/framework-discovery
 import { getAllTests } from './test-cases/index.js';
 
 interface CLIOptions {
-  command: 'run' | 'list';
+  command: 'run' | 'list' | 'setup';
   framework?: string;
   test?: string;
   platform?: 'js' | 'py';
@@ -36,6 +36,9 @@ function parseArgs(): CLIOptions {
         break;
       case 'run':
         options.command = 'run';
+        break;
+      case 'setup':
+        options.command = 'setup';
         break;
       case '--framework':
         options.framework = args[++i];
@@ -90,6 +93,7 @@ Usage:
 
 Commands:
   run             Run tests (default)
+  setup           Setup environments and render templates (no test execution)
   list            List discovered frameworks
 
 Options:
@@ -115,6 +119,7 @@ Examples:
   npm start run -- --platform py --async --verbose
   npm start run -- --framework openai --live-status
   npm start run -- --framework openai --sentry-python ~/sentry-python
+  npm start setup -- --framework openai --sync --streaming
   `);
 }
 
@@ -129,6 +134,9 @@ async function main() {
     return;
   }
 
+  // Setup command doesn't need span collector or live status
+  const isSetupOnly = options.command === 'setup';
+
   const orchestrator = new Orchestrator({ 
     liveStatus: options.liveStatus,
     verbose: options.verbose,
@@ -139,8 +147,10 @@ async function main() {
   });
 
   try {
-    // Start orchestrator
-    await orchestrator.start();
+    // Start orchestrator (skip span collector for setup-only mode)
+    if (!isSetupOnly) {
+      await orchestrator.start();
+    }
 
     // Discover frameworks
     let discoveredFrameworks = discoverFrameworks();
@@ -211,16 +221,22 @@ async function main() {
       console.log(`Testing ${frameworks.length} framework(s) with ${testDefinitions.length} test(s)\n`);
     }
 
-    // Run tests
-    const report = await orchestrator.runTests(frameworks, testDefinitions);
+    if (isSetupOnly) {
+      // Setup only - no test execution
+      await orchestrator.setupTests(frameworks, testDefinitions);
+      process.exit(0);
+    } else {
+      // Run tests
+      const report = await orchestrator.runTests(frameworks, testDefinitions);
 
-    // Print report
-    orchestrator.printReport(report);
+      // Print report
+      orchestrator.printReport(report);
 
-    // Exit with appropriate code
-    const exitCode = report.failed > 0 || report.errors > 0 ? 1 : 0;
-    await orchestrator.stop();
-    process.exit(exitCode);
+      // Exit with appropriate code
+      const exitCode = report.failed > 0 || report.errors > 0 ? 1 : 0;
+      await orchestrator.stop();
+      process.exit(exitCode);
+    }
   } catch (error) {
     console.error('Fatal error:', error);
     await orchestrator.stop();

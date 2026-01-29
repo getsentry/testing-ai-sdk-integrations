@@ -80,36 +80,9 @@ export class Orchestrator {
   ): Promise<TestReport> {
     const startTime = Date.now();
 
-    // Generate test matrix
+    // Generate and filter test matrix
     let testMatrix = this.generateTestMatrix(frameworks, testDefinitions);
-    
-    // Filter by sync/async if specified (only one can be true, or neither for both)
-    if (this.syncFilter && !this.asyncFilter) {
-      testMatrix = testMatrix.filter(run => {
-        // JS tests don't have execution mode, exclude them when filtering
-        if (run.framework.platform === 'js') {
-          return false;
-        }
-        return run.framework.executionMode === 'sync';
-      });
-    } else if (this.asyncFilter && !this.syncFilter) {
-      testMatrix = testMatrix.filter(run => {
-        // JS tests don't have execution mode, exclude them when filtering
-        if (run.framework.platform === 'js') {
-          return false;
-        }
-        return run.framework.executionMode === 'async';
-      });
-    }
-    // If both or neither are specified, run all (no filtering needed)
-
-    // Filter by streaming/blocking if specified
-    if (this.streamingFilter && !this.blockingFilter) {
-      testMatrix = testMatrix.filter(run => run.framework.streamingMode === 'streaming');
-    } else if (this.blockingFilter && !this.streamingFilter) {
-      testMatrix = testMatrix.filter(run => run.framework.streamingMode === 'blocking');
-    }
-    // If both or neither are specified, run all (no filtering needed)
+    testMatrix = this.applyFilters(testMatrix);
 
     // Print test tree
     this.printTestTree(testMatrix);
@@ -147,6 +120,102 @@ export class Orchestrator {
     await this.writeCTRFReport(report);
 
     return report;
+  }
+
+  /**
+   * Setup test environments and render templates without executing tests
+   */
+  async setupTests(
+    frameworks: FrameworkConfig[],
+    testDefinitions: TestDefinition[]
+  ): Promise<void> {
+    // Generate and filter test matrix (same as runTests)
+    let testMatrix = this.generateTestMatrix(frameworks, testDefinitions);
+    testMatrix = this.applyFilters(testMatrix);
+
+    // Print test tree
+    this.printTestTree(testMatrix);
+
+    console.log('Setting up test environments...\n');
+
+    // Setup each test (environment + template rendering only)
+    for (const testRun of testMatrix) {
+      await this.setupTest(testRun);
+    }
+
+    console.log(`\n✓ Setup complete. ${testMatrix.length} test(s) prepared.`);
+    
+    // Print unique work directories
+    const uniqueWorkDirs = new Map<string, string>();
+    for (const testRun of testMatrix) {
+      const workDir = this.runner.getWorkDir(testRun.framework);
+      const key = `${testRun.framework.name}-${workDir}`;
+      if (!uniqueWorkDirs.has(key)) {
+        uniqueWorkDirs.set(key, workDir);
+      }
+    }
+    
+    console.log('\nWork directories:');
+    for (const [_, workDir] of uniqueWorkDirs) {
+      console.log(`  ${workDir}`);
+    }
+  }
+
+  /**
+   * Setup a single test (environment + template) without executing
+   */
+  private async setupTest(testRun: TestRun): Promise<void> {
+    const displayName = this.buildDisplayName(testRun);
+    console.log(`[${testRun.framework.name}] Setting up: ${displayName}`);
+
+    try {
+      // Determine isAsync and isStreaming flags
+      const isAsync = testRun.framework.platform === 'py' && testRun.framework.executionMode === 'async';
+      const isStreaming = testRun.framework.streamingMode === 'streaming';
+
+      // Setup environment and render template via runner (but don't execute)
+      await this.runner.setupOnly({
+        runId: testRun.id,
+        framework: testRun.framework,
+        testDefinition: testRun.testDefinition,
+        sentryDsn: 'https://dummy@sentry.io/123', // Dummy DSN for setup
+        workDir: this.runner.getWorkDir(testRun.framework),
+        isAsync,
+        isStreaming,
+        verbose: this.verbose,
+      });
+
+      console.log(`  ✓ Setup complete`);
+    } catch (error) {
+      console.error(`  ✗ Setup failed:`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  /**
+   * Apply sync/async and streaming/blocking filters to test matrix
+   */
+  private applyFilters(testMatrix: TestRun[]): TestRun[] {
+    // Filter by sync/async if specified
+    if (this.syncFilter && !this.asyncFilter) {
+      testMatrix = testMatrix.filter(run => {
+        if (run.framework.platform === 'js') return false;
+        return run.framework.executionMode === 'sync';
+      });
+    } else if (this.asyncFilter && !this.syncFilter) {
+      testMatrix = testMatrix.filter(run => {
+        if (run.framework.platform === 'js') return false;
+        return run.framework.executionMode === 'async';
+      });
+    }
+
+    // Filter by streaming/blocking if specified
+    if (this.streamingFilter && !this.blockingFilter) {
+      testMatrix = testMatrix.filter(run => run.framework.streamingMode === 'streaming');
+    } else if (this.blockingFilter && !this.streamingFilter) {
+      testMatrix = testMatrix.filter(run => run.framework.streamingMode === 'blocking');
+    }
+
+    return testMatrix;
   }
 
   /**
