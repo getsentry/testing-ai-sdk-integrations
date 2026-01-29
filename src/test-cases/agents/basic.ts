@@ -5,11 +5,13 @@
  * Validates that Sentry captures both agent and LLM spans.
  */
 
+import { expect } from 'chai';
 import { TestDefinition, CapturedSpan, FrameworkConfig } from '../../types.js';
 import {
   extractGenAISpans,
-  checkSpanStructure,
-  printSpanSummary,
+  checkTokenUsage,
+  assertAttributes,
+  skipIf,
 } from '../utils.js';
 
 export const basicAgentTest: TestDefinition = {
@@ -52,28 +54,39 @@ export const basicAgentTest: TestDefinition = {
     },
   ],
   
-  // Check 1: Basic structure validation
   checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
-    printSpanSummary(aiSpans);
-    
-    // Verify we have at least one AI span
-    if (aiSpans.length === 0) {
-      throw new Error('No gen_ai.* spans captured');
-    }
-    
-    // Verify all operations start with gen_ai
-    aiSpans.forEach((span, idx) => {
-      if (!span.op || !span.op.startsWith('gen_ai')) {
-        throw new Error(`Span ${idx}: operation must start with 'gen_ai' but got '${span.op}'`);
-      }
-    });
-    
-    console.log(`  Captured ${aiSpans.length} AI span(s)`);
+    expect(aiSpans.length).to.be.greaterThan(0);
   },
   
-  // Check 2: Agent and LLM span validation
-  checkAgentSpans(spans: CapturedSpan[], config: FrameworkConfig) {
+  checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpans = extractGenAISpans(spans);
+    
+    // Find LLM spans (chat/completion/generate)
+    const llmSpans = aiSpans.filter(s => s.op?.match(/^gen_ai\.(chat|completion|generate)/));
+    skipIf(llmSpans.length === 0, 'No LLM spans captured');
+    
+    assertAttributes(llmSpans, {
+      'gen_ai.operation.name': true,
+      'gen_ai.request.model': config.modelOverrides?.request || 'gpt-5-nano',
+      'gen_ai.response.model': config.modelOverrides?.response || 'gpt-5-nano*',
+      'gen_ai.usage.input_tokens': true,
+      'gen_ai.usage.output_tokens': true,
+      'gen_ai.usage.total_tokens': true,
+    });
+  },
+  
+  checkTokens(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpans = extractGenAISpans(spans);
+    const llmSpans = aiSpans.filter(s => s.op?.match(/^gen_ai\.(chat|completion|generate)/));
+    skipIf(llmSpans.length === 0, 'No LLM spans captured');
+    
+    for (const span of llmSpans) {
+      checkTokenUsage(span, { validateSum: true });
+    }
+  },
+
+  checkAgentSpan(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
     // Look for agent span (for agentic frameworks)
@@ -82,66 +95,25 @@ export const basicAgentTest: TestDefinition = {
       s.description?.toLowerCase().includes('agent')
     );
     
-    // Look for LLM call span
-    const llmSpan = aiSpans.find((s) => 
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/)
-    );
+    skipIf(!agentSpan, 'No agent span captured - framework may not emit agent spans');
     
-    if (agentSpan) {
-      console.log('  Agent span captured');
-      
-      // Check for agent-specific attributes
-      if (agentSpan.data) {
-        const hasAgentInfo = 
-          agentSpan.data['gen_ai.agent.name'] ||
-          agentSpan.description?.includes('math_assistant');
-        
-        if (hasAgentInfo) {
-          console.log('  Agent metadata captured');
-        }
-      }
-      
-      // If both agent and LLM spans exist, validate hierarchy
-      if (llmSpan) {
-        try {
-          checkSpanStructure(aiSpans, {
-            parentOp: /^gen_ai\.(invoke_agent|agent\.run|agent)/,
-            childOp: /^gen_ai\.(chat|completion|generate)/,
-            minChildren: 1,
-          });
-          console.log('  Agent → LLM hierarchy validated');
-        } catch (error) {
-          console.log('  ⚠ Agent hierarchy not validated (flat structure)');
-        }
-      }
-    }
-    
-    if (llmSpan) {
-      console.log('  LLM span captured');
-      
-      // Verify model information is present
-      if (llmSpan.data && (llmSpan.data['gen_ai.request.model'] || llmSpan.data['gen_ai.response.model'])) {
-        console.log('  Model information captured');
-      }
+    // If agent span exists, verify it has the expected structure
+    expect(agentSpan!.op).to.match(/^gen_ai\./);
+  },
+
+  checkInputTokensCached(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpansWithInputTokensCached = extractGenAISpans(spans).filter(span => span.data?.['gen_ai.usage.input_tokens.cached'] !== undefined);
+    skipIf(aiSpansWithInputTokensCached.length === 0, 'No AI spans captured with input tokens cached - cannot validate input tokens cached');
+    for (const span of aiSpansWithInputTokensCached) {
+      expect(span.data?.['gen_ai.usage.input_tokens.cached']).to.be.lessThanOrEqual(span.data?.['gen_ai.usage.input_tokens']);
     }
   },
-  
-  // Check 3: Tool call validation
-  checkToolCalls(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    
-    const hasToolCall = aiSpans.some((s) => 
-      s.data && (
-        s.data['gen_ai.tool_calls'] ||
-        s.data['gen_ai.tool.name'] ||
-        s.description?.toLowerCase().includes('tool')
-      )
-    );
-    
-    if (!hasToolCall) {
-      console.log('  ⚠ Tool call information not found in span data');
-    } else {
-      console.log('  Tool call information captured');
+
+  checkOutputTokensReasoning(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpansWithOutputTokensReasoning = extractGenAISpans(spans).filter(span => span.data?.['gen_ai.usage.output_tokens.reasoning'] !== undefined);
+    skipIf(aiSpansWithOutputTokensReasoning.length === 0, 'No AI spans captured with output tokens reasoning - cannot validate output tokens reasoning');
+    for (const span of aiSpansWithOutputTokensReasoning) {
+      expect(span.data?.['gen_ai.usage.output_tokens.reasoning']).to.be.lessThanOrEqual(span.data?.['gen_ai.usage.output_tokens']);
     }
   },
 };

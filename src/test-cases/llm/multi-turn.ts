@@ -5,13 +5,12 @@
  * Validates that Sentry captures multiple gen_ai spans correctly.
  */
 
+import { expect } from 'chai';
 import { TestDefinition, CapturedSpan, FrameworkConfig } from '../../types.js';
 import {
   extractGenAISpans,
   checkTokenUsage,
-  printSpanSummary,
   assertAttributes,
-  AttributeSchema,
   skipIf,
 } from '../utils.js';
 
@@ -53,110 +52,57 @@ export const multiTurnLLMTest: TestDefinition = {
     },
   ],
   
-  // Check 1: Validate span structure for multiple turns
   checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
-    printSpanSummary(aiSpans);
-    
-    // Should have 3 spans (one for each turn)
-    if (aiSpans.length !== 3) {
-      throw new Error(`Expected exactly 3 gen_ai spans, got ${aiSpans.length}`);
-    }
-    
-    // Verify each span has correct operation
-    const validOps = /^gen_ai\.(chat|completion|generate)/;
-    aiSpans.forEach((span, idx) => {
-      if (!span.op || !validOps.test(span.op)) {
-        throw new Error(`Span ${idx}: operation '${span.op}' doesn't match expected patterns`);
-      }
-    });
-    
-    console.log(`  Captured ${aiSpans.length} AI span(s) for multi-turn conversation`);
+    expect(aiSpans.length).to.equal(3);
   },
   
-  // Check 2: Validate attributes on all spans
   checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
-    
-    skipIf(aiSpans.length === 0, 'No AI spans captured');
-    
-    // Use model overrides if provided, otherwise use default test input
-    const requestModel = config.modelOverrides?.request || 'gpt-5-nano';
-    const responseModel = config.modelOverrides?.response || 'gpt-5-nano*';
-    
-    // All spans should have same basic attributes
-    const schema: AttributeSchema = {
+    assertAttributes(aiSpans, {
       'gen_ai.operation.name': true,
-      'gen_ai.request.model': requestModel,
-      'gen_ai.response.model': responseModel,
+      'gen_ai.request.model': config.modelOverrides?.request || 'gpt-5-nano',
+      'gen_ai.response.model': config.modelOverrides?.response || 'gpt-5-nano*',
       'gen_ai.usage.input_tokens': true,
       'gen_ai.usage.output_tokens': true,
       'gen_ai.usage.total_tokens': true,
-    };
-    
-    assertAttributes(aiSpans, schema);
-    console.log(`  All ${aiSpans.length} spans validated against schema`);
+    });
   },
   
-  // Check 3: Validate token progression
-  checkTokenProgression(spans: CapturedSpan[], config: FrameworkConfig) {
+  checkTokens(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
     
+    for (const span of aiSpans) {
+      checkTokenUsage(span, { validateSum: true });
+    }
+  },
+  
+  checkTokenProgression(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length < 3, `Expected 3 spans for multi-turn test, got ${aiSpans.length}`);
     
     // Extract input token counts for each turn
-    const inputTokens = aiSpans.map((span, idx) => {
-      if (!span.data) {
-        throw new Error(`Span ${idx} missing data field`);
-      }
-      const tokens = span.data['gen_ai.usage.input_tokens'];
-      if (typeof tokens !== 'number') {
-        throw new Error(`Span ${idx} missing input_tokens or not a number`);
-      }
-      return tokens;
-    });
+    const inputTokens = aiSpans.map((span) => span.data?.['gen_ai.usage.input_tokens'] as number);
     
     // Input tokens should increase with each turn (more conversation history)
-    // Turn 1: system + user
-    // Turn 2: system + user + assistant + user (more tokens)
-    // Turn 3: system + user + assistant + user + assistant + user (even more tokens)
-    
-    if (inputTokens[1] <= inputTokens[0]) {
-      throw new Error(
-        `Turn 2 input tokens (${inputTokens[1]}) should be greater than Turn 1 (${inputTokens[0]})`
-      );
-    }
-    
-    if (inputTokens[2] <= inputTokens[1]) {
-      throw new Error(
-        `Turn 3 input tokens (${inputTokens[2]}) should be greater than Turn 2 (${inputTokens[1]})`
-      );
-    }
-    
-    console.log(`  Token progression validated: ${inputTokens[0]} → ${inputTokens[1]} → ${inputTokens[2]} tokens`);
+    expect(inputTokens[1]).to.be.greaterThan(inputTokens[0]);
+    expect(inputTokens[2]).to.be.greaterThan(inputTokens[1]);
   },
-  
-  // Check 4: Validate each individual turn
-  checkIndividualTurns(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    
-    skipIf(aiSpans.length !== 3, `Expected exactly 3 spans, got ${aiSpans.length}`);
-    
-    // Validate each turn has valid token usage
-    aiSpans.forEach((span, idx) => {
-      try {
-        checkTokenUsage(span, {
-          hasInputTokens: true,
-          hasOutputTokens: true,
-          hasTotalTokens: true,
-          validateSum: true,
-        });
-      } catch (error) {
-        throw new Error(`Turn ${idx + 1} token validation failed: ${error instanceof Error ? error.message : error}`);
-      }
-    });
-    
-    console.log(`  All ${aiSpans.length} turns validated individually`);
+
+  checkInputTokensCached(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpansWithInputTokensCached = extractGenAISpans(spans).filter(span => span.data?.['gen_ai.usage.input_tokens.cached'] !== undefined);
+    skipIf(aiSpansWithInputTokensCached.length === 0, 'No AI spans captured with input tokens cached - cannot validate input tokens cached');
+    for (const span of aiSpansWithInputTokensCached) {
+      expect(span.data?.['gen_ai.usage.input_tokens.cached']).to.be.lessThanOrEqual(span.data?.['gen_ai.usage.input_tokens']);
+    }
+  },
+
+  checkOutputTokensReasoning(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpansWithOutputTokensReasoning = extractGenAISpans(spans).filter(span => span.data?.['gen_ai.usage.output_tokens.reasoning'] !== undefined);
+    skipIf(aiSpansWithOutputTokensReasoning.length === 0, 'No AI spans captured with output tokens reasoning - cannot validate output tokens reasoning');
+    for (const span of aiSpansWithOutputTokensReasoning) {
+      expect(span.data?.['gen_ai.usage.output_tokens.reasoning']).to.be.lessThanOrEqual(span.data?.['gen_ai.usage.output_tokens']);
+    }
   },
 };
 
