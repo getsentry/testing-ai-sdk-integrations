@@ -68,6 +68,8 @@ export interface FrameworkConfig {
   dependencies?: Array<{ package: string; version: string }>;
   // Python only: execution mode for the framework
   executionMode?: 'sync' | 'async' | 'both';
+  // Streaming mode: whether the framework supports streaming responses
+  streamingMode?: 'streaming' | 'blocking' | 'both';
   // Model overrides: Some frameworks use different models than requested
   modelOverrides?: {
     request?: string;
@@ -120,6 +122,8 @@ export interface RunnerContext {
   workDir: string;
   // Python only: if true, render async version; if false, render sync version
   isAsync?: boolean;
+  // If true, render streaming version; if false, render non-streaming version
+  isStreaming?: boolean;
   // Controls whether to print verbose console output (default: true)
   verbose?: boolean;
 }

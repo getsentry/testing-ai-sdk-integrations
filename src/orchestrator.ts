@@ -29,7 +29,7 @@ export class Orchestrator {
   private syncFilter?: boolean;
   private asyncFilter?: boolean;
   private streamingFilter?: boolean;
-  private nonStreamingFilter?: boolean;
+  private blockingFilter?: boolean;
 
   constructor(options: { 
     liveStatus?: boolean;
@@ -37,7 +37,7 @@ export class Orchestrator {
     sync?: boolean;
     async?: boolean;
     streaming?: boolean;
-    nonStreaming?: boolean;
+    blocking?: boolean;
   } = {}) {
     this.spanCollector = new SpanCollector();
     this.runner = new Runner();
@@ -48,7 +48,7 @@ export class Orchestrator {
     this.syncFilter = options.sync;
     this.asyncFilter = options.async;
     this.streamingFilter = options.streaming;
-    this.nonStreamingFilter = options.nonStreaming;
+    this.blockingFilter = options.blocking;
     
     // Set verbose on validator
     this.validator.setVerbose(this.verbose);
@@ -103,9 +103,13 @@ export class Orchestrator {
     }
     // If both or neither are specified, run all (no filtering needed)
 
-    // TODO: Filter by streaming/non-streaming when streaming tests are implemented
-    // if (this.streamingFilter && !this.nonStreamingFilter) { ... }
-    // if (this.nonStreamingFilter && !this.streamingFilter) { ... }
+    // Filter by streaming/blocking if specified
+    if (this.streamingFilter && !this.blockingFilter) {
+      testMatrix = testMatrix.filter(run => run.framework.streamingMode === 'streaming');
+    } else if (this.blockingFilter && !this.streamingFilter) {
+      testMatrix = testMatrix.filter(run => run.framework.streamingMode === 'blocking');
+    }
+    // If both or neither are specified, run all (no filtering needed)
 
     // Print test tree
     this.printTestTree(testMatrix);
@@ -195,33 +199,24 @@ export class Orchestrator {
           continue;
         }
 
-        // For Python frameworks with "both" execution mode, generate two test runs
-        if (framework.platform === 'py' && framework.executionMode === 'both') {
-          // Sync version
-          const syncRunId = this.generateRunId();
-          matrix.push({
-            id: syncRunId,
-            framework: { ...framework, executionMode: 'sync' },
-            testDefinition,
-            status: 'pending',
-          });
-          
-          // Async version
-          const asyncRunId = this.generateRunId();
-          matrix.push({
-            id: asyncRunId,
-            framework: { ...framework, executionMode: 'async' },
-            testDefinition,
-            status: 'pending',
-          });
-        } else {
-          const runId = this.generateRunId();
-          matrix.push({
-            id: runId,
-            framework,
-            testDefinition,
-            status: 'pending',
-          });
+        // Generate test runs for all combinations of execution mode and streaming mode
+        const executionModes = this.getExecutionModes(framework);
+        const streamingModes = this.getStreamingModes(framework);
+        
+        for (const execMode of executionModes) {
+          for (const streamMode of streamingModes) {
+            const runId = this.generateRunId();
+            matrix.push({
+              id: runId,
+              framework: { 
+                ...framework, 
+                executionMode: execMode,
+                streamingMode: streamMode,
+              },
+              testDefinition,
+              status: 'pending',
+            });
+          }
         }
       }
     }
@@ -280,8 +275,16 @@ export class Orchestrator {
           const testPrefix = isLastFramework ? '      ' : '   │  ';
           const testBranch = isLast ? '└─' : '├─';
           
-          const mode = run.framework.executionMode 
-            ? ` ${colors.dim}(${run.framework.executionMode})${colors.reset}` 
+          // Build mode string with execution mode and streaming mode
+          const modeParts: string[] = [];
+          if (run.framework.executionMode) {
+            modeParts.push(run.framework.executionMode);
+          }
+          if (run.framework.streamingMode) {
+            modeParts.push(run.framework.streamingMode);
+          }
+          const mode = modeParts.length > 0 
+            ? ` ${colors.dim}(${modeParts.join(', ')})${colors.reset}` 
             : '';
           
           console.log(`${testPrefix}${testBranch} ${run.testDefinition.name}${mode}`);
@@ -319,6 +322,37 @@ export class Orchestrator {
   }
 
   /**
+   * Get execution modes to test for a framework
+   */
+  private getExecutionModes(framework: FrameworkConfig): Array<'sync' | 'async' | undefined> {
+    // JavaScript doesn't have sync/async distinction at the framework level
+    if (framework.platform === 'js') {
+      return [undefined];
+    }
+    
+    // Python: expand "both" to sync and async
+    if (framework.executionMode === 'both') {
+      return ['sync', 'async'];
+    }
+    
+    // Return single mode or undefined
+    return [framework.executionMode];
+  }
+
+  /**
+   * Get streaming modes to test for a framework
+   */
+  private getStreamingModes(framework: FrameworkConfig): Array<'streaming' | 'blocking' | undefined> {
+    // If streaming mode is "both", expand to both variants
+    if (framework.streamingMode === 'both') {
+      return ['streaming', 'blocking'];
+    }
+    
+    // Return single mode or undefined (for frameworks that don't specify streaming)
+    return [framework.streamingMode];
+  }
+
+  /**
    * Execute a single test
    */
   private async executeTest(testRun: TestRun): Promise<void> {
@@ -331,10 +365,8 @@ export class Orchestrator {
       this.liveStatus.updateTestStatus(testRun, 'running');
     }
 
-    // Build display name with execution mode suffix for Python
-    const displayName = testRun.framework.platform === 'py' && testRun.framework.executionMode
-      ? `${testRun.testDefinition.name} (${testRun.framework.executionMode})`
-      : testRun.testDefinition.name;
+    // Build display name with mode suffixes
+    const displayName = this.buildDisplayName(testRun);
 
     if (this.verbose && !this.useLiveStatus) {
       console.log(`\n[${testRun.framework.name}] Running: ${displayName}`);
@@ -349,6 +381,9 @@ export class Orchestrator {
 
       // Determine isAsync flag for Python frameworks
       const isAsync = testRun.framework.platform === 'py' && testRun.framework.executionMode === 'async';
+      
+      // Determine isStreaming flag
+      const isStreaming = testRun.framework.streamingMode === 'streaming';
 
       // Execute test via runner
       await this.runner.runTest({
@@ -358,6 +393,7 @@ export class Orchestrator {
         sentryDsn,
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
+        isStreaming,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
 
@@ -477,6 +513,29 @@ export class Orchestrator {
   }
 
   /**
+   * Build display name with mode suffixes (e.g., "Basic LLM Test (sync, streaming)")
+   */
+  private buildDisplayName(testRun: TestRun): string {
+    const modeParts: string[] = [];
+    
+    // Add execution mode for Python
+    if (testRun.framework.platform === 'py' && testRun.framework.executionMode) {
+      modeParts.push(testRun.framework.executionMode);
+    }
+    
+    // Add streaming mode if specified
+    if (testRun.framework.streamingMode) {
+      modeParts.push(testRun.framework.streamingMode);
+    }
+    
+    if (modeParts.length > 0) {
+      return `${testRun.testDefinition.name} (${modeParts.join(', ')})`;
+    }
+    
+    return testRun.testDefinition.name;
+  }
+
+  /**
    * Append captured spans to the test log file
    */
   private async appendSpansToLogFile(testRun: TestRun, spans: CapturedSpan[]): Promise<void> {
@@ -487,8 +546,15 @@ export class Orchestrator {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
       
-      const mode = testRun.framework.executionMode || 'default';
-      const logFile = path.join(workDir, `test-${testCaseId}-${mode}.log`);
+      const modeParts: string[] = [];
+      if (testRun.framework.executionMode) {
+        modeParts.push(testRun.framework.executionMode);
+      }
+      if (testRun.framework.streamingMode) {
+        modeParts.push(testRun.framework.streamingMode);
+      }
+      const modeSuffix = modeParts.length > 0 ? modeParts.join('-') : 'default';
+      const logFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.log`);
       
       // Build spans content with full JSON detail
       const lines: string[] = [

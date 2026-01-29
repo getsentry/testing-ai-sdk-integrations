@@ -82,20 +82,24 @@ export class Runner {
       console.log(`  Rendering template for ${context.framework.name}...`);
     }
     
-    const { workDir, framework, testDefinition, isAsync } = context;
+    const { workDir, framework, testDefinition, isAsync, isStreaming } = context;
     
     // Generate test case ID from test name
     const testCaseId = this.generateTestCaseId(testDefinition.name);
     
-    // Determine test filename based on platform, test case, and execution mode
-    let testFile: string;
-    if (framework.platform === 'js') {
-      testFile = `test-${testCaseId}.js`;
-    } else {
-      // Python: include sync/async in filename
-      const mode = isAsync ? 'async' : 'sync';
-      testFile = `test-${testCaseId}-${mode}.py`;
+    // Build mode suffix for filename
+    const modeParts: string[] = [];
+    if (framework.platform === 'py') {
+      modeParts.push(isAsync ? 'async' : 'sync');
     }
+    if (framework.streamingMode) {
+      modeParts.push(isStreaming ? 'streaming' : 'blocking');
+    }
+    
+    // Determine test filename based on platform and modes
+    const extension = framework.platform === 'js' ? 'js' : 'py';
+    const modeSuffix = modeParts.length > 0 ? `-${modeParts.join('-')}` : '';
+    const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
     
     const testPath = path.join(workDir, testFile);
     
@@ -115,6 +119,7 @@ export class Runner {
       sentryDsn: context.sentryDsn,
       runId: context.runId,
       isAsync: isAsync || false, // Boolean flag for templates
+      isStreaming: isStreaming || false, // Boolean flag for streaming mode
       causeAPIError: testDefinition.causeAPIError || false, // Flag to intentionally cause API errors
       ...(testDefinition.agent && { agent: testDefinition.agent }),
       inputs: processedInputs,

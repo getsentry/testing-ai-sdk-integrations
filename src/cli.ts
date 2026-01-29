@@ -17,7 +17,7 @@ interface CLIOptions {
   sync?: boolean;
   async?: boolean;
   streaming?: boolean;
-  nonStreaming?: boolean;
+  blocking?: boolean;
   sentryPythonPath?: string;
   sentryJavaScriptPath?: string;
   liveStatus?: boolean;
@@ -55,8 +55,8 @@ function parseArgs(): CLIOptions {
       case '--streaming':
         options.streaming = true;
         break;
-      case '--non-streaming':
-        options.nonStreaming = true;
+      case '--blocking':
+        options.blocking = true;
         break;
       case '--sentry-python':
         options.sentryPythonPath = args[++i];
@@ -99,7 +99,7 @@ Options:
   --sync                   Run only sync tests (default: both)
   --async                  Run only async tests (default: both)
   --streaming              Run only streaming tests (default: both)
-  --non-streaming          Run only non-streaming tests (default: both)
+  --blocking               Run only blocking (non-streaming) tests (default: both)
   --verbose, -v            Show detailed output (test execution logs, etc.)
   --live-status            Enable live status display (real-time tree view)
   --sentry-python <path>   Use local Sentry Python SDK (editable install)
@@ -135,7 +135,7 @@ async function main() {
     sync: options.sync,
     async: options.async,
     streaming: options.streaming,
-    nonStreaming: options.nonStreaming,
+    blocking: options.blocking,
   });
 
   try {
@@ -201,6 +201,7 @@ async function main() {
         category: df.category,
         dependencies: df.dependencies,
         executionMode: df.executionMode, // Pass through execution mode
+        streamingMode: df.streamingMode, // Pass through streaming mode
         modelOverrides: df.modelOverrides, // Pass through model overrides
         skip: df.skip, // Pass through skip configuration
       };

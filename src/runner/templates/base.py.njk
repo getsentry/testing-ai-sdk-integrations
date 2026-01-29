@@ -2,7 +2,9 @@
 """
 Generated test file for {{ testName }}
 Framework: {{ frameworkName }}
-Execution mode: {% if isAsync %}async{% else %}sync{% endif %}
+Execution mode: {% if isAsync %}async{% else %}sync{% endif %}{% if isStreaming is defined %}
+
+Streaming: {% if isStreaming %}yes{% else %}no{% endif %}{% endif %}
 """
 
 {% block imports %}

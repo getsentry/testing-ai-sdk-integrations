@@ -27,6 +27,9 @@ export interface FrameworkConfig {
   /** Python only: execution mode for the framework */
   executionMode?: 'sync' | 'async' | 'both';
   
+  /** Streaming mode: whether the framework supports streaming responses */
+  streamingMode?: 'streaming' | 'blocking' | 'both';
+  
   /** Model overrides: Some frameworks use different models than requested */
   modelOverrides?: {
     request?: string;
