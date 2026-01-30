@@ -204,30 +204,47 @@ async function main() {
     }
 
     // Convert discovered frameworks to test matrix
-    const frameworks: FrameworkConfig[] = discoveredFrameworks.map((df) => {
-      // Determine Sentry version based on platform and local SDK paths
-      let sentryVersion = df.sentryVersions[0];
-      if (df.platform === "py" && options.sentryPythonPath) {
-        sentryVersion = "local";
-      } else if (df.platform === "js" && options.sentryJavaScriptPath) {
-        sentryVersion = "local";
-      }
+    const frameworks: FrameworkConfig[] = discoveredFrameworks
+      .filter((df) => {
+        // Filter out frameworks with missing required arrays
+        if (!df.versions || df.versions.length === 0) {
+          console.warn(
+            `Warning: Framework '${df.name}' has no versions defined, skipping`,
+          );
+          return false;
+        }
+        if (!df.sentryVersions || df.sentryVersions.length === 0) {
+          console.warn(
+            `Warning: Framework '${df.name}' has no sentryVersions defined, skipping`,
+          );
+          return false;
+        }
+        return true;
+      })
+      .map((df) => {
+        // Determine Sentry version based on platform and local SDK paths
+        let sentryVersion = df.sentryVersions[0];
+        if (df.platform === "py" && options.sentryPythonPath) {
+          sentryVersion = "local";
+        } else if (df.platform === "js" && options.sentryJavaScriptPath) {
+          sentryVersion = "local";
+        }
 
-      return {
-        name: df.name,
-        platform: df.platform,
-        type: df.type,
-        version: df.versions[0],
-        sentryVersion,
-        templatePath: df.templatePath,
-        category: df.category,
-        dependencies: df.dependencies,
-        executionMode: df.executionMode,
-        streamingMode: df.streamingMode,
-        modelOverrides: df.modelOverrides,
-        skip: df.skip,
-      };
-    });
+        return {
+          name: df.name,
+          platform: df.platform,
+          type: df.type,
+          version: df.versions[0],
+          sentryVersion,
+          templatePath: df.templatePath,
+          category: df.category,
+          dependencies: df.dependencies,
+          executionMode: df.executionMode,
+          streamingMode: df.streamingMode,
+          modelOverrides: df.modelOverrides,
+          skip: df.skip,
+        };
+      });
 
     if (options.verbose) {
       console.log(
