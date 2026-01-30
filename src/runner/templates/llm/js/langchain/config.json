@@ -10,18 +10,18 @@
     },
     {
       "package": "@langchain/openai",
-      "version": "latest"
+      "version": "0.3.0"
     },
     {
       "package": "@langchain/core",
-      "version": "latest"
+      "version": "0.3.49"
     }
   ],
   "versions": [
     "0.3.24"
   ],
   "sentryVersions": [
-    "9.19.0",
+    "10.38.0",
     "latest"
   ]
 }

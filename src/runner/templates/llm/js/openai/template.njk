@@ -2,17 +2,23 @@
 
 {% block imports %}
 {{ super() }}
-const OpenAI = require('openai');
+// OpenAI is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
 {% endblock %}
 
 {% block setup %}
-// Initialize OpenAI client
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Client will be initialized after dynamic import
+let client;
 {% endblock %}
 
 {% block test %}
+// Dynamic import of openai AFTER Sentry.init() to ensure instrumentation
+const OpenAI = (await import('openai')).default;
+
+// Initialize OpenAI client
+client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 {% for input in inputs %}
   // Turn {{ loop.index }}: Create chat completion
   const response{{ loop.index }} = await client.chat.completions.create({

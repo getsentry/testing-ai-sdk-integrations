@@ -104,9 +104,19 @@ export class Orchestrator {
       this.liveStatus.start();
     }
 
-    // Phase 2: Execute all tests
+    // Phase 2: Execute all tests (skip those that failed setup)
     console.log('Executing tests...\n');
     for (const testRun of testMatrix) {
+      // Skip tests that already failed during setup (marked as 'error')
+      if (testRun.status === 'error') {
+        if (this.verbose && !this.useLiveStatus) {
+          console.log(`\n[${testRun.framework.name}] Skipping: ${testRun.testDefinition.name} (setup failed)`);
+        } else if (!this.useLiveStatus) {
+          // Pytest-style progress: E for error
+          process.stdout.write('\x1b[33mE\x1b[0m');
+        }
+        continue;
+      }
       await this.executeTest(testRun);
     }
 
@@ -133,6 +143,7 @@ export class Orchestrator {
   /**
    * Setup environments and render templates for all tests
    * Returns map of test run ID to rendered file path
+   * Also tracks which frameworks failed setup so their tests can be marked as errors
    */
   private async setupAndRenderAll(testMatrix: TestRun[]): Promise<Map<string, string>> {
     const renderedTests = new Map<string, string>();
@@ -160,16 +171,33 @@ export class Orchestrator {
       const isAsync = firstRun.framework.platform === 'py' && firstRun.framework.executionMode === 'async';
       const isStreaming = firstRun.framework.streamingMode === 'streaming';
       
-      await this.runner.setupEnvironmentOnly({
-        runId: firstRun.id,
-        framework: firstRun.framework,
-        testDefinition: firstRun.testDefinition,
-        sentryDsn: 'https://dummy@sentry.io/123', // Dummy DSN for setup
-        workDir,
-        isAsync,
-        isStreaming,
-        verbose: this.verbose,
-      });
+      try {
+        await this.runner.setupEnvironmentOnly({
+          runId: firstRun.id,
+          framework: firstRun.framework,
+          testDefinition: firstRun.testDefinition,
+          sentryDsn: 'https://dummy@sentry.io/123', // Dummy DSN for setup
+          workDir,
+          isAsync,
+          isStreaming,
+          verbose: this.verbose,
+        });
+      } catch (setupError) {
+        // Mark all tests for this framework as errors
+        const errorMessage = setupError instanceof Error ? setupError.message : String(setupError);
+        console.error(`[${frameworkKey}] Setup failed: ${errorMessage}`);
+        
+        for (const testRun of runs) {
+          testRun.status = 'error';
+          testRun.error = `Environment setup failed: ${errorMessage}`;
+          testRun.startTime = Date.now();
+          testRun.endTime = Date.now();
+          this.testRuns.push(testRun);
+        }
+        
+        // Skip to the next framework
+        continue;
+      }
       
       // Render all templates for this framework
       for (const testRun of runs) {
@@ -181,18 +209,30 @@ export class Orchestrator {
         const testIsAsync = testRun.framework.platform === 'py' && testRun.framework.executionMode === 'async';
         const testIsStreaming = testRun.framework.streamingMode === 'streaming';
         
-        const testPath = await this.runner.renderTemplateOnly({
-          runId: testRun.id,
-          framework: testRun.framework,
-          testDefinition: testRun.testDefinition,
-          sentryDsn: 'https://dummy@sentry.io/123', // Will be replaced during execution
-          workDir,
-          isAsync: testIsAsync,
-          isStreaming: testIsStreaming,
-          verbose: false, // Suppress template rendering logs, we're logging above
-        });
-        
-        renderedTests.set(testRun.id, testPath);
+        try {
+          const testPath = await this.runner.renderTemplateOnly({
+            runId: testRun.id,
+            framework: testRun.framework,
+            testDefinition: testRun.testDefinition,
+            sentryDsn: 'https://dummy@sentry.io/123', // Will be replaced during execution
+            workDir,
+            isAsync: testIsAsync,
+            isStreaming: testIsStreaming,
+            verbose: false, // Suppress template rendering logs, we're logging above
+          });
+          
+          renderedTests.set(testRun.id, testPath);
+        } catch (renderError) {
+          // Mark this specific test as an error
+          const errorMessage = renderError instanceof Error ? renderError.message : String(renderError);
+          console.error(`[${frameworkKey}] Template rendering failed for ${displayName}: ${errorMessage}`);
+          
+          testRun.status = 'error';
+          testRun.error = `Template rendering failed: ${errorMessage}`;
+          testRun.startTime = Date.now();
+          testRun.endTime = Date.now();
+          this.testRuns.push(testRun);
+        }
       }
     }
     

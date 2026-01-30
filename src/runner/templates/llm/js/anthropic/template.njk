@@ -2,17 +2,23 @@
 
 {% block imports %}
 {{ super() }}
-const Anthropic = require('@anthropic-ai/sdk');
+// Anthropic is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
 {% endblock %}
 
 {% block setup %}
-// Initialize Anthropic client
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Client will be initialized after dynamic import
+let client;
 {% endblock %}
 
 {% block test %}
+// Dynamic import of @anthropic-ai/sdk AFTER Sentry.init() to ensure instrumentation
+const Anthropic = (await import('@anthropic-ai/sdk')).default;
+
+// Initialize Anthropic client
+client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
 {% for input in inputs %}
   // Turn {{ loop.index }}: Create message
   {# Extract system message if present #}

@@ -8,6 +8,10 @@ import { PythonRunner } from './python-runner.js';
 import { JavaScriptRunner } from './javascript-runner.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export class Runner {
   private runsDir: string;
@@ -217,8 +221,26 @@ export class Runner {
     }
     
     await fs.writeFile(testPath, rendered);
+    
+    // Format the rendered file
+    await this.formatFile(testPath, framework.platform);
+    
     return testPath;
   }
 
-
+  /**
+   * Format a generated test file
+   * Uses black for Python, prettier for JavaScript
+   */
+  private async formatFile(filePath: string, platform: 'js' | 'py'): Promise<void> {
+    try {
+      if (platform === 'py') {
+        await execAsync(`black --quiet "${filePath}"`, { timeout: 10000 });
+      } else {
+        await execAsync(`npx prettier --write "${filePath}"`, { timeout: 10000 });
+      }
+    } catch {
+      // Formatting failed silently - not critical
+    }
+  }
 }

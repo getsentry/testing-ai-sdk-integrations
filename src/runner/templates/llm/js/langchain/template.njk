@@ -2,19 +2,25 @@
 
 {% block imports %}
 {{ super() }}
-const { ChatOpenAI } = require('@langchain/openai');
-const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
+// LangChain is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
 {% endblock %}
 
 {% block setup %}
-// Initialize LangChain ChatOpenAI
-const chat = new ChatOpenAI({
-  modelName: '{{ inputs[0].model }}',
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Chat client will be initialized after dynamic import
+let chat;
 {% endblock %}
 
 {% block test %}
+// Dynamic imports AFTER Sentry.init() to ensure instrumentation
+const { ChatOpenAI } = await import('@langchain/openai');
+const { HumanMessage, SystemMessage, AIMessage } = await import('@langchain/core/messages');
+
+// Initialize LangChain ChatOpenAI
+chat = new ChatOpenAI({
+  modelName: '{{ inputs[0].model }}',
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 {% for input in inputs %}
   // Turn {{ loop.index }}: Build messages
   const messages{{ loop.index }} = [

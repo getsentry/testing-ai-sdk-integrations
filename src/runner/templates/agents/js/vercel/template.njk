@@ -2,15 +2,18 @@
 
 {% block imports %}
 {{ super() }}
-const { generateText } = require('ai');
-const { openai } = require('@ai-sdk/openai');
+// Vercel AI SDK is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
 {% endblock %}
 
 {% block setup %}
-// Vercel AI SDK setup - uses openai provider
+// SDK functions will be imported dynamically
 {% endblock %}
 
 {% block test %}
+// Dynamic imports AFTER Sentry.init() to ensure instrumentation
+const { generateText } = await import('ai');
+const { openai } = await import('@ai-sdk/openai');
+
 {% for input in inputs %}
   // Turn {{ loop.index }}: Generate text
   {# Extract system and user messages #}

@@ -10,10 +10,10 @@
     }
   ],
   "versions": [
-    "0.14.1"
+    "1.38.0"
   ],
   "sentryVersions": [
-    "9.19.0",
+    "10.38.0",
     "latest"
   ],
   "modelOverrides": {

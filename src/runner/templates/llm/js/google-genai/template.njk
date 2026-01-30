@@ -2,17 +2,25 @@
 
 {% block imports %}
 {{ super() }}
-const { GoogleGenAI } = require('@google/genai');
+// GoogleGenAI is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
 {% endblock %}
 
 {% block setup %}
-// Initialize Google GenAI client
-const client = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_API_KEY,
-});
+// Client will be initialized after dynamic import
+let client;
 {% endblock %}
 
 {% block test %}
+// Dynamic import of @google/genai AFTER Sentry.init() to ensure instrumentation
+const { GoogleGenAI } = await import('@google/genai');
+
+// Initialize Google GenAI client with Vertex AI
+client = new GoogleGenAI({
+  vertexai: true,
+  project: process.env.GOOGLE_VERTEX_PROJECT,
+  location: process.env.GOOGLE_VERTEX_LOCATION,
+});
+
 {% for input in inputs %}
   // Turn {{ loop.index }}: Generate content
   {# Extract system and user messages #}

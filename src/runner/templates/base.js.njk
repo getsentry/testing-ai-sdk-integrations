@@ -20,6 +20,8 @@ import * as Sentry from '@sentry/node';
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   sendDefaultPii: true,
+  // Tracing must be enabled for AI monitoring to work
+  tracesSampleRate: 1.0,
 });
 {% endblock %}
 
@@ -28,10 +30,13 @@ Sentry.init({
 {% endblock %}
 
 async function main() {
-  {% block test %}
-  // Implement test logic here
-  console.log('Test not implemented');
-  {% endblock %}
+  // Wrap in a Sentry span to ensure AI instrumentation captures spans
+  await Sentry.startSpan({ name: 'test-{{ testName | lower | replace(" ", "-") }}', op: 'test' }, async () => {
+    {% block test %}
+    // Implement test logic here
+    console.log('Test not implemented');
+    {% endblock %}
+  });
 }
 
 {% block teardown %}
