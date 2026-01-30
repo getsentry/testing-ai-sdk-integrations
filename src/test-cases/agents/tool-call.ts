@@ -1,8 +1,8 @@
 /**
- * Basic Agent Test Case
+ * Tool Call Agent Test Case
  *
- * Tests an agentic workflow WITHOUT tools - similar to the basic LLM test.
- * Validates that Sentry captures agent spans correctly for simple completions.
+ * Tests an agentic workflow with successful tool calling.
+ * Validates that Sentry captures both agent and tool call spans.
  */
 
 import { expect } from "chai";
@@ -14,34 +14,55 @@ import {
   skipIf,
 } from "../utils.js";
 
-export const basicAgentTest: TestDefinition = {
-  name: "Basic Agent Test",
-  description: "Agent without tools - simple completion",
+export const toolCallAgentTest: TestDefinition = {
+  name: "Tool Call Agent Test",
+  description: "Agent with successful tool call",
   type: "agent",
 
-  // Agent without tools - just a simple assistant
   agent: {
-    name: "helpful_assistant",
-    description: "A helpful assistant that answers questions",
-    tools: [],
+    name: "math_assistant",
+    description: "A math assistant that can perform basic arithmetic",
+    tools: [
+      {
+        name: "add",
+        description: "Add two numbers together",
+        parameters: {
+          type: "object",
+          properties: {
+            a: {
+              type: "number",
+              description: "First number",
+            },
+            b: {
+              type: "number",
+              description: "Second number",
+            },
+          },
+          required: ["a", "b"],
+        },
+        result: 11, // Static result: 4 + 7 = 11
+      },
+    ],
   },
 
   inputs: [
     {
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "What is the capital of France?" },
+        {
+          role: "user",
+          content: "What is the result of 4 + 7? Use the add tool.",
+        },
       ],
     },
   ],
 
   checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpans = extractGenAISpans(spans);
-    expect(aiSpans.length).to.be.greaterThan(
-      0,
-      "Should have at least one AI span",
-    );
+    expect(
+      aiSpans.length,
+      "Should have at least one AI span for tool calling",
+    ).to.be.greaterThan(0);
   },
 
   checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
@@ -94,6 +115,28 @@ export const basicAgentTest: TestDefinition = {
     expect(agentSpan!.op).to.match(/^gen_ai\./);
   },
 
+  checkToolCallSpan(spans: CapturedSpan[], config: FrameworkConfig) {
+    const aiSpans = extractGenAISpans(spans);
+
+    // Look for tool call span
+    const toolSpan = aiSpans.find(
+      (s) =>
+        s.op?.match(/^gen_ai\.(tool|execute_tool|tool_call)/) ||
+        s.description?.toLowerCase().includes("add") ||
+        s.data?.["gen_ai.tool.name"] === "add",
+    );
+
+    skipIf(
+      !toolSpan,
+      "No tool call span captured - framework may not emit tool spans",
+    );
+
+    // If tool span exists, verify it has expected attributes
+    if (toolSpan) {
+      expect(toolSpan.op).to.match(/^gen_ai\./);
+    }
+  },
+
   checkInputTokensCached(spans: CapturedSpan[], config: FrameworkConfig) {
     const aiSpansWithInputTokensCached = extractGenAISpans(spans).filter(
       (span) => span.data?.["gen_ai.usage.input_tokens.cached"] !== undefined,
@@ -126,4 +169,4 @@ export const basicAgentTest: TestDefinition = {
   },
 };
 
-export default basicAgentTest;
+export default toolCallAgentTest;

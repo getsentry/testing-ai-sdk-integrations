@@ -11,6 +11,8 @@ import { basicErrorLLMTest } from "./llm/basic-error.js";
 import { visionLLMTest } from "./llm/vision.js";
 import { longInputLLMTest } from "./llm/long-input.js";
 import { basicAgentTest } from "./agents/basic.js";
+import { toolCallAgentTest } from "./agents/tool-call.js";
+import { toolErrorAgentTest } from "./agents/tool-error.js";
 import { visionAgentTest } from "./agents/vision.js";
 import { longInputAgentTest } from "./agents/long-input.js";
 
@@ -27,6 +29,8 @@ export const testCases = {
   },
   agents: {
     basic: basicAgentTest,
+    toolCall: toolCallAgentTest,
+    toolError: toolErrorAgentTest,
     vision: visionAgentTest,
     longInput: longInputAgentTest,
   },
