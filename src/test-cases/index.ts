@@ -9,8 +9,10 @@ import { basicLLMTest } from "./llm/basic.js";
 import { multiTurnLLMTest } from "./llm/multi-turn.js";
 import { basicErrorLLMTest } from "./llm/basic-error.js";
 import { visionLLMTest } from "./llm/vision.js";
+import { longInputLLMTest } from "./llm/long-input.js";
 import { basicAgentTest } from "./agents/basic.js";
 import { visionAgentTest } from "./agents/vision.js";
+import { longInputAgentTest } from "./agents/long-input.js";
 
 /**
  * All available test cases
@@ -21,10 +23,12 @@ export const testCases = {
     multiTurn: multiTurnLLMTest,
     basicError: basicErrorLLMTest,
     vision: visionLLMTest,
+    longInput: longInputLLMTest,
   },
   agents: {
     basic: basicAgentTest,
     vision: visionAgentTest,
+    longInput: longInputAgentTest,
   },
 };
 
