@@ -1,5 +1,29 @@
 {% extends "base.py.njk" %}
 
+{# Macro to convert our content format to OpenAI format for Python #}
+{% macro convertMessages(messages) %}
+[
+{% for message in messages %}
+        {
+            "role": "{{ message.role }}",
+{% if message.content is string %}
+            "content": "{{ message.content }}"
+{% else %}
+            "content": [
+{% for part in message.content %}
+{% if part.type == 'text' %}
+                {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+                {"type": "image_url", "image_url": {"url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+            ]
+{% endif %}
+        },
+{% endfor %}
+    ]
+{% endmacro %}
+
 {% block imports %}
 {{ super() }}
 {% if isAsync %}
@@ -38,7 +62,7 @@ client = OpenAI()
     stream = client.chat.completions.create(
 {% endif %}
         model="{{ input.model }}",
-        messages={{ input.messages | dump }},
+        messages={{ convertMessages(input.messages) }},
         stream=True,
     )
     
@@ -60,7 +84,7 @@ client = OpenAI()
     response = client.chat.completions.create(
 {% endif %}
         model="{{ input.model }}",
-        messages={{ input.messages | dump }},
+        messages={{ convertMessages(input.messages) }},
     )
     print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
 {% endif %}

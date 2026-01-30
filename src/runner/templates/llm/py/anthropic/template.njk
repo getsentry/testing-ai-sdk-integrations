@@ -1,5 +1,22 @@
 {% extends "base.py.njk" %}
 
+{# Macro to convert content to Anthropic format #}
+{% macro convertContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+            {"type": "image", "source": {"type": "base64", "media_type": "{{ part.mediaType }}", "data": "{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+        ]
+{%- endif %}
+{% endmacro %}
+
 {% block imports %}
 {{ super() }}
 {% if isAsync %}
@@ -37,7 +54,7 @@ client = Anthropic()
 {% if message.role == 'system' %}
     system_prompt = "{{ message.content }}"
 {% else %}
-    messages.append({"role": "{{ message.role }}", "content": "{{ message.content }}"})
+    messages.append({"role": "{{ message.role }}", "content": {{ convertContent(message.content) }}})
 {% endif %}
 {% endfor %}
 

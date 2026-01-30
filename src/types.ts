@@ -31,9 +31,27 @@ export interface ToolDefinition {
   error?: string;
 }
 
+/** Text content part for multimodal messages */
+export interface TextContentPart {
+  type: "text";
+  text: string;
+}
+
+/** Image content part for multimodal messages */
+export interface ImageContentPart {
+  type: "image";
+  /** Base64 encoded image data (without data URI prefix) */
+  base64: string;
+  /** MIME type of the image (e.g., "image/png", "image/jpeg") */
+  mediaType: string;
+}
+
+/** Content can be a simple string or an array of content parts for multimodal */
+export type MessageContent = string | (TextContentPart | ImageContentPart)[];
+
 export interface Message {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: MessageContent;
   name?: string;
   tool_call_id?: string;
 }

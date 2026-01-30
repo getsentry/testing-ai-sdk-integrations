@@ -1,5 +1,22 @@
 {% extends "base.py.njk" %}
 
+{# Macro to convert content to LangChain format (uses OpenAI-style for images) #}
+{% macro convertLangChainContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+            {"type": "image_url", "image_url": {"url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+        ]
+{%- endif %}
+{% endmacro %}
+
 {% block imports %}
 {{ super() }}
 from langchain_openai import ChatOpenAI
@@ -30,7 +47,7 @@ chat = ChatOpenAI(model="{{ input.model }}")
     {% if message.role == 'system' %}
         SystemMessage(content="{{ message.content }}"),
     {% elif message.role == 'user' %}
-        HumanMessage(content="{{ message.content }}"),
+        HumanMessage(content={{ convertLangChainContent(message.content) }}),
     {% elif message.role == 'assistant' %}
         AIMessage(content="{{ message.content }}"),
     {% endif %}

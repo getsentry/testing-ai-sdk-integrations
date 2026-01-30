@@ -1,5 +1,22 @@
 {% extends "base.js.njk" %}
 
+{# Macro to render message content for Anthropic - handles both string and multimodal array #}
+{% macro renderContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+              { type: "text", text: "{{ part.text }}" },
+{% elif part.type == 'image' %}
+              { type: "image", source: { type: "base64", media_type: "{{ part.mediaType }}", data: "{{ part.base64 }}" } },
+{% endif %}
+{% endfor %}
+            ]
+{%- endif %}
+{% endmacro %}
+
 {% block setup %}
 // Client will be initialized after dynamic import
 let client;
@@ -30,7 +47,7 @@ let client;
           messages: [
 {% for message in input.messages %}
 {% if message.role != 'system' %}
-            { role: "{{ message.role }}", content: "{{ message.content }}" },
+            { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
 {% endif %}
 {% endfor %}
           ],
@@ -53,7 +70,7 @@ let client;
           messages: [
 {% for message in input.messages %}
 {% if message.role != 'system' %}
-            { role: "{{ message.role }}", content: "{{ message.content }}" },
+            { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
 {% endif %}
 {% endfor %}
           ],
