@@ -1,11 +1,29 @@
 {% extends "base.py.njk" %}
 
+{# Macro to render multimodal content for OpenAI Agents SDK #}
+{% macro renderMultimodalContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- else %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+        {"type": "input_text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+        {"type": "input_image", "image_url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"},
+{% endif %}
+{% endfor %}
+    ]
+{%- endif %}
+{% endmacro %}
+
 {% block imports %}
 {{ super() }}
 from agents import function_tool, Agent, Runner
 {% endblock %}
 
 {% block setup %}
+{% if agent.tools | length > 0 %}
 # Define tool functions using @function_tool decorator
 {% for tool in agent.tools %}
 @function_tool
@@ -20,6 +38,7 @@ def {{ tool.name }}({% for param in tool.parameters.required %}{{ param }}: str{
     {% endif %}
 
 {% endfor %}
+{% endif %}
 # Create agent with tools
 agent = Agent(
     name="{{ agent.name }}",
@@ -32,17 +51,21 @@ agent = Agent(
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}: Build prompt from messages
-    prompt = ""
+{% set user_content = null %}
 {% for message in input.messages %}
-    prompt += "{{ message.content }}\n"
+{% if message.role == 'user' %}{% set user_content = message.content %}{% endif %}
 {% endfor %}
-    prompt = prompt.strip()
+    prompt = {{ renderMultimodalContent(user_content) }}
     
     # Run agent
-    result = Runner.run_streamed(agent, input=prompt)
+{% if isAsync %}
+    result = await Runner.run(agent, input=prompt)
+{% else %}
+    result = Runner.run_sync(agent, input=prompt)
+{% endif %}
     
     # Print result
-    print(f"Turn {{ loop.index }} Agent result: {result}")
+    print(f"Turn {{ loop.index }} Agent result: {result.final_output}")
 {% if not loop.last %}
     print()  # Blank line between turns
 {% endif %}

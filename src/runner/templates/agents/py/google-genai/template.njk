@@ -15,7 +15,7 @@ client = genai.Client(
     http_options=HttpOptions(api_version="v1"),
 )
 
-{% if agent and agent.tools %}
+{% if agent and agent.tools and agent.tools | length > 0 %}
 # Define tools for the agent
 {% for tool in agent.tools %}
 def {{ tool.name }}({% for prop, details in tool.parameters.properties %}{{ prop }}: {{ 'float' if details.type == 'number' else details.type }}{% if not loop.last %}, {% endif %}{% endfor %}):
@@ -50,12 +50,29 @@ tools = [
 {% endif %}
 {% endblock %}
 
+{# Macro to render contents for Google GenAI - handles both string and multimodal array #}
+{% macro renderGoogleContents(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            {"text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+            {"inline_data": {"mime_type": "{{ part.mediaType }}", "data": "{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+        ]
+{%- endif %}
+{% endmacro %}
+
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}: Generate content with tools
     {# Extract system message if present #}
     {% set system_content = "" %}
-    {% set user_content = "" %}
+    {% set user_content = null %}
     {% for message in input.messages %}
         {% if message.role == 'system' %}
             {% set system_content = message.content %}
@@ -70,8 +87,8 @@ tools = [
     response = client.models.generate_content(
 {% endif %}
         model="{{ input.model }}",
-        contents="{{ user_content }}",
-{% if agent and agent.tools %}
+        contents={{ renderGoogleContents(user_content) }},
+{% if agent and agent.tools and agent.tools | length > 0 %}
         config=genai.types.GenerateContentConfig(
 {% if system_content %}
             system_instruction="{{ system_content }}",
@@ -116,7 +133,7 @@ tools = [
                 {"role": "model", "parts": [{"function_call": {"name": func_name, "args": func_args}}]},
                 {"role": "user", "parts": [{"function_response": {"name": func_name, "response": {"result": result}}}]},
             ],
-{% if agent and agent.tools %}
+{% if agent and agent.tools and agent.tools | length > 0 %}
             config=genai.types.GenerateContentConfig(
 {% if system_content %}
                 system_instruction="{{ system_content }}",

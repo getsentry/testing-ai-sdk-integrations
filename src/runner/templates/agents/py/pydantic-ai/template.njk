@@ -2,7 +2,7 @@
 
 {% block imports %}
 {{ super() }}
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ImageUrl
 {% endblock %}
 
 {% block setup %}
@@ -24,15 +24,28 @@ agent = Agent(
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}: Run agent
-    {# Extract user message #}
-    {% set user_content = "" %}
+    {# Extract user message content #}
+    {% set user_content = null %}
     {% for message in input.messages %}
         {% if message.role == 'user' %}
             {% set user_content = message.content %}
         {% endif %}
     {% endfor %}
 
+{% if user_content is string %}
     result = await agent.run("{{ user_content }}")
+{% else %}
+    # Multimodal content - build message parts
+    message_parts = []
+{% for part in user_content %}
+{% if part.type == 'text' %}
+    message_parts.append("{{ part.text }}")
+{% elif part.type == 'image' %}
+    message_parts.append(ImageUrl(url="data:{{ part.mediaType }};base64,{{ part.base64 }}"))
+{% endif %}
+{% endfor %}
+    result = await agent.run(message_parts)
+{% endif %}
 
     # Print response
     print(f"Turn {{ loop.index }} Response: {result.output}")

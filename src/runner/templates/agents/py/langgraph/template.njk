@@ -1,9 +1,27 @@
 {% extends "base.py.njk" %}
 
+{# Macro to render message content for LangGraph (LangChain format) #}
+{% macro renderLangGraphContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+            {"type": "image_url", "image_url": {"url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+        ]
+{%- endif %}
+{% endmacro %}
+
 {% block imports %}
 {{ super() }}
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
 {% endblock %}
 
 {% block setup %}
@@ -13,17 +31,19 @@ llm = ChatOpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
 
-{% if agent %}
+{% if agent and agent.tools and agent.tools | length > 0 %}
 # Define tools for the agent
-def {{ agent.tools[0].name }}({% for param in agent.tools[0].parameters.required %}{{ param }}{% if not loop.last %}, {% endif %}{% endfor %}):
-    """{{ agent.tools[0].description }}"""
-    {% if agent.tools[0].result is defined %}
-    return {{ agent.tools[0].result | tojson }}
+{% for tool in agent.tools %}
+def {{ tool.name }}({% for param in tool.parameters.required %}{{ param }}{% if not loop.last %}, {% endif %}{% endfor %}):
+    """{{ tool.description }}"""
+    {% if tool.result is defined %}
+    return {{ tool.result | tojson }}
     {% else %}
     return None
     {% endif %}
 
-tools = [{{ agent.tools[0].name }}]
+{% endfor %}
+tools = [{% for tool in agent.tools %}{{ tool.name }}{% if not loop.last %}, {% endif %}{% endfor %}]
 {% else %}
 tools = []
 {% endif %}
@@ -37,7 +57,11 @@ agent = create_react_agent(llm, tools=tools)
     # Turn {{ loop.index }}: Run agent
     messages = [
 {% for message in input.messages %}
-        ("{{ message.role }}", "{{ message.content }}"),
+{% if message.role == 'system' %}
+        SystemMessage(content="{{ message.content }}"),
+{% elif message.role == 'user' %}
+        HumanMessage(content={{ renderLangGraphContent(message.content) }}),
+{% endif %}
 {% endfor %}
     ]
 
