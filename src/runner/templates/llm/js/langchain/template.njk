@@ -1,46 +1,57 @@
 {% extends "base.js.njk" %}
 
-{% block imports %}
-{{ super() }}
-// LangChain is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
-{% endblock %}
-
 {% block setup %}
-// Chat client will be initialized after dynamic import
+// Classes and client will be initialized after dynamic import
+let ChatOpenAI, HumanMessage, SystemMessage, AIMessage;
 let chat;
 {% endblock %}
 
+{% block dynamic_imports %}
+      // Dynamic import of langchain AFTER Sentry.init() to ensure instrumentation
+      const langchainOpenAI = await import("@langchain/openai");
+      const langchainMessages = await import("@langchain/core/messages");
+      ChatOpenAI = langchainOpenAI.ChatOpenAI;
+      HumanMessage = langchainMessages.HumanMessage;
+      SystemMessage = langchainMessages.SystemMessage;
+      AIMessage = langchainMessages.AIMessage;
+      chat = new ChatOpenAI({
+        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      });
+{% endblock %}
+
 {% block test %}
-// Dynamic imports AFTER Sentry.init() to ensure instrumentation
-const { ChatOpenAI } = await import('@langchain/openai');
-const { HumanMessage, SystemMessage, AIMessage } = await import('@langchain/core/messages');
-
-// Initialize LangChain ChatOpenAI
-chat = new ChatOpenAI({
-  modelName: '{{ inputs[0].model }}',
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 {% for input in inputs %}
-  // Turn {{ loop.index }}: Build messages
-  const messages{{ loop.index }} = [
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+
+      const messages{{ loop.index }} = [
 {% for message in input.messages %}
-  {% if message.role == 'system' %}
-    new SystemMessage('{{ message.content }}'),
-  {% elif message.role == 'user' %}
-    new HumanMessage('{{ message.content }}'),
-  {% elif message.role == 'assistant' %}
-    new AIMessage('{{ message.content }}'),
-  {% endif %}
-{% endfor %}
-  ];
-
-  const response{{ loop.index }} = await chat.invoke(messages{{ loop.index }});
-
-  // Print response
-  console.log(`Turn {{ loop.index }} Response: ${response{{ loop.index }}.content}`);
-{% if not loop.last %}
-  console.log();  // Blank line between turns
+{% if message.role == 'system' %}
+        new SystemMessage("{{ message.content }}"),
+{% elif message.role == 'user' %}
+        new HumanMessage("{{ message.content }}"),
+{% elif message.role == 'assistant' %}
+        new AIMessage("{{ message.content }}"),
 {% endif %}
+{% endfor %}
+      ];
+
+      try {
+{% if isStreaming %}
+        const stream = await chat.stream(messages{{ loop.index }});
+        const chunks = [];
+        for await (const chunk of stream) {
+          if (chunk.content) {
+            chunks.push(chunk.content);
+          }
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+        const response = await chat.invoke(messages{{ loop.index }});
+        console.log("Response:", response.content);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
 {% endfor %}
 {% endblock %}

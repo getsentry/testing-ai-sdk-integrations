@@ -2,16 +2,13 @@
  * Runner - orchestrates template rendering and test execution
  */
 
-import { RunnerContext, FrameworkConfig } from '../types.js';
-import { TemplateRenderer } from './template-renderer.js';
-import { PythonRunner } from './python-runner.js';
-import { JavaScriptRunner } from './javascript-runner.js';
-import * as path from 'path';
-import * as fs from 'fs/promises';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { RunnerContext, FrameworkConfig } from "../types.js";
+import { TemplateRenderer } from "./template-renderer.js";
+import { PythonRunner } from "./python-runner.js";
+import { JavaScriptRunner } from "./javascript-runner.js";
+import * as path from "path";
+import * as fs from "fs/promises";
+import * as prettier from "prettier";
 
 export class Runner {
   private runsDir: string;
@@ -20,7 +17,7 @@ export class Runner {
   private jsRunner: JavaScriptRunner;
 
   constructor() {
-    this.runsDir = path.join(process.cwd(), 'runs');
+    this.runsDir = path.join(process.cwd(), "runs");
     this.renderer = new TemplateRenderer();
     this.pythonRunner = new PythonRunner();
     this.jsRunner = new JavaScriptRunner();
@@ -31,7 +28,11 @@ export class Runner {
    */
   getWorkDir(framework: FrameworkConfig): string {
     const { platform, name, version, sentryVersion } = framework;
-    return path.join(this.runsDir, platform, `${name}-${version}-sentry-${sentryVersion}`);
+    return path.join(
+      this.runsDir,
+      platform,
+      `${name}-${version}-sentry-${sentryVersion}`,
+    );
   }
 
   /**
@@ -45,16 +46,15 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = context.framework.platform === 'py' 
-      ? this.pythonRunner 
-      : this.jsRunner;
+    const platformRunner =
+      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
     if (needsSetup) {
       await platformRunner.setupEnvironment(context);
     } else if (verbose) {
-      console.log('  Using cached environment');
+      console.log("  Using cached environment");
     }
 
     // Render template
@@ -75,16 +75,15 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = context.framework.platform === 'py' 
-      ? this.pythonRunner 
-      : this.jsRunner;
+    const platformRunner =
+      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
     if (needsSetup) {
       await platformRunner.setupEnvironment(context);
     } else if (verbose) {
-      console.log('  Using cached environment');
+      console.log("  Using cached environment");
     }
 
     // Render template
@@ -103,16 +102,15 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = context.framework.platform === 'py' 
-      ? this.pythonRunner 
-      : this.jsRunner;
+    const platformRunner =
+      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
     if (needsSetup) {
       await platformRunner.setupEnvironment(context);
     } else if (verbose) {
-      console.log('  Using cached environment');
+      console.log("  Using cached environment");
     }
   }
 
@@ -134,9 +132,8 @@ export class Runner {
    */
   async executeOnly(context: RunnerContext): Promise<void> {
     // Get platform-specific runner
-    const platformRunner = context.framework.platform === 'py' 
-      ? this.pythonRunner 
-      : this.jsRunner;
+    const platformRunner =
+      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
 
     // Execute test
     await platformRunner.executeTest(context);
@@ -149,8 +146,8 @@ export class Runner {
   private generateTestCaseId(testName: string): string {
     return testName
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
   }
 
   /**
@@ -161,37 +158,38 @@ export class Runner {
     if (verbose) {
       console.log(`  Rendering template for ${context.framework.name}...`);
     }
-    
-    const { workDir, framework, testDefinition, isAsync, isStreaming } = context;
-    
+
+    const { workDir, framework, testDefinition, isAsync, isStreaming } =
+      context;
+
     // Generate test case ID from test name
     const testCaseId = this.generateTestCaseId(testDefinition.name);
-    
+
     // Build mode suffix for filename
     const modeParts: string[] = [];
-    if (framework.platform === 'py') {
-      modeParts.push(isAsync ? 'async' : 'sync');
+    if (framework.platform === "py") {
+      modeParts.push(isAsync ? "async" : "sync");
     }
     if (framework.streamingMode) {
-      modeParts.push(isStreaming ? 'streaming' : 'blocking');
+      modeParts.push(isStreaming ? "streaming" : "blocking");
     }
-    
+
     // Determine test filename based on platform and modes
-    const extension = framework.platform === 'js' ? 'js' : 'py';
-    const modeSuffix = modeParts.length > 0 ? `-${modeParts.join('-')}` : '';
+    const extension = framework.platform === "js" ? "js" : "py";
+    const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
-    
+
     const testPath = path.join(workDir, testFile);
-    
+
     // Apply model overrides to inputs if specified in framework config
     let processedInputs = testDefinition.inputs;
     if (framework.modelOverrides) {
-      processedInputs = testDefinition.inputs.map(input => ({
+      processedInputs = testDefinition.inputs.map((input) => ({
         ...input,
         model: framework.modelOverrides?.request || input.model,
       }));
     }
-    
+
     // Build template context
     const templateContext = {
       testName: testDefinition.name,
@@ -204,40 +202,53 @@ export class Runner {
       ...(testDefinition.agent && { agent: testDefinition.agent }),
       inputs: processedInputs,
     };
-    
+
     // Render framework template if available, otherwise base template
     let rendered: string;
     if (framework.category && framework.templatePath) {
       // Use discovered framework template
       rendered = this.renderer.renderFramework(
-        framework.category as 'llm' | 'agents',
+        framework.category as "llm" | "agents",
         framework.platform,
         framework.name,
-        templateContext
+        templateContext,
       );
     } else {
       // Fallback to base template
       rendered = this.renderer.renderBase(framework.platform, templateContext);
     }
-    
+
     await fs.writeFile(testPath, rendered);
-    
+
     // Format the rendered file
     await this.formatFile(testPath, framework.platform);
-    
+
     return testPath;
   }
 
   /**
    * Format a generated test file
-   * Uses black for Python, prettier for JavaScript
+   * Uses Prettier JS API for JavaScript, black CLI for Python
    */
-  private async formatFile(filePath: string, platform: 'js' | 'py'): Promise<void> {
+  private async formatFile(
+    filePath: string,
+    platform: "js" | "py",
+  ): Promise<void> {
     try {
-      if (platform === 'py') {
+      if (platform === "py") {
+        // Python formatting requires black CLI (optional)
+        const { exec } = await import("child_process");
+        const { promisify } = await import("util");
+        const execAsync = promisify(exec);
         await execAsync(`black --quiet "${filePath}"`, { timeout: 10000 });
       } else {
-        await execAsync(`npx prettier --write "${filePath}"`, { timeout: 10000 });
+        // Use Prettier JS API for JavaScript
+        const source = await fs.readFile(filePath, "utf-8");
+        const formatted = await prettier.format(source, {
+          filepath: filePath,
+          parser: "babel",
+        });
+        await fs.writeFile(filePath, formatted);
       }
     } catch {
       // Formatting failed silently - not critical

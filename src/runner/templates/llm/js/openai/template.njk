@@ -1,41 +1,54 @@
 {% extends "base.js.njk" %}
 
-{% block imports %}
-{{ super() }}
-// OpenAI is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
-{% endblock %}
-
 {% block setup %}
 // Client will be initialized after dynamic import
 let client;
 {% endblock %}
 
+{% block dynamic_imports %}
+      // Dynamic import of openai AFTER Sentry.init() to ensure instrumentation
+      const OpenAI = (await import("openai")).default;
+      client = new OpenAI();
+{% endblock %}
+
 {% block test %}
-// Dynamic import of openai AFTER Sentry.init() to ensure instrumentation
-const OpenAI = (await import('openai')).default;
-
-// Initialize OpenAI client
-client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 {% for input in inputs %}
-  // Turn {{ loop.index }}: Create chat completion
-  const response{{ loop.index }} = await client.chat.completions.create({
-    model: '{{ input.model }}',
-    messages: [
-{% for message in input.messages %}
-      { role: '{{ message.role }}', content: '{{ message.content }}' },
-{% endfor %}
-    ],
-  });
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
-  // Print response
-  console.log(`Turn {{ loop.index }} Response: ${response{{ loop.index }}.choices[0].message.content}`);
-  console.log(`Model: ${response{{ loop.index }}.model}`);
-  console.log(`Tokens - Prompt: ${response{{ loop.index }}.usage.prompt_tokens}, Completion: ${response{{ loop.index }}.usage.completion_tokens}, Total: ${response{{ loop.index }}.usage.total_tokens}`);
-{% if not loop.last %}
-  console.log();  // Blank line between turns
+      try {
+{% if isStreaming %}
+        const stream = await client.chat.completions.create({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          messages: [
+{% for message in input.messages %}
+            { role: "{{ message.role }}", content: "{{ message.content }}" },
+{% endfor %}
+          ],
+          stream: true,
+        });
+
+        const chunks = [];
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            chunks.push(content);
+          }
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+        const response = await client.chat.completions.create({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          messages: [
+{% for message in input.messages %}
+            { role: "{{ message.role }}", content: "{{ message.content }}" },
+{% endfor %}
+          ],
+        });
+        console.log("Response:", response.choices[0].message.content);
 {% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
 {% endfor %}
 {% endblock %}

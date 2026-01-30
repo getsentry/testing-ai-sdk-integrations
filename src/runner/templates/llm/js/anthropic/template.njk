@@ -1,58 +1,68 @@
 {% extends "base.js.njk" %}
 
-{% block imports %}
-{{ super() }}
-// Anthropic is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
-{% endblock %}
-
 {% block setup %}
 // Client will be initialized after dynamic import
 let client;
 {% endblock %}
 
+{% block dynamic_imports %}
+      // Dynamic import of anthropic AFTER Sentry.init() to ensure instrumentation
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      client = new Anthropic();
+{% endblock %}
+
 {% block test %}
-// Dynamic import of @anthropic-ai/sdk AFTER Sentry.init() to ensure instrumentation
-const Anthropic = (await import('@anthropic-ai/sdk')).default;
-
-// Initialize Anthropic client
-client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 {% for input in inputs %}
-  // Turn {{ loop.index }}: Create message
-  {# Extract system message if present #}
-  {% set system_content = "" %}
-  {% for message in input.messages %}
-    {% if message.role == 'system' %}
-      {% set system_content = message.content %}
-    {% endif %}
-  {% endfor %}
-
-  const response{{ loop.index }} = await client.messages.create({
-    model: '{{ input.model }}',
-    max_tokens: 1024,
-{% if system_content %}
-    system: '{{ system_content }}',
-{% endif %}
-    messages: [
+{% set system_content = "" %}
 {% for message in input.messages %}
-  {% if message.role != 'system' %}
-      { role: '{{ message.role }}', content: '{{ message.content }}' },
-  {% endif %}
+{% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
 {% endfor %}
-    ],
-  });
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
-  // Print response
-  const content{{ loop.index }} = response{{ loop.index }}.content[0].type === 'text' 
-    ? response{{ loop.index }}.content[0].text 
-    : JSON.stringify(response{{ loop.index }}.content[0]);
-  console.log(`Turn {{ loop.index }} Response: ${content{{ loop.index }}}`);
-  console.log(`Model: ${response{{ loop.index }}.model}`);
-  console.log(`Tokens - Input: ${response{{ loop.index }}.usage.input_tokens}, Output: ${response{{ loop.index }}.usage.output_tokens}`);
-{% if not loop.last %}
-  console.log();  // Blank line between turns
+      try {
+{% if isStreaming %}
+        const stream = await client.messages.stream({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          max_tokens: 1024,
+{% if system_content %}
+          system: "{{ system_content }}",
 {% endif %}
+          messages: [
+{% for message in input.messages %}
+{% if message.role != 'system' %}
+            { role: "{{ message.role }}", content: "{{ message.content }}" },
+{% endif %}
+{% endfor %}
+          ],
+        });
+
+        const chunks = [];
+        for await (const event of stream) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            chunks.push(event.delta.text);
+          }
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+        const response = await client.messages.create({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          max_tokens: 1024,
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+{% for message in input.messages %}
+{% if message.role != 'system' %}
+            { role: "{{ message.role }}", content: "{{ message.content }}" },
+{% endif %}
+{% endfor %}
+          ],
+        });
+        console.log("Response:", response.content[0].text);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
 {% endfor %}
 {% endblock %}

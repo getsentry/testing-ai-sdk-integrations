@@ -1,55 +1,33 @@
 /**
- * Generated test file for {{ testName }}
+ * Sentry AI SDK Integration Test: {{ testName }}
  * Framework: {{ frameworkName }}
-{% if causeAPIError %} * Cause API Error: yes{% endif %}
+ *
+ * This test verifies that Sentry correctly instruments {{ frameworkName }} SDK calls.
  */
 
-{% block imports %}
-import * as Sentry from '@sentry/node';
-{% endblock %}
+// Initialize Sentry FIRST, before any other imports
+import * as Sentry from "@sentry/node";
 
-{# 
-  causeAPIError: When true, tests should use an invalid model name to trigger API errors.
-  Templates can use this to modify model names or other parameters.
-  
-  Usage in child templates:
-    model: {% if causeAPIError %}"invalid-model-that-does-not-exist"{% else %}"{{ input.model }}"{% endif %}
-#}
-
-{% block sdk_setup %}
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   sendDefaultPii: true,
-  // Tracing must be enabled for AI monitoring to work
+  // Capture 100% of traces for testing
   tracesSampleRate: 1.0,
 });
-{% endblock %}
 
-{% block setup %}
-// Use this to run code before the test to setup stuff
-{% endblock %}
+{% block setup %}{% endblock %}
 
 async function main() {
-  // Wrap in a Sentry span to ensure AI instrumentation captures spans
-  await Sentry.startSpan({ name: 'test-{{ testName | lower | replace(" ", "-") }}', op: 'test' }, async () => {
-    {% block test %}
-    // Implement test logic here
-    console.log('Test not implemented');
-    {% endblock %}
-  });
+  await Sentry.startSpan(
+    { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
+    async () => {
+      // Dynamic imports AFTER Sentry.init() to ensure instrumentation hooks are in place
+{% block dynamic_imports %}{% endblock %}
+{% block test %}{% endblock %}
+    }
+  );
 }
 
-{% block teardown %}
-// Use this to run code after the test
-{% endblock %}
-
-// Execute test
 main()
-  .catch((error) => {
-    console.error('Test failed:', error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    // Ensure Sentry flushes all events
-    await Sentry.flush(5000);
-  });
+  .catch(console.error)
+  .finally(() => Sentry.flush(5000));

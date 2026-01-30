@@ -1,44 +1,40 @@
 {% extends "base.js.njk" %}
 
-{% block imports %}
-{{ super() }}
-// Vercel AI SDK is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
+{% block setup %}
+// Functions will be initialized after dynamic import
+let generateText, openai;
 {% endblock %}
 
-{% block setup %}
-// SDK functions will be imported dynamically
+{% block dynamic_imports %}
+      // Dynamic import of vercel ai AFTER Sentry.init() to ensure instrumentation
+      const ai = await import("ai");
+      const aiSdkOpenai = await import("@ai-sdk/openai");
+      generateText = ai.generateText;
+      openai = aiSdkOpenai.openai;
 {% endblock %}
 
 {% block test %}
-// Dynamic imports AFTER Sentry.init() to ensure instrumentation
-const { generateText } = await import('ai');
-const { openai } = await import('@ai-sdk/openai');
-
 {% for input in inputs %}
-  // Turn {{ loop.index }}: Generate text
-  {# Extract system and user messages #}
-  {% set system_content = "" %}
-  {% set user_content = "" %}
-  {% for message in input.messages %}
-    {% if message.role == 'system' %}
-      {% set system_content = message.content %}
-    {% elif message.role == 'user' %}
-      {% set user_content = message.content %}
-    {% endif %}
-  {% endfor %}
+{% set system_content = "" %}
+{% set user_content = "" %}
+{% for message in input.messages %}
+{% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
+{% if message.role == 'user' %}{% set user_content = message.content %}{% endif %}
+{% endfor %}
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
-  const { text: text{{ loop.index }} } = await generateText({
-    model: openai('{{ input.model }}'),
+      try {
+        const { text } = await generateText({
+          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
 {% if system_content %}
-    system: '{{ system_content }}',
+          system: "{{ system_content }}",
 {% endif %}
-    prompt: '{{ user_content }}',
-  });
-
-  // Print response
-  console.log(`Turn {{ loop.index }} Response: ${text{{ loop.index }}}`);
-{% if not loop.last %}
-  console.log();  // Blank line between turns
-{% endif %}
+          prompt: "{{ user_content }}",
+        });
+        console.log("Response:", text);
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
 {% endfor %}
 {% endblock %}

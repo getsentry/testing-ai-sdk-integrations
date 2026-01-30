@@ -1,54 +1,47 @@
 {% extends "base.js.njk" %}
 
-{% block imports %}
-{{ super() }}
-// LangGraph is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
+{% block setup %}
+// Classes and agent will be initialized after dynamic import
+let ChatOpenAI, createReactAgent, HumanMessage, SystemMessage;
+let llm, agent;
 {% endblock %}
 
-{% block setup %}
-// Agent will be initialized after dynamic imports
-let agent;
+{% block dynamic_imports %}
+      // Dynamic import of langgraph AFTER Sentry.init() to ensure instrumentation
+      const langchainOpenAI = await import("@langchain/openai");
+      const langgraph = await import("@langchain/langgraph/prebuilt");
+      const langchainMessages = await import("@langchain/core/messages");
+      ChatOpenAI = langchainOpenAI.ChatOpenAI;
+      createReactAgent = langgraph.createReactAgent;
+      HumanMessage = langchainMessages.HumanMessage;
+      SystemMessage = langchainMessages.SystemMessage;
+      llm = new ChatOpenAI({
+        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      });
+      agent = createReactAgent({ llm, tools: [] });
 {% endblock %}
 
 {% block test %}
-// Dynamic imports AFTER Sentry.init() to ensure instrumentation
-const { ChatOpenAI } = await import('@langchain/openai');
-const { createReactAgent } = await import('@langchain/langgraph/prebuilt');
-const { HumanMessage, SystemMessage } = await import('@langchain/core/messages');
-
-// Initialize ChatOpenAI for LangGraph
-const llm = new ChatOpenAI({
-  modelName: '{{ inputs[0].model }}',
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Create react agent with no tools
-agent = createReactAgent({ llm, tools: [] });
-
 {% for input in inputs %}
-  // Turn {{ loop.index }}: Run agent
-  const messages{{ loop.index }} = [
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+
+      const messages{{ loop.index }} = [
 {% for message in input.messages %}
-  {% if message.role == 'system' %}
-    new SystemMessage('{{ message.content }}'),
-  {% elif message.role == 'user' %}
-    new HumanMessage('{{ message.content }}'),
-  {% endif %}
-{% endfor %}
-  ];
-
-  const result{{ loop.index }} = await agent.invoke({
-    messages: messages{{ loop.index }},
-  });
-
-  // Extract the AI's response from the result
-  const responseMessages{{ loop.index }} = result{{ loop.index }}.messages;
-  const lastMessage{{ loop.index }} = responseMessages{{ loop.index }}[responseMessages{{ loop.index }}.length - 1];
-
-  // Print response
-  console.log(`Turn {{ loop.index }} Response: ${lastMessage{{ loop.index }}.content}`);
-{% if not loop.last %}
-  console.log();  // Blank line between turns
+{% if message.role == 'system' %}
+        new SystemMessage("{{ message.content }}"),
+{% elif message.role == 'user' %}
+        new HumanMessage("{{ message.content }}"),
 {% endif %}
+{% endfor %}
+      ];
+
+      try {
+        const result = await agent.invoke({ messages: messages{{ loop.index }} });
+        const lastMessage = result.messages[result.messages.length - 1];
+        console.log("Response:", lastMessage.content);
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
 {% endfor %}
 {% endblock %}

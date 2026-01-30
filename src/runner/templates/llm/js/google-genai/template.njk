@@ -1,53 +1,60 @@
 {% extends "base.js.njk" %}
 
-{% block imports %}
-{{ super() }}
-// GoogleGenAI is imported dynamically after Sentry.init() to ensure instrumentation hooks are in place
-{% endblock %}
-
 {% block setup %}
 // Client will be initialized after dynamic import
 let client;
 {% endblock %}
 
+{% block dynamic_imports %}
+      // Dynamic import of google-genai AFTER Sentry.init() to ensure instrumentation
+      const { GoogleGenAI } = await import("@google/genai");
+      client = new GoogleGenAI({
+        vertexai: true,
+        project: process.env.GOOGLE_VERTEX_PROJECT,
+        location: process.env.GOOGLE_VERTEX_LOCATION,
+      });
+{% endblock %}
+
 {% block test %}
-// Dynamic import of @google/genai AFTER Sentry.init() to ensure instrumentation
-const { GoogleGenAI } = await import('@google/genai');
-
-// Initialize Google GenAI client with Vertex AI
-client = new GoogleGenAI({
-  vertexai: true,
-  project: process.env.GOOGLE_VERTEX_PROJECT,
-  location: process.env.GOOGLE_VERTEX_LOCATION,
-});
-
 {% for input in inputs %}
-  // Turn {{ loop.index }}: Generate content
-  {# Extract system and user messages #}
-  {% set system_content = "" %}
-  {% set user_content = "" %}
-  {% for message in input.messages %}
-    {% if message.role == 'system' %}
-      {% set system_content = message.content %}
-    {% elif message.role == 'user' %}
-      {% set user_content = message.content %}
-    {% endif %}
-  {% endfor %}
+{% set system_content = "" %}
+{% set user_content = "" %}
+{% for message in input.messages %}
+{% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
+{% if message.role == 'user' %}{% set user_content = message.content %}{% endif %}
+{% endfor %}
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
-  const response{{ loop.index }} = await client.models.generateContent({
-    model: '{{ input.model }}',
-    contents: '{{ user_content }}',
+      try {
+{% if isStreaming %}
+        const stream = await client.models.generateContentStream({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          contents: "{{ user_content }}",
 {% if system_content %}
-    config: {
-      systemInstruction: ['{{ system_content }}'],
-    },
+          config: { systemInstruction: ["{{ system_content }}"] },
 {% endif %}
-  });
+        });
 
-  // Print response
-  console.log(`Turn {{ loop.index }} Response: ${response{{ loop.index }}.text}`);
-{% if not loop.last %}
-  console.log();  // Blank line between turns
+        const chunks = [];
+        for await (const chunk of stream) {
+          if (chunk.text) {
+            chunks.push(chunk.text);
+          }
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+        const response = await client.models.generateContent({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          contents: "{{ user_content }}",
+{% if system_content %}
+          config: { systemInstruction: ["{{ system_content }}"] },
 {% endif %}
+        });
+        console.log("Response:", response.text);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
 {% endfor %}
 {% endblock %}
