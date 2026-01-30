@@ -5,11 +5,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc && npm run copy-templates",
-    "copy-templates": "rm -rf dist/runner/templates && mkdir -p dist/runner/templates && cp -r src/runner/templates/* dist/runner/templates/",
+    "build": "tsc",
+    "postbuild": "rm -rf dist/runner/templates && mkdir -p dist/runner/templates && cp -r src/runner/templates/* dist/runner/templates/",
     "test": "node dist/cli.js",
-    "test-templates": "node test-templates.js",
-    "render-templates": "node dist/render-templates.js",
+    "setup": "node dist/setup.js",
     "dev": "npm run build && node dist/cli.js"
   },
   "keywords": [
@@ -26,12 +25,12 @@
     "dotenv": "^17.2.3",
     "hono": "^4.11.5",
     "log-update": "^7.0.2",
-    "nunjucks": "^3.2.4"
+    "nunjucks": "^3.2.4",
+    "prettier": "^3.8.1"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
     "@types/node": "^22.10.5",
-    "prettier": "^3.8.1",
     "typescript": "^5.7.3"
   },
   "volta": {

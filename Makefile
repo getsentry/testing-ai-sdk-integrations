@@ -1,4 +1,4 @@
-.PHONY: help install build test clean render render-py render-js render-framework clean-preview
+.PHONY: help install build test clean setup setup-py setup-js setup-framework
 
 help:
 	@echo "Sentry AI SDK Integration Tests"
@@ -7,12 +7,11 @@ help:
 	@echo "  make install         - Install dependencies"
 	@echo "  make build           - Build TypeScript code"
 	@echo "  make test            - Run all tests"
-	@echo "  make render          - Preview all templates in .preview/"
-	@echo "  make render-py       - Preview Python templates only"
-	@echo "  make render-js       - Preview JavaScript templates only"
-	@echo "  make render-framework FRAMEWORK=openai - Preview specific framework"
-	@echo "  make clean           - Remove runs/, .preview/, and build artifacts"
-	@echo "  make clean-preview   - Remove .preview/ directory"
+	@echo "  make setup           - Setup all test environments (no execution)"
+	@echo "  make setup-py        - Setup Python test environments only"
+	@echo "  make setup-js        - Setup JavaScript test environments only"
+	@echo "  make setup-framework FRAMEWORK=openai - Setup specific framework"
+	@echo "  make clean           - Remove runs/ and build artifacts"
 
 install:
 	npm install
@@ -23,28 +22,24 @@ build:
 test: build
 	npm run test
 
-render: build
-	npm run render-templates
+setup: build
+	npm run setup
 
-render-py: build
-	npm run render-templates -- --platform py
+setup-py: build
+	npm run setup -- --platform py
 
-render-js: build
-	npm run render-templates -- --platform js
+setup-js: build
+	npm run setup -- --platform js
 
-render-framework: build
+setup-framework: build
 	@if [ -z "$(FRAMEWORK)" ]; then \
 		echo "Error: FRAMEWORK variable is required"; \
-		echo "Usage: make render-framework FRAMEWORK=openai"; \
+		echo "Usage: make setup-framework FRAMEWORK=openai"; \
 		exit 1; \
 	fi
-	npm run render-templates -- --framework $(FRAMEWORK)
+	npm run setup -- --framework $(FRAMEWORK)
 
 clean:
 	rm -rf runs/
-	rm -rf .preview/
 	rm -rf dist/
 	rm -rf node_modules/
-
-clean-preview:
-	rm -rf .preview/
