@@ -10,13 +10,8 @@
       "version": "framework"
     }
   ],
-  "versions": [
-    "1.0.0"
-  ],
-  "sentryVersions": [
-    "2.19.2",
-    "latest"
-  ],
+  "versions": ["1.0.0"],
+  "sentryVersions": ["2.51.0", "latest"],
   "modelOverrides": {
     "request": "gemini-2.0-flash",
     "response": "gemini-2.0-flash*"

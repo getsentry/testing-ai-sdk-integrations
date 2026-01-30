@@ -10,11 +10,6 @@
       "version": "framework"
     }
   ],
-  "versions": [
-    "0.0.19"
-  ],
-  "sentryVersions": [
-    "2.19.2",
-    "latest"
-  ]
+  "versions": ["0.0.19"],
+  "sentryVersions": ["2.51.0", "latest"]
 }
