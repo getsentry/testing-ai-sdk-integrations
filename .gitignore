@@ -57,5 +57,5 @@ coverage/
 test-results/
 *.log
 
-# Test execution and preview directories
+# Test execution directory
 runs/
