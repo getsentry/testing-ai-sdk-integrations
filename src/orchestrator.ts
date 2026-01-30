@@ -941,18 +941,27 @@ export class Orchestrator {
     console.log(colors.gray + "─".repeat(70) + colors.reset);
 
     for (const run of report.runs) {
-      const executionMode = run.framework.executionMode
-        ? ` ${colors.dim}(${run.framework.executionMode})${colors.reset}`
-        : "";
+      // Build mode string with execution mode (Python) and streaming mode
+      const modeParts: string[] = [];
+      if (run.framework.platform === "py" && run.framework.executionMode) {
+        modeParts.push(run.framework.executionMode);
+      }
+      if (run.framework.streamingMode) {
+        modeParts.push(run.framework.streamingMode);
+      }
+      const modeStr =
+        modeParts.length > 0
+          ? ` ${colors.dim}(${modeParts.join(", ")})${colors.reset}`
+          : "";
 
       // Test header
       if (run.status === "passed") {
         console.log(
-          `\n${colors.green}✓${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset}${executionMode} ${run.testDefinition.name}`,
+          `\n${colors.green}✓${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset} ${run.testDefinition.name}${modeStr}`,
         );
       } else {
         console.log(
-          `\n${colors.red}✗${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset}${executionMode} ${run.testDefinition.name}`,
+          `\n${colors.red}✗${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset} ${run.testDefinition.name}${modeStr}`,
         );
       }
 

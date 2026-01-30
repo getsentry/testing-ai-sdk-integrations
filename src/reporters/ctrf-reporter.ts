@@ -1,13 +1,13 @@
 /**
  * CTRF Reporter - Converts TestReport to CTRF (Common Test Report Format)
- * 
+ *
  * CTRF Specification: https://ctrf.io/
  */
 
-import type { Report, Test } from 'ctrf';
-import { TestReport, TestRun } from '../types.js';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import type { Report, Test } from "ctrf";
+import { TestReport, TestRun } from "../types.js";
+import * as fs from "fs/promises";
+import * as path from "path";
 
 /**
  * Convert TestReport to CTRF format
@@ -19,17 +19,21 @@ export function generateCTRFReport(testReport: TestReport): Report {
   // Convert each TestRun to CTRF Test
   const tests: Test[] = testReport.runs.map((run) => {
     const frameworkName = `${run.framework.platform}/${run.framework.name}`;
-    const executionMode = run.framework.executionMode 
-      ? ` (${run.framework.executionMode})`
-      : '';
-    const testName = `${frameworkName}${executionMode} :: ${run.testDefinition.name}`;
+    // Build mode string with execution mode (Python) and streaming mode
+    const modeParts: string[] = [];
+    if (run.framework.platform === "py" && run.framework.executionMode) {
+      modeParts.push(run.framework.executionMode);
+    }
+    if (run.framework.streamingMode) {
+      modeParts.push(run.framework.streamingMode);
+    }
+    const modeStr = modeParts.length > 0 ? ` (${modeParts.join(", ")})` : "";
+    const testName = `${frameworkName} :: ${run.testDefinition.name}${modeStr}`;
 
     const test: Test = {
       name: testName,
       status: mapStatus(run.status),
-      duration: run.endTime && run.startTime 
-        ? run.endTime - run.startTime 
-        : 0,
+      duration: run.endTime && run.startTime ? run.endTime - run.startTime : 0,
     };
 
     // Add suite (grouping)
@@ -41,16 +45,19 @@ export function generateCTRFReport(testReport: TestReport): Report {
       run.framework.type, // 'llm-only' or 'agentic'
       run.testDefinition.type, // 'llm' or 'agent'
     ];
-    
+
     if (run.framework.executionMode) {
-      tags.push(run.framework.executionMode); // 'sync', 'async', or 'both'
+      tags.push(run.framework.executionMode); // 'sync' or 'async'
     }
-    
+    if (run.framework.streamingMode) {
+      tags.push(run.framework.streamingMode); // 'streaming' or 'blocking'
+    }
+
     test.tags = tags;
 
     // Add error details if test failed
     if (run.error) {
-      test.message = run.error.split('\n')[0]; // First line
+      test.message = run.error.split("\n")[0]; // First line
       test.trace = run.error;
     }
 
@@ -63,6 +70,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       platform: run.framework.platform,
       ...(run.framework.executionMode && {
         executionMode: run.framework.executionMode,
+      }),
+      ...(run.framework.streamingMode && {
+        streamingMode: run.framework.streamingMode,
       }),
       ...(run.spans && {
         spanCount: run.spans.length,
@@ -86,12 +96,12 @@ export function generateCTRFReport(testReport: TestReport): Report {
 
   // Build CTRF report
   const report: Report = {
-    reportFormat: 'CTRF',
-    specVersion: '1.0.0',
+    reportFormat: "CTRF",
+    specVersion: "1.0.0",
     results: {
       tool: {
-        name: 'sentry-ai-sdk-test',
-        version: '1.0.0',
+        name: "sentry-ai-sdk-test",
+        version: "1.0.0",
       },
       summary,
       tests,
@@ -104,20 +114,22 @@ export function generateCTRFReport(testReport: TestReport): Report {
 /**
  * Map our status to CTRF status
  */
-function mapStatus(status: string): 'passed' | 'failed' | 'skipped' | 'pending' | 'other' {
+function mapStatus(
+  status: string,
+): "passed" | "failed" | "skipped" | "pending" | "other" {
   switch (status) {
-    case 'passed':
-      return 'passed';
-    case 'failed':
-      return 'failed';
-    case 'skipped':
-      return 'skipped';
-    case 'error':
-      return 'other';
-    case 'pending':
-      return 'pending';
+    case "passed":
+      return "passed";
+    case "failed":
+      return "failed";
+    case "skipped":
+      return "skipped";
+    case "error":
+      return "other";
+    case "pending":
+      return "pending";
     default:
-      return 'other';
+      return "other";
   }
 }
 
@@ -126,13 +138,13 @@ function mapStatus(status: string): 'passed' | 'failed' | 'skipped' | 'pending' 
  */
 export async function writeCTRFReport(
   report: Report,
-  outputDir: string = './test-results'
+  outputDir: string = "./test-results",
 ): Promise<string> {
   // Ensure output directory exists
   await fs.mkdir(outputDir, { recursive: true });
 
-  const filePath = path.join(outputDir, 'ctrf-report.json');
-  await fs.writeFile(filePath, JSON.stringify(report, null, 2), 'utf-8');
+  const filePath = path.join(outputDir, "ctrf-report.json");
+  await fs.writeFile(filePath, JSON.stringify(report, null, 2), "utf-8");
 
   return filePath;
 }
