@@ -3,17 +3,20 @@
  * CLI entry point
  */
 
-import 'dotenv/config';
-import { Orchestrator } from './orchestrator.js';
-import { TestDefinition, FrameworkConfig } from './types.js';
-import { discoverFrameworks, listFrameworks } from './runner/framework-discovery.js';
-import { getAllTests } from './test-cases/index.js';
+import "dotenv/config";
+import { Orchestrator } from "./orchestrator.js";
+import { TestDefinition, FrameworkConfig } from "./types.js";
+import {
+  discoverFrameworks,
+  listFrameworks,
+} from "./runner/framework-discovery.js";
+import { getAllTests } from "./test-cases/index.js";
 
 interface CLIOptions {
-  command: 'run' | 'list' | 'setup';
+  command: "run" | "list" | "setup";
   framework?: string;
   test?: string;
-  platform?: 'js' | 'py';
+  platform?: "js" | "py";
   sync?: boolean;
   async?: boolean;
   streaming?: boolean;
@@ -22,60 +25,71 @@ interface CLIOptions {
   sentryJavaScriptPath?: string;
   liveStatus?: boolean;
   verbose?: boolean;
+  parallel?: number;
 }
 
 function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
-  const options: CLIOptions = { command: 'run' };
+  const options: CLIOptions = { command: "run" };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
-      case 'list':
-        options.command = 'list';
+      case "list":
+        options.command = "list";
         break;
-      case 'run':
-        options.command = 'run';
+      case "run":
+        options.command = "run";
         break;
-      case 'setup':
-        options.command = 'setup';
+      case "setup":
+        options.command = "setup";
         break;
-      case '--framework':
+      case "--framework":
         options.framework = args[++i];
         break;
-      case '--test':
+      case "--test":
         options.test = args[++i];
         break;
-      case '--platform':
-        options.platform = args[++i] as 'js' | 'py';
+      case "--platform":
+        options.platform = args[++i] as "js" | "py";
         break;
-      case '--sync':
+      case "--sync":
         options.sync = true;
         break;
-      case '--async':
+      case "--async":
         options.async = true;
         break;
-      case '--streaming':
+      case "--streaming":
         options.streaming = true;
         break;
-      case '--blocking':
+      case "--blocking":
         options.blocking = true;
         break;
-      case '--sentry-python':
+      case "--sentry-python":
         options.sentryPythonPath = args[++i];
         break;
-      case '--sentry-javascript':
+      case "--sentry-javascript":
         options.sentryJavaScriptPath = args[++i];
         break;
-      case '--live-status':
+      case "--live-status":
         options.liveStatus = true;
         break;
-      case '--verbose':
-      case '-v':
+      case "--verbose":
+      case "-v":
         options.verbose = true;
         break;
-      case '--help':
-      case '-h':
+      case "--parallel":
+      case "-j":
+        const parallelValue = args[++i];
+        const parsed = parseInt(parallelValue, 10);
+        if (isNaN(parsed) || parsed < 1) {
+          console.error("Error: --parallel must be a positive integer");
+          process.exit(1);
+        }
+        options.parallel = parsed;
+        break;
+      case "--help":
+      case "-h":
         printHelp();
         process.exit(0);
     }
@@ -104,6 +118,7 @@ Options:
   --async                  Run only async tests (default: both)
   --streaming              Run only streaming tests (default: both)
   --blocking               Run only blocking (non-streaming) tests (default: both)
+  --parallel, -j <N>       Run up to N tests in parallel (default: 1)
   --verbose, -v            Show detailed output (test execution logs, etc.)
   --live-status            Enable live status display (real-time tree view)
   --sentry-python <path>   Use local Sentry Python SDK (editable install)
@@ -126,24 +141,25 @@ Examples:
 async function main() {
   const options = parseArgs();
 
-  console.log('Sentry AI SDK Integration Tests\n');
+  console.log("Sentry AI SDK Integration Tests\n");
 
   // Handle list command
-  if (options.command === 'list') {
+  if (options.command === "list") {
     listFrameworks();
     return;
   }
 
   // Setup command doesn't need span collector or live status
-  const isSetupOnly = options.command === 'setup';
+  const isSetupOnly = options.command === "setup";
 
-  const orchestrator = new Orchestrator({ 
+  const orchestrator = new Orchestrator({
     liveStatus: options.liveStatus,
     verbose: options.verbose,
     sync: options.sync,
     async: options.async,
     streaming: options.streaming,
     blocking: options.blocking,
+    parallel: options.parallel,
   });
 
   try {
@@ -154,17 +170,21 @@ async function main() {
 
     // Discover frameworks
     let discoveredFrameworks = discoverFrameworks();
-    
+
     // Apply filters
     if (options.platform) {
-      discoveredFrameworks = discoveredFrameworks.filter(f => f.platform === options.platform);
+      discoveredFrameworks = discoveredFrameworks.filter(
+        (f) => f.platform === options.platform,
+      );
     }
     if (options.framework) {
-      discoveredFrameworks = discoveredFrameworks.filter(f => f.name === options.framework);
+      discoveredFrameworks = discoveredFrameworks.filter(
+        (f) => f.name === options.framework,
+      );
     }
 
     if (discoveredFrameworks.length === 0) {
-      console.log('No frameworks found matching criteria.');
+      console.log("No frameworks found matching criteria.");
       await orchestrator.stop();
       return;
     }
@@ -172,11 +192,11 @@ async function main() {
     // Load test definitions
     let testDefinitions = getAllTests();
     if (options.test) {
-      testDefinitions = testDefinitions.filter(t => t.name === options.test);
+      testDefinitions = testDefinitions.filter((t) => t.name === options.test);
     }
 
     if (testDefinitions.length === 0) {
-      console.log('No tests found matching criteria.');
+      console.log("No tests found matching criteria.");
       await orchestrator.stop();
       return;
     }
@@ -184,21 +204,25 @@ async function main() {
     // Set local Sentry SDK paths if provided
     if (options.sentryPythonPath) {
       process.env.SENTRY_PYTHON_PATH = options.sentryPythonPath;
-      console.log(`Using local Sentry Python SDK: ${options.sentryPythonPath}\n`);
+      console.log(
+        `Using local Sentry Python SDK: ${options.sentryPythonPath}\n`,
+      );
     }
     if (options.sentryJavaScriptPath) {
       process.env.SENTRY_JAVASCRIPT_PATH = options.sentryJavaScriptPath;
-      console.log(`Using local Sentry JavaScript SDK: ${options.sentryJavaScriptPath}\n`);
+      console.log(
+        `Using local Sentry JavaScript SDK: ${options.sentryJavaScriptPath}\n`,
+      );
     }
 
     // Convert discovered frameworks to test matrix
-    const frameworks: FrameworkConfig[] = discoveredFrameworks.map(df => {
+    const frameworks: FrameworkConfig[] = discoveredFrameworks.map((df) => {
       // Determine Sentry version based on platform and local SDK paths
       let sentryVersion = df.sentryVersions[0];
-      if (df.platform === 'py' && options.sentryPythonPath) {
-        sentryVersion = 'local';
-      } else if (df.platform === 'js' && options.sentryJavaScriptPath) {
-        sentryVersion = 'local';
+      if (df.platform === "py" && options.sentryPythonPath) {
+        sentryVersion = "local";
+      } else if (df.platform === "js" && options.sentryJavaScriptPath) {
+        sentryVersion = "local";
       }
 
       return {
@@ -218,7 +242,9 @@ async function main() {
     });
 
     if (options.verbose) {
-      console.log(`Testing ${frameworks.length} framework(s) with ${testDefinitions.length} test(s)\n`);
+      console.log(
+        `Testing ${frameworks.length} framework(s) with ${testDefinitions.length} test(s)\n`,
+      );
     }
 
     if (isSetupOnly) {
@@ -238,7 +264,7 @@ async function main() {
       process.exit(exitCode);
     }
   } catch (error) {
-    console.error('Fatal error:', error);
+    console.error("Fatal error:", error);
     await orchestrator.stop();
     process.exit(1);
   }

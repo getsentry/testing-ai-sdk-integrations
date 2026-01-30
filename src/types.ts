@@ -6,7 +6,7 @@ export interface TestDefinition {
   name: string;
   description: string;
   /** Test type: determines which frameworks this test can run on */
-  type: 'llm' | 'agent';
+  type: "llm" | "agent";
   agent?: AgentDefinition;
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
@@ -32,7 +32,7 @@ export interface ToolDefinition {
 }
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
   name?: string;
   tool_call_id?: string;
@@ -58,8 +58,8 @@ export interface CapturedSpan {
 
 export interface FrameworkConfig {
   name: string;
-  platform: 'js' | 'py';
-  type: 'llm-only' | 'agentic';
+  platform: "js" | "py";
+  type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;
   // Optional: Path to template file (set when using discovered frameworks)
@@ -67,9 +67,9 @@ export interface FrameworkConfig {
   category?: string;
   dependencies?: Array<{ package: string; version: string }>;
   // Python only: execution mode for the framework
-  executionMode?: 'sync' | 'async' | 'both';
+  executionMode?: "sync" | "async" | "both";
   // Streaming mode: whether the framework supports streaming responses
-  streamingMode?: 'streaming' | 'blocking' | 'both';
+  streamingMode?: "streaming" | "blocking" | "both";
   // Model overrides: Some frameworks use different models than requested
   modelOverrides?: {
     request?: string;
@@ -77,25 +77,28 @@ export interface FrameworkConfig {
   };
   // Skip configuration: Tests or checks that should be skipped
   skip?: {
-    tests?: string[];  // Array of test names to skip entirely
-    checks?: {         // Per-test check skipping
-      [testName: string]: string[];  // Array of check method names to skip
+    tests?: string[]; // Array of test names to skip entirely
+    checks?: {
+      // Per-test check skipping
+      [testName: string]: string[]; // Array of check method names to skip
     };
   };
 }
 
 export interface CheckResult {
   name: string;
-  status: 'passed' | 'failed' | 'skipped';
+  status: "passed" | "failed" | "skipped";
   error?: string;
   skipReason?: string;
 }
 
 export interface TestRun {
   id: string;
+  /** Original index in the test matrix, used for consistent ordering in reports */
+  index?: number;
   framework: FrameworkConfig;
   testDefinition: TestDefinition;
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'error' | 'skipped';
+  status: "pending" | "running" | "passed" | "failed" | "error" | "skipped";
   startTime?: number;
   endTime?: number;
   error?: string;
