@@ -4,106 +4,20 @@
  */
 
 import "dotenv/config";
+import { parseArgs } from "node:util";
 import { Orchestrator } from "./orchestrator.js";
-import { TestDefinition, FrameworkConfig } from "./types.js";
+import { FrameworkConfig } from "./types.js";
 import {
   discoverFrameworks,
   listFrameworks,
 } from "./runner/framework-discovery.js";
 import { getAllTests } from "./test-cases/index.js";
 
-interface CLIOptions {
-  command: "run" | "list" | "setup";
-  framework?: string;
-  test?: string;
-  platform?: "js" | "py";
-  sync?: boolean;
-  async?: boolean;
-  streaming?: boolean;
-  blocking?: boolean;
-  sentryPythonPath?: string;
-  sentryJavaScriptPath?: string;
-  liveStatus?: boolean;
-  verbose?: boolean;
-  parallel?: number;
-}
-
-function parseArgs(): CLIOptions {
-  const args = process.argv.slice(2);
-  const options: CLIOptions = { command: "run" };
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    switch (arg) {
-      case "list":
-        options.command = "list";
-        break;
-      case "run":
-        options.command = "run";
-        break;
-      case "setup":
-        options.command = "setup";
-        break;
-      case "--framework":
-        options.framework = args[++i];
-        break;
-      case "--test":
-        options.test = args[++i];
-        break;
-      case "--platform":
-        options.platform = args[++i] as "js" | "py";
-        break;
-      case "--sync":
-        options.sync = true;
-        break;
-      case "--async":
-        options.async = true;
-        break;
-      case "--streaming":
-        options.streaming = true;
-        break;
-      case "--blocking":
-        options.blocking = true;
-        break;
-      case "--sentry-python":
-        options.sentryPythonPath = args[++i];
-        break;
-      case "--sentry-javascript":
-        options.sentryJavaScriptPath = args[++i];
-        break;
-      case "--live-status":
-        options.liveStatus = true;
-        break;
-      case "--verbose":
-      case "-v":
-        options.verbose = true;
-        break;
-      case "--parallel":
-      case "-j":
-        const parallelValue = args[++i];
-        const parsed = parseInt(parallelValue, 10);
-        if (isNaN(parsed) || parsed < 1) {
-          console.error("Error: --parallel must be a positive integer");
-          process.exit(1);
-        }
-        options.parallel = parsed;
-        break;
-      case "--help":
-      case "-h":
-        printHelp();
-        process.exit(0);
-    }
-  }
-
-  return options;
-}
-
-function printHelp() {
-  console.log(`
+const HELP_TEXT = `
 Sentry AI SDK Integration Tests
 
 Usage:
-  npm start [command] [options]
+  npm run test [command] [options]
 
 Commands:
   run             Run tests (default)
@@ -111,35 +25,109 @@ Commands:
   list            List discovered frameworks
 
 Options:
-  --framework              Filter by framework name
-  --test                   Filter by test name
-  --platform               Filter by platform (js or py)
-  --sync                   Run only sync tests (default: both)
-  --async                  Run only async tests (default: both)
-  --streaming              Run only streaming tests (default: both)
-  --blocking               Run only blocking (non-streaming) tests (default: both)
-  --parallel, -j <N>       Run up to N tests in parallel (default: 1)
-  --verbose, -v            Show detailed output (test execution logs, etc.)
-  --live-status            Enable live status display (real-time tree view)
-  --sentry-python <path>   Use local Sentry Python SDK (editable install)
-  --sentry-javascript <path>  Use local Sentry JavaScript SDK (link)
-  --help, -h               Show this help message
+  --framework <name>         Filter by framework name
+  --test <name>              Filter by test name
+  --platform <js|py>         Filter by platform (js or py)
+  --sync                     Run only sync tests (default: both)
+  --async                    Run only async tests (default: both)
+  --streaming                Run only streaming tests (default: both)
+  --blocking                 Run only blocking (non-streaming) tests (default: both)
+  --parallel, -j <N>         Run up to N tests in parallel (default: 1)
+  --verbose, -v              Show detailed output (test execution logs, etc.)
+  --live-status              Enable live status display (real-time tree view)
+  --sentry-python <path>     Use local Sentry Python SDK (editable install)
+  --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
+  --help, -h                 Show this help message
 
 Examples:
-  npm start list
-  npm start run
-  npm start run -- --framework openai
-  npm start run -- --platform py --test "Basic LLM"
-  npm start run -- --platform py --sync
-  npm start run -- --platform py --async --verbose
-  npm start run -- --framework openai --live-status
-  npm start run -- --framework openai --sentry-python ~/sentry-python
-  npm start setup -- --framework openai --sync --streaming
-  `);
+  npm run test list
+  npm run test run
+  npm run test -- --framework openai
+  npm run test -- --platform py --test "Basic LLM"
+  npm run test -- --platform py --sync
+  npm run test -- --platform py --async --verbose
+  npm run test -- --framework openai --live-status
+  npm run test -- --framework openai -j=4
+  npm run test -- --framework openai --sentry-python ~/sentry-python
+  npm run test setup -- --framework openai --sync --streaming
+`;
+
+function parseCliArgs() {
+  const { values, positionals } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      framework: { type: "string" },
+      test: { type: "string" },
+      platform: { type: "string" },
+      sync: { type: "boolean", default: false },
+      async: { type: "boolean", default: false },
+      streaming: { type: "boolean", default: false },
+      blocking: { type: "boolean", default: false },
+      parallel: { type: "string", short: "j" },
+      verbose: { type: "boolean", short: "v", default: false },
+      "live-status": { type: "boolean", default: false },
+      "sentry-python": { type: "string" },
+      "sentry-javascript": { type: "string" },
+      help: { type: "boolean", short: "h", default: false },
+    },
+    allowPositionals: true,
+  });
+
+  // Determine command from positionals
+  let command: "run" | "list" | "setup" = "run";
+  if (positionals.includes("list")) {
+    command = "list";
+  } else if (positionals.includes("setup")) {
+    command = "setup";
+  } else if (positionals.includes("run")) {
+    command = "run";
+  }
+
+  // Parse parallel value
+  // Note: parseArgs returns "=2" for "-j=2" (short option with =), so we strip the leading =
+  let parallel: number | undefined;
+  if (values.parallel) {
+    const parallelStr = values.parallel.replace(/^=/, "");
+    const parsed = parseInt(parallelStr, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      console.error("Error: --parallel must be a positive integer");
+      process.exit(1);
+    }
+    parallel = parsed;
+  }
+
+  // Validate platform
+  const platform = values.platform as "js" | "py" | undefined;
+  if (platform && platform !== "js" && platform !== "py") {
+    console.error('Error: --platform must be "js" or "py"');
+    process.exit(1);
+  }
+
+  return {
+    command,
+    framework: values.framework,
+    test: values.test,
+    platform,
+    sync: values.sync,
+    async: values.async,
+    streaming: values.streaming,
+    blocking: values.blocking,
+    parallel,
+    verbose: values.verbose,
+    liveStatus: values["live-status"],
+    sentryPythonPath: values["sentry-python"],
+    sentryJavaScriptPath: values["sentry-javascript"],
+    help: values.help,
+  };
 }
 
 async function main() {
-  const options = parseArgs();
+  const options = parseCliArgs();
+
+  if (options.help) {
+    console.log(HELP_TEXT);
+    process.exit(0);
+  }
 
   console.log("Sentry AI SDK Integration Tests\n");
 
@@ -234,10 +222,10 @@ async function main() {
         templatePath: df.templatePath,
         category: df.category,
         dependencies: df.dependencies,
-        executionMode: df.executionMode, // Pass through execution mode
-        streamingMode: df.streamingMode, // Pass through streaming mode
-        modelOverrides: df.modelOverrides, // Pass through model overrides
-        skip: df.skip, // Pass through skip configuration
+        executionMode: df.executionMode,
+        streamingMode: df.streamingMode,
+        modelOverrides: df.modelOverrides,
+        skip: df.skip,
       };
     });
 

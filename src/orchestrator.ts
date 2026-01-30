@@ -120,10 +120,6 @@ export class Orchestrator {
     }
 
     // Phase 2: Execute all tests (skip those that failed setup)
-    const parallelInfo =
-      this.parallelism > 1 ? ` (parallel: ${this.parallelism})` : "";
-    console.log(`Executing tests...${parallelInfo}\n`);
-
     // Filter out tests that failed setup
     const testsToRun = testMatrix.filter((testRun) => {
       if (testRun.status === "error") {
@@ -139,6 +135,10 @@ export class Orchestrator {
       }
       return true;
     });
+
+    console.log(
+      `Executing ${testsToRun.length} test(s) with ${this.parallelism} worker(s)...\n`,
+    );
 
     // Execute tests using the execution strategy (parallel or sequential)
     await this.executionStrategy.execute(testsToRun, (testRun) =>
