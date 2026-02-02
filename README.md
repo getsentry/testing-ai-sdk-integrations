@@ -24,6 +24,7 @@ testing-ai-sdk-integrations/
 │   ├── concurrency.ts                # Parallel execution support
 │   ├── test-cases/                   # Test definitions
 │   │   ├── index.ts                  # Test registry
+│   │   ├── checks.ts                 # Reusable check functions
 │   │   ├── utils.ts                  # Test utilities (skip, assertions)
 │   │   ├── llm/                      # LLM test cases
 │   │   │   ├── basic.ts              # Basic single completion test
@@ -259,13 +260,132 @@ Test cases are defined in `src/test-cases/` and apply to frameworks based on the
 | `Vision Agent Test`     | Agent that processes images             |
 | `Long Input Agent Test` | Agent with large input trimming         |
 
+## Check Functions
+
+Each test case specifies an explicit list of **checks** that validate the captured Sentry spans. Checks are reusable functions defined in `src/test-cases/checks.ts`.
+
+### Check Structure
+
+A check is an object with a `name` and validation function:
+
+```typescript
+interface Check {
+  name: string;
+  fn: (
+    spans: CapturedSpan[],
+    config: FrameworkConfig,
+    testDef: TestDefinition,
+  ) => void;
+}
+```
+
+Test cases explicitly list their checks:
+
+```typescript
+export const basicLLMTest: TestDefinition = {
+  name: "Basic LLM Test",
+  type: "llm",
+  inputs: [...],
+
+  checks: [
+    hasOneAISpan,
+    hasLLMAttributes,
+    hasValidTokenUsage,
+    hasValidInputTokensCached,
+    hasValidOutputTokensReasoning,
+  ],
+};
+```
+
+### Available Checks
+
+#### Structure Checks
+
+| Check          | Description                       |
+| -------------- | --------------------------------- |
+| `hasOneAISpan` | Exactly one AI span was captured  |
+| `hasAISpans`   | At least one AI span was captured |
+
+#### Attribute Checks
+
+| Check              | Description                                                                       |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `hasLLMAttributes` | LLM attributes on chat/completion spans (operation, model, messages, token usage) |
+
+#### Token Checks
+
+| Check                           | Description                                             |
+| ------------------------------- | ------------------------------------------------------- |
+| `hasValidTokenUsage`            | Token counts exist on invoke_agent and chat spans       |
+| `hasValidInputTokensCached`     | Cached tokens ≤ input tokens (skips if not present)     |
+| `hasValidOutputTokensReasoning` | Reasoning tokens ≤ output tokens (skips if not present) |
+
+#### Message Trimming Checks
+
+| Check                 | Description                         |
+| --------------------- | ----------------------------------- |
+| `hasMessageTrimming`  | Messages are trimmed below 15KB     |
+| `hasTrimmingMetadata` | Original length metadata is present |
+
+#### Agent-specific Checks
+
+| Check               | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `hasAgentHierarchy` | Validates agent span hierarchy and `gen_ai.agent.name` propagation to child spans |
+
+### Checks by Test Case
+
+#### LLM Tests
+
+**Basic LLM Test:**
+
+- `hasOneAISpan`, `hasLLMAttributes`, `hasValidTokenUsage`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+
+**Multi-Turn LLM Test:**
+
+- `hasThreeAISpans` (inline), `hasLLMAttributes`, `hasValidTokenUsage`, `hasTokenProgression` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+
+**Basic Error LLM Test:**
+
+- `hasAtLeastOneAISpan` (inline), `hasErrorCaptured` (inline), `hasValidOperation` (inline), `skipTokensForError` (inline)
+
+**Vision LLM Test:**
+
+- `hasAISpans`, `hasLLMAttributes`, `hasValidTokenUsage`
+
+**Long Input LLM Test:**
+
+- `hasAISpans`, `hasLLMAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`
+
+#### Agent Tests
+
+**Basic Agent Test:**
+
+- `hasLLMAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+
+**Tool Call Agent Test:**
+
+- `hasLLMAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasToolInputArguments` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+
+**Tool Error Agent Test:**
+
+- `hasLLMAttributes`, `hasAgentHierarchy`, `hasToolErrorSpan` (inline)
+
+**Vision Agent Test:**
+
+- `hasLLMAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`
+
+**Long Input Agent Test:**
+
+- `hasLLMAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`, `hasAgentHierarchy`
+
 ## How It Works
 
 1. **Discovery**: Scans `templates/` directory for framework configurations
 2. **Matrix Generation**: Creates test matrix (framework × test × execution modes)
 3. **Template Rendering**: Generates runnable test files using Nunjucks templates
 4. **Execution**: Runs tests with Sentry DSN pointing to local span collector
-5. **Validation**: Runs check methods against captured spans
+5. **Validation**: Runs each check function against captured spans
 6. **Reporting**: Generates console output and CTRF JSON report
 
 ```
@@ -277,7 +397,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
                     ↓
         Sentry SDK sends spans to Span Collector
                     ↓
-        Validator runs check methods on captured spans
+        Validator runs checks array on captured spans
                     ↓
         Reporter outputs results
 ```
@@ -341,10 +461,16 @@ npm run test -- --framework your-framework --verbose
 
 ### 1. Create Test File
 
+Test cases use an explicit `checks` array to define validations:
+
 ```typescript
 // src/test-cases/llm/your-test.ts
-import { TestDefinition, CapturedSpan, FrameworkConfig } from "../../types.js";
-import { extractGenAISpans, assertAttributes } from "../utils.js";
+import { TestDefinition } from "../../types.js";
+import {
+  hasAISpans,
+  hasBasicLLMAttributes,
+  hasValidTokenUsage,
+} from "../checks.js";
 
 export const yourTest: TestDefinition = {
   name: "Your Test Name",
@@ -358,13 +484,47 @@ export const yourTest: TestDefinition = {
     },
   ],
 
-  checkYourValidation(spans: CapturedSpan[], config: FrameworkConfig) {
-    // Your validation logic
+  checks: [hasAISpans, hasBasicLLMAttributes, hasValidTokenUsage],
+};
+
+export default yourTest;
+```
+
+### 2. Adding Custom Checks
+
+For test-specific validations, define custom checks inline:
+
+```typescript
+import { expect } from "chai";
+import { TestDefinition, Check } from "../../types.js";
+import { hasAISpans } from "../checks.js";
+import { extractGenAISpans, skipIf } from "../utils.js";
+
+// Custom check for this test
+const hasSpecificBehavior: Check = {
+  name: "hasSpecificBehavior",
+  fn: (spans, config, testDef) => {
+    const aiSpans = extractGenAISpans(spans);
+    skipIf(aiSpans.length === 0, "No AI spans captured");
+
+    // Your custom validation logic
+    expect(aiSpans[0].data?.["custom.attribute"]).to.exist;
   },
+};
+
+export const yourTest: TestDefinition = {
+  name: "Your Test Name",
+  type: "llm",
+  inputs: [...],
+
+  checks: [
+    hasAISpans,
+    hasSpecificBehavior,  // Custom check
+  ],
 };
 ```
 
-### 2. Register in Index
+### 3. Register in Index
 
 ```typescript
 // src/test-cases/index.ts
@@ -378,7 +538,7 @@ export const testCases = {
 };
 ```
 
-### 3. Build and Test
+### 4. Build and Test
 
 ```bash
 npm run build
@@ -407,6 +567,8 @@ Each framework has a `config.json` with these fields:
 
 Available in `src/test-cases/utils.ts`:
 
+### Core Utilities
+
 | Function               | Purpose                                |
 | ---------------------- | -------------------------------------- |
 | `skip(reason)`         | Skip the current check with a reason   |
@@ -416,14 +578,45 @@ Available in `src/test-cases/utils.ts`:
 | `assertAttributes()`   | Schema-based attribute validation      |
 | `printSpanSummary()`   | Debug helper to print captured spans   |
 
+### Span Type Filters
+
+| Function             | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `findAgentSpans()`   | Find `invoke_agent` spans (top-level agents) |
+| `findChatSpans()`    | Find `chat`/`completion` spans (LLM calls)   |
+| `findToolSpans()`    | Find tool execution spans                    |
+| `findHandoffSpans()` | Find agent-to-agent handoff spans            |
+
+### Tool Input Validation
+
+| Function            | Purpose                                      |
+| ------------------- | -------------------------------------------- |
+| `assertToolInput()` | Validate tool input arguments against schema |
+| `getToolInput()`    | Get parsed tool input arguments from span    |
+
 ### Attribute Schema
+
+The `assertAttributes` function supports flexible matching:
 
 ```typescript
 assertAttributes(spans, {
-  "gen_ai.operation.name": true, // Must exist
+  "gen_ai.operation.name": true, // Must exist (any value)
   "gen_ai.request.model": "gpt-4", // Exact match
-  "gen_ai.response.model": "gpt-4*", // Pattern match
+  "gen_ai.response.model": "gpt-4*", // Pattern match (wildcard)
   sensitive_field: false, // Must NOT exist
+});
+```
+
+### Tool Input Schema
+
+The `assertToolInput` function validates tool arguments:
+
+```typescript
+const toolSpans = findToolSpans(extractGenAISpans(spans));
+assertToolInput(toolSpans[0], {
+  a: true, // Argument must exist
+  b: true, // Argument must exist
+  optional: false, // Argument must NOT exist
 });
 ```
 
@@ -454,12 +647,17 @@ npm run test setup -- --framework openai
 
 ### Print Span Data
 
-Add to your check method:
+Use `printSpanSummary()` in a custom check:
 
 ```typescript
-checkDebug(spans: CapturedSpan[]) {
-  printSpanSummary(spans);
-}
+import { printSpanSummary } from "../utils.js";
+
+const debugCheck: Check = {
+  name: "debugCheck",
+  fn: (spans) => {
+    printSpanSummary(spans);
+  },
+};
 ```
 
 ## Using as a GitHub Action
