@@ -170,40 +170,88 @@ npm run test -- --sentry-javascript /path/to/sentry-javascript
 | `--sentry-python <path>`     | Use local Sentry Python SDK                  |
 | `--sentry-javascript <path>` | Use local Sentry JavaScript SDK              |
 
-## Supported AI SDKs
+## Test Matrix Structure
 
-| Platform   | SDK             | Type   | Streaming | Execution Modes |
-| ---------- | --------------- | ------ | --------- | --------------- |
-| JavaScript | `openai`        | llm    | both      | -               |
-| JavaScript | `anthropic`     | llm    | both      | -               |
-| JavaScript | `google-genai`  | llm    | both      | -               |
-| JavaScript | `langchain`     | llm    | both      | -               |
-| JavaScript | `vercel`        | agents | -         | -               |
-| JavaScript | `langgraph`     | agents | -         | -               |
-| Python     | `openai`        | llm    | both      | sync/async      |
-| Python     | `anthropic`     | llm    | both      | sync/async      |
-| Python     | `langchain`     | llm    | both      | sync/async      |
-| Python     | `litellm`       | llm    | both      | sync/async      |
-| Python     | `openai-agents` | agents | -         | async           |
-| Python     | `langgraph`     | agents | -         | sync/async      |
-| Python     | `pydantic-ai`   | agents | -         | async           |
-| Python     | `google-genai`  | agents | -         | sync/async      |
+Tests are organized in a hierarchical structure:
+
+```
+Type / Platform / Framework / Test Case
+```
+
+| Dimension     | Description                | Examples                                                  |
+| ------------- | -------------------------- | --------------------------------------------------------- |
+| **Type**      | Category of AI integration | `llm` (low-level LLM SDKs), `agents` (agentic frameworks) |
+| **Platform**  | Programming language       | `js` (JavaScript/Node.js), `py` (Python)                  |
+| **Framework** | AI SDK being tested        | `openai`, `anthropic`, `langchain`, `langgraph`, etc.     |
+| **Test Case** | Specific test scenario     | `Basic LLM Test`, `Tool Call Agent Test`, etc.            |
+
+This structure is reflected in the templates directory:
+
+```
+src/runner/templates/
+├── llm/                      # Type: LLM
+│   ├── js/                   # Platform: JavaScript
+│   │   ├── openai/           # Framework
+│   │   ├── anthropic/
+│   │   ├── google-genai/
+│   │   └── langchain/
+│   └── py/                   # Platform: Python
+│       ├── openai/
+│       ├── anthropic/
+│       ├── langchain/
+│       └── litellm/
+└── agents/                   # Type: Agents
+    ├── js/
+    │   ├── langgraph/
+    │   └── vercel/
+    └── py/
+        ├── langgraph/
+        ├── openai-agents/
+        ├── pydantic-ai/
+        └── google-genai/
+```
+
+When tests run, each **Test Case** is rendered using the framework's template and executed. For example:
+
+- `llm / py / openai / Basic LLM Test` → Tests OpenAI Python SDK with a simple completion
+- `agents / js / langgraph / Tool Call Agent Test` → Tests LangGraph JS with tool calling
+
+## Supported Frameworks
+
+| Type   | Platform   | Framework       | Streaming | Execution Modes |
+| ------ | ---------- | --------------- | --------- | --------------- |
+| llm    | JavaScript | `openai`        | both      | -               |
+| llm    | JavaScript | `anthropic`     | both      | -               |
+| llm    | JavaScript | `google-genai`  | both      | -               |
+| llm    | JavaScript | `langchain`     | both      | -               |
+| llm    | Python     | `openai`        | both      | sync/async      |
+| llm    | Python     | `anthropic`     | both      | sync/async      |
+| llm    | Python     | `langchain`     | both      | sync/async      |
+| llm    | Python     | `litellm`       | both      | sync/async      |
+| agents | JavaScript | `vercel`        | -         | -               |
+| agents | JavaScript | `langgraph`     | -         | -               |
+| agents | Python     | `openai-agents` | -         | async           |
+| agents | Python     | `langgraph`     | -         | sync/async      |
+| agents | Python     | `pydantic-ai`   | -         | async           |
+| agents | Python     | `google-genai`  | -         | sync/async      |
 
 ## Test Cases
 
-### LLM Tests
+Test cases are defined in `src/test-cases/` and apply to frameworks based on their **type**.
 
-| Test                   | Description                           |
-| ---------------------- | ------------------------------------- |
-| `Basic LLM Test`       | Single completion with system message |
-| `Multi Turn LLM Test`  | Multi-turn conversation               |
-| `Basic Error LLM Test` | Tests API error handling              |
-| `Vision LLM Test`      | Image input processing                |
-| `Long Input LLM Test`  | Message trimming for large inputs     |
+### LLM Test Cases (for `llm` type frameworks)
 
-### Agent Tests
+| Test Case              | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `Basic LLM Test`       | Single completion with system message     |
+| `Multi Turn LLM Test`  | Multi-turn conversation                   |
+| `Basic Error LLM Test` | API error handling                        |
+| `Vision LLM Test`      | Image input processing                    |
+| `Long Input LLM Test`  | Message trimming for large inputs (>20KB) |
 
-| Test                    | Description                             |
+### Agent Test Cases (for `agents` type frameworks)
+
+| Test Case               | Description                             |
 | ----------------------- | --------------------------------------- |
 | `Basic Agent Test`      | Agent without tools (simple completion) |
 | `Tool Call Agent Test`  | Agent with successful tool calling      |
