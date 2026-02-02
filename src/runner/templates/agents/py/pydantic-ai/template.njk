@@ -2,7 +2,7 @@
 
 {% block imports %}
 {{ super() }}
-from pydantic_ai import Agent, ImageUrl
+from pydantic_ai import Agent, ImageUrl, RunContext
 {% endblock %}
 
 {% block setup %}
@@ -19,6 +19,23 @@ agent = Agent(
     "openai:{{ inputs[0].model }}",
     system_prompt="{{ system_content }}",
 )
+
+{% if agent.tools | length > 0 %}
+# Register tools with the agent
+{% for tool in agent.tools %}
+@agent.tool
+def {{ tool.name }}(context: RunContext, {% for param in tool.parameters.required %}{{ param }}: {% if tool.parameters.properties[param].type == 'number' %}float{% else %}str{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
+    """{{ tool.description }}"""
+    {% if tool.error is defined %}
+    raise Exception("{{ tool.error }}")
+    {% elif tool.result is defined %}
+    return {{ tool.result | tojson }}
+    {% else %}
+    return None
+    {% endif %}
+
+{% endfor %}
+{% endif %}
 {% endblock %}
 
 {% block test %}

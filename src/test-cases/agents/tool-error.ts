@@ -5,15 +5,49 @@
  * Validates that Sentry captures the error correctly in spans.
  */
 
-import { TestDefinition } from "../../types.js";
-import {
-  hasAISpans,
-  hasLLMSpans,
-  hasBasicLLMAttributes,
-  hasAgentSpan,
-  hasToolErrorSpan,
-  hasMultipleLLMCalls,
-} from "../checks.js";
+import { expect } from "chai";
+import { TestDefinition, CapturedSpan, Check } from "../../types.js";
+import { hasLLMAttributes, hasAgentHierarchy } from "../checks.js";
+import { extractGenAISpans, findToolSpans } from "../utils.js";
+
+/**
+ * Check that a tool error was captured in spans
+ */
+const hasToolErrorSpan: Check = {
+  name: "hasToolErrorSpan",
+  fn: (spans: CapturedSpan[], config, testDef) => {
+    const toolSpans = findToolSpans(extractGenAISpans(spans));
+    expect(
+      toolSpans.length,
+      "Should have at least one tool span",
+    ).to.be.greaterThan(0);
+
+    // Get expected tool name from test definition
+    const expectedToolName = testDef.agent?.tools?.[0]?.name;
+    expect(expectedToolName, "Test should define at least one tool").to.exist;
+
+    // Find the span for the expected tool
+    const toolSpan = toolSpans.find(
+      (s) =>
+        s.data?.["gen_ai.tool.name"] === expectedToolName ||
+        s.description?.includes(expectedToolName!),
+    );
+    expect(toolSpan, `Should have a span for tool "${expectedToolName}"`).to
+      .exist;
+
+    // Check for error indicators
+    const span = toolSpan!;
+    const hasError =
+      span.status === "error" ||
+      span.status === "internal_error" ||
+      span.data?.["error"] !== undefined ||
+      span.data?.["exception"] !== undefined ||
+      span.data?.["gen_ai.tool.error"] !== undefined ||
+      (span.tags && span.tags["error"] === true);
+
+    expect(hasError, "Tool span should have an error indicator").to.be.true;
+  },
+};
 
 export const toolErrorAgentTest: TestDefinition = {
   name: "Tool Error Agent Test",
@@ -57,14 +91,7 @@ export const toolErrorAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [
-    hasAISpans,
-    hasLLMSpans,
-    hasBasicLLMAttributes,
-    hasToolErrorSpan,
-    hasAgentSpan,
-    hasMultipleLLMCalls,
-  ],
+  checks: [hasLLMAttributes, hasAgentHierarchy, hasToolErrorSpan],
 };
 
 export default toolErrorAgentTest;

@@ -2,9 +2,9 @@
  * Common test utilities for span validation
  */
 
-import { expect } from 'chai';
-import { CapturedSpan } from '../types.js';
-import { SkipCheckError } from '../validator.js';
+import { expect } from "chai";
+import { CapturedSpan } from "../types.js";
+import { SkipCheckError } from "../validator.js";
 
 /**
  * Skip the current check with a reason
@@ -50,10 +50,8 @@ export type AttributeSchema = {
  * Only supports gen_ai.* prefixed operations
  */
 export function extractGenAISpans(spans: CapturedSpan[]): CapturedSpan[] {
-  return spans.filter((s) => s.op && s.op.startsWith('gen_ai'));
+  return spans.filter((s) => s.op && s.op.startsWith("gen_ai"));
 }
-
-
 
 /**
  * Check token usage attributes
@@ -71,7 +69,10 @@ export interface TokenUsageChecks {
   validateSum?: boolean;
 }
 
-export function checkTokenUsage(span: CapturedSpan, checks: TokenUsageChecks = {}): void {
+export function checkTokenUsage(
+  span: CapturedSpan,
+  checks: TokenUsageChecks = {},
+): void {
   const {
     hasInputTokens = true,
     hasOutputTokens = true,
@@ -81,30 +82,30 @@ export function checkTokenUsage(span: CapturedSpan, checks: TokenUsageChecks = {
   } = checks;
 
   if (!span.data) {
-    throw new Error('Span has no data field');
+    throw new Error("Span has no data field");
   }
 
   // Extract token counts (only gen_ai.* prefix)
-  const inputTokens = span.data['gen_ai.usage.input_tokens'];
-  const outputTokens = span.data['gen_ai.usage.output_tokens'];
-  const totalTokens = span.data['gen_ai.usage.total_tokens'];
+  const inputTokens = span.data["gen_ai.usage.input_tokens"];
+  const outputTokens = span.data["gen_ai.usage.output_tokens"];
+  const totalTokens = span.data["gen_ai.usage.total_tokens"];
 
   // Check presence
   if (hasInputTokens) {
     expect(inputTokens).to.exist;
-    expect(inputTokens).to.be.a('number');
+    expect(inputTokens).to.be.a("number");
     expect(inputTokens).to.be.greaterThan(0);
   }
 
   if (hasOutputTokens) {
     expect(outputTokens).to.exist;
-    expect(outputTokens).to.be.a('number');
+    expect(outputTokens).to.be.a("number");
     expect(outputTokens).to.be.greaterThan(0);
   }
 
   if (hasTotalTokens) {
     expect(totalTokens).to.exist;
-    expect(totalTokens).to.be.a('number');
+    expect(totalTokens).to.be.a("number");
     expect(totalTokens).to.be.greaterThan(0);
   }
 
@@ -117,7 +118,7 @@ export function checkTokenUsage(span: CapturedSpan, checks: TokenUsageChecks = {
   if (validateSum && inputTokens && outputTokens && totalTokens) {
     expect(totalTokens).to.equal(
       inputTokens + outputTokens,
-      'Total tokens should equal input + output tokens'
+      "Total tokens should equal input + output tokens",
     );
   }
 }
@@ -136,11 +137,16 @@ export interface SpanHierarchyChecks {
   exactChildren?: number;
 }
 
-export function checkSpanStructure(spans: CapturedSpan[], checks: SpanHierarchyChecks): void {
+export function checkSpanStructure(
+  spans: CapturedSpan[],
+  checks: SpanHierarchyChecks,
+): void {
   const { parentOp, childOp, minChildren, exactChildren } = checks;
 
   // Find parent span
-  const parentSpan = parentOp ? spans.find((s) => s.op && s.op.match(parentOp)) : undefined;
+  const parentSpan = parentOp
+    ? spans.find((s) => s.op && s.op.match(parentOp))
+    : undefined;
 
   if (parentOp && !parentSpan) {
     throw new Error(`No parent span found matching pattern: ${parentOp}`);
@@ -161,21 +167,24 @@ export function checkSpanStructure(spans: CapturedSpan[], checks: SpanHierarchyC
   if (minChildren !== undefined) {
     expect(childSpans.length).to.be.at.least(
       minChildren,
-      `Should have at least ${minChildren} child span(s)`
+      `Should have at least ${minChildren} child span(s)`,
     );
   }
 
   if (exactChildren !== undefined) {
     expect(childSpans.length).to.equal(
       exactChildren,
-      `Should have exactly ${exactChildren} child span(s)`
+      `Should have exactly ${exactChildren} child span(s)`,
     );
   }
 
   // Validate child operations
   if (childOp) {
     childSpans.forEach((child, idx) => {
-      expect(child.op).to.match(childOp, `Child span ${idx} operation should match pattern`);
+      expect(child.op).to.match(
+        childOp,
+        `Child span ${idx} operation should match pattern`,
+      );
     });
   }
 }
@@ -186,7 +195,9 @@ export function checkSpanStructure(spans: CapturedSpan[], checks: SpanHierarchyC
 export function printSpanSummary(spans: CapturedSpan[]): void {
   console.log(`\n  Captured ${spans.length} span(s):`);
   spans.forEach((s, i) => {
-    const parent = s.parent_span_id ? ` (parent: ${s.parent_span_id.substring(0, 8)})` : '';
+    const parent = s.parent_span_id
+      ? ` (parent: ${s.parent_span_id.substring(0, 8)})`
+      : "";
     console.log(`    [${i}] ${s.op}${parent}`);
   });
 }
@@ -197,28 +208,31 @@ export function printSpanSummary(spans: CapturedSpan[]): void {
 function matchPattern(value: string, pattern: string): boolean {
   // Escape special regex characters except *
   const regexPattern = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*');
-  
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*");
+
   const regex = new RegExp(`^${regexPattern}$`);
   return regex.test(value);
 }
 
 /**
  * Assert attributes on spans based on schema
- * 
+ *
  * Schema format:
  * - true: attribute must exist (any value)
  * - false: attribute must NOT exist
  * - string with '*': must match pattern (e.g., "gpt-4*" matches "gpt-4-turbo")
  * - string/number: must equal exact value
- * 
+ *
  * @param spans - List of spans to check (all spans must match schema)
  * @param schema - Attribute schema to validate against
  */
-export function assertAttributes(spans: CapturedSpan[], schema: AttributeSchema): void {
+export function assertAttributes(
+  spans: CapturedSpan[],
+  schema: AttributeSchema,
+): void {
   if (spans.length === 0) {
-    throw new Error('No spans provided to assertAttributes');
+    throw new Error("No spans provided to assertAttributes");
   }
 
   const errors: string[] = [];
@@ -236,34 +250,203 @@ export function assertAttributes(spans: CapturedSpan[], schema: AttributeSchema)
       if (expected === true) {
         // Must exist
         if (actual === undefined || actual === null) {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' must exist but is missing`);
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must exist but is missing`,
+          );
         }
       } else if (expected === false) {
         // Must NOT exist
         if (actual !== undefined && actual !== null) {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' must not exist but has value: ${actual}`);
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must not exist but has value: ${actual}`,
+          );
         }
-      } else if (typeof expected === 'string' && expected.includes('*')) {
+      } else if (typeof expected === "string" && expected.includes("*")) {
         // Pattern matching
         if (actual === undefined || actual === null) {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' must exist for pattern matching but is missing`);
-        } else if (typeof actual !== 'string') {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' must be a string for pattern matching but is: ${typeof actual}`);
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must exist for pattern matching but is missing`,
+          );
+        } else if (typeof actual !== "string") {
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must be a string for pattern matching but is: ${typeof actual}`,
+          );
         } else if (!matchPattern(actual, expected)) {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match pattern '${expected}'`);
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match pattern '${expected}'`,
+          );
         }
       } else {
         // Exact value match
         if (actual === undefined || actual === null) {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is missing`);
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is missing`,
+          );
         } else if (actual !== expected) {
-          errors.push(`Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is '${actual}'`);
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is '${actual}'`,
+          );
         }
       }
     }
   });
 
   if (errors.length > 0) {
-    throw new Error(`Attribute validation failed:\n  ${errors.join('\n  ')}`);
+    throw new Error(`Attribute validation failed:\n  ${errors.join("\n  ")}`);
   }
+}
+
+// =============================================================================
+// Span Type Filtering Helpers
+// =============================================================================
+
+/**
+ * Find invoke_agent spans (top-level agent invocation)
+ */
+export function findAgentSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter(
+    (s) =>
+      s.op?.match(/^gen_ai\.(invoke_agent|agent\.run|agent)$/) ||
+      (s.data?.["gen_ai.agent.name"] !== undefined &&
+        s.op?.match(/^gen_ai\.invoke_agent/)),
+  );
+}
+
+/**
+ * Find ai_client/chat spans (LLM API calls)
+ */
+export function findChatSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) =>
+    s.op?.match(/^gen_ai\.(chat|completion|generate)/),
+  );
+}
+
+/**
+ * Find tool execution spans
+ * Matches spans with operations like gen_ai.execute_tool, gen_ai.tool, etc.
+ */
+export function findToolSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter(
+    (s) =>
+      s.op?.match(/^gen_ai\.(execute_tool|tool|tool_call)/) ||
+      s.data?.["gen_ai.tool.name"] !== undefined,
+  );
+}
+
+/**
+ * Find handoff spans (agent-to-agent handoffs)
+ */
+export function findHandoffSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => s.op?.match(/^gen_ai\.handoff/));
+}
+
+/**
+ * Schema for tool input validation
+ * - true: argument must exist (any value)
+ * - false: argument must NOT exist
+ * - string/number: argument must equal exact value
+ */
+export type ToolInputSchema = {
+  [key: string]: boolean | string | number;
+};
+
+/**
+ * Assert that a tool span has the expected input arguments
+ *
+ * Tool input is typically stored in gen_ai.tool.input as a JSON string
+ *
+ * @param span - The tool span to check
+ * @param schema - Expected arguments schema
+ */
+export function assertToolInput(
+  span: CapturedSpan,
+  schema: ToolInputSchema,
+): void {
+  const toolInput = span.data?.["gen_ai.tool.input"];
+
+  if (toolInput === undefined) {
+    throw new Error(`Tool span is missing gen_ai.tool.input attribute`);
+  }
+
+  // Parse the tool input (it's usually a JSON string)
+  let parsedInput: Record<string, unknown>;
+  if (typeof toolInput === "string") {
+    try {
+      parsedInput = JSON.parse(toolInput);
+    } catch {
+      throw new Error(`Tool input is not valid JSON: ${toolInput}`);
+    }
+  } else if (typeof toolInput === "object" && toolInput !== null) {
+    parsedInput = toolInput as Record<string, unknown>;
+  } else {
+    throw new Error(`Unexpected tool input type: ${typeof toolInput}`);
+  }
+
+  const errors: string[] = [];
+
+  for (const [argName, expected] of Object.entries(schema)) {
+    const actual = parsedInput[argName];
+
+    if (expected === true) {
+      // Must exist
+      if (actual === undefined) {
+        errors.push(`Tool argument '${argName}' must exist but is missing`);
+      }
+    } else if (expected === false) {
+      // Must NOT exist
+      if (actual !== undefined) {
+        errors.push(
+          `Tool argument '${argName}' must not exist but has value: ${actual}`,
+        );
+      }
+    } else {
+      // Exact value match (convert to string for comparison since JSON parsing may vary)
+      if (actual === undefined) {
+        errors.push(
+          `Tool argument '${argName}' must equal '${expected}' but is missing`,
+        );
+      } else {
+        // Compare as strings to handle type coercion (e.g., "4" vs 4)
+        const actualStr = String(actual);
+        const expectedStr = String(expected);
+        if (actualStr !== expectedStr) {
+          errors.push(
+            `Tool argument '${argName}' must equal '${expected}' but is '${actual}'`,
+          );
+        }
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Tool input validation failed:\n  ${errors.join("\n  ")}`);
+  }
+}
+
+/**
+ * Get tool input arguments from a tool span
+ * Returns the parsed arguments object, or undefined if not available
+ */
+export function getToolInput(
+  span: CapturedSpan,
+): Record<string, unknown> | undefined {
+  const toolInput = span.data?.["gen_ai.tool.input"];
+
+  if (toolInput === undefined) {
+    return undefined;
+  }
+
+  if (typeof toolInput === "string") {
+    try {
+      return JSON.parse(toolInput);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (typeof toolInput === "object" && toolInput !== null) {
+    return toolInput as Record<string, unknown>;
+  }
+
+  return undefined;
 }

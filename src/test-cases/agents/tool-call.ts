@@ -5,17 +5,50 @@
  * Validates that Sentry captures both agent and tool call spans.
  */
 
-import { TestDefinition } from "../../types.js";
+import { TestDefinition, CapturedSpan, Check } from "../../types.js";
 import {
-  hasAISpans,
-  hasLLMSpans,
-  hasBasicLLMAttributes,
+  hasLLMAttributes,
   hasValidTokenUsage,
-  hasAgentSpan,
-  hasToolCallSpan,
+  hasAgentHierarchy,
   hasValidInputTokensCached,
   hasValidOutputTokensReasoning,
 } from "../checks.js";
+import { expect } from "chai";
+import { extractGenAISpans, findToolSpans, assertToolInput } from "../utils.js";
+
+/**
+ * Check that tool input arguments are captured correctly
+ */
+const hasToolInputArguments: Check = {
+  name: "hasToolInputArguments",
+  fn: (spans: CapturedSpan[], config, testDef) => {
+    const toolSpans = findToolSpans(extractGenAISpans(spans));
+    expect(
+      toolSpans.length,
+      "Should have at least one tool span",
+    ).to.be.greaterThan(0);
+
+    // Get expected tool from test definition
+    const expectedTool = testDef.agent?.tools?.[0];
+    expect(expectedTool, "Test should define at least one tool").to.exist;
+
+    // Find the span for the expected tool
+    const toolSpan = toolSpans.find(
+      (s) =>
+        s.data?.["gen_ai.tool.name"] === expectedTool!.name ||
+        s.description?.includes(expectedTool!.name),
+    );
+    expect(toolSpan, `Should have a span for tool "${expectedTool!.name}"`).to
+      .exist;
+
+    // Check that tool input contains expected arguments
+    // For the add tool, we expect a and b to be present
+    assertToolInput(toolSpan!, {
+      a: true, // Must exist (any value)
+      b: true, // Must exist (any value)
+    });
+  },
+};
 
 export const toolCallAgentTest: TestDefinition = {
   name: "Tool Call Agent Test",
@@ -61,12 +94,10 @@ export const toolCallAgentTest: TestDefinition = {
   ],
 
   checks: [
-    hasAISpans,
-    hasLLMSpans,
-    hasBasicLLMAttributes,
+    hasLLMAttributes,
     hasValidTokenUsage,
-    hasAgentSpan,
-    hasToolCallSpan,
+    hasAgentHierarchy,
+    hasToolInputArguments,
     hasValidInputTokensCached,
     hasValidOutputTokensReasoning,
   ],

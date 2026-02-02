@@ -1,21 +1,14 @@
 {% extends "base.py.njk" %}
 
 {# Macro to render multimodal content for OpenAI Agents SDK #}
-{% macro renderMultimodalContent(content) %}
-{% if content is string %}
+{# For simple text, pass as string. For multimodal, use message format with content array #}
+{% macro renderMultimodalContent(content) -%}
+{% if content is string -%}
 "{{ content }}"
-{%- else %}
-[
-{% for part in content %}
-{% if part.type == 'text' %}
-        {"type": "input_text", "text": "{{ part.text }}"},
-{% elif part.type == 'image' %}
-        {"type": "input_image", "image_url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"},
-{% endif %}
-{% endfor %}
-    ]
-{%- endif %}
-{% endmacro %}
+{%- else -%}
+[{"role": "user", "content": [{% for part in content %}{% if part.type == 'text' %}{"type": "input_text", "text": "{{ part.text }}"}{% elif part.type == 'image' %}{"type": "input_image", "image_url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}]}]
+{%- endif -%}
+{%- endmacro %}
 
 {% block imports %}
 {{ super() }}

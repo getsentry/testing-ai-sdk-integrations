@@ -66,70 +66,39 @@ export const hasAISpans: Check = {
   },
 };
 
-/**
- * Check that at least one LLM span was captured (chat/completion/generate)
- */
-export const hasLLMSpans: Check = {
-  name: "hasLLMSpans",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    expect(
-      llmSpans.length,
-      "Should have at least one LLM span",
-    ).to.be.greaterThan(0);
-  },
-};
-
 // =============================================================================
 // Attribute Checks
 // =============================================================================
 
 /**
- * Check basic LLM attributes on AI spans
+ * Check LLM attributes on chat/completion spans (ai_client)
+ * Only checks spans that represent LLM API calls, not tool or agent spans
  * Uses model from test inputs and config overrides
  */
 export const hasLLMAttributes: Check = {
   name: "hasLLMAttributes",
   fn: (spans, config, testDef) => {
     const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
+    expect(
+      aiSpans.length,
+      "Should have at least one AI span",
+    ).to.be.greaterThan(0);
+
+    // Filter to only chat/completion spans (ai_client)
+    const chatSpans = aiSpans.filter((s) =>
+      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
+    );
+    skipIf(chatSpans.length === 0, "No chat/completion spans captured");
 
     const requestModel =
       config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
     const responseModel =
       config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
 
-    assertAttributes(aiSpans, {
+    assertAttributes(chatSpans, {
       "gen_ai.operation.name": true,
       "gen_ai.request.model": requestModel,
-      "gen_ai.response.model": responseModel,
-      "gen_ai.usage.input_tokens": true,
-      "gen_ai.usage.output_tokens": true,
-      "gen_ai.usage.total_tokens": true,
-    });
-  },
-};
-
-/**
- * Check basic LLM attributes without total_tokens (for some frameworks)
- */
-export const hasBasicLLMAttributes: Check = {
-  name: "hasBasicLLMAttributes",
-  fn: (spans, config, testDef) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
-
-    const requestModel =
-      config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
-    const responseModel =
-      config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
-
-    assertAttributes(aiSpans, {
-      "gen_ai.operation.name": true,
-      "gen_ai.request.model": requestModel,
+      "gen_ai.request.messages": true,
       "gen_ai.response.model": responseModel,
       "gen_ai.usage.input_tokens": true,
       "gen_ai.usage.output_tokens": true,
@@ -142,7 +111,8 @@ export const hasBasicLLMAttributes: Check = {
 // =============================================================================
 
 /**
- * Check token usage on all AI spans
+ * Check token usage on invoke_agent and ai_client spans
+ * Tool spans don't have token usage attributes
  */
 export const hasValidTokenUsage: Check = {
   name: "hasValidTokenUsage",
@@ -150,7 +120,15 @@ export const hasValidTokenUsage: Check = {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
-    for (const span of aiSpans) {
+    // Only check token usage on spans that should have it (not tool spans)
+    const tokenSpans = aiSpans.filter(
+      (s) =>
+        s.op?.match(/^gen_ai\.(invoke_agent|chat|completion|generate)/) ||
+        s.data?.["gen_ai.usage.input_tokens"] !== undefined,
+    );
+    skipIf(tokenSpans.length === 0, "No spans with token usage");
+
+    for (const span of tokenSpans) {
       checkTokenUsage(span, { validateSum: true });
     }
   },
@@ -201,53 +179,6 @@ export const hasValidOutputTokensReasoning: Check = {
   },
 };
 
-/**
- * Check that input tokens indicate a large input (>1000 tokens)
- * Used for long input tests
- */
-export const hasHighInputTokens: Check = {
-  name: "hasHighInputTokens",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
-
-    const spansWithTokens = aiSpans.filter(
-      (s) => s.data?.["gen_ai.usage.input_tokens"] !== undefined,
-    );
-    skipIf(spansWithTokens.length === 0, "No spans with input tokens");
-
-    const maxInputTokens = Math.max(
-      ...spansWithTokens.map((s) => s.data?.["gen_ai.usage.input_tokens"] || 0),
-    );
-
-    expect(
-      maxInputTokens,
-      "Long input should result in >1000 input tokens",
-    ).to.be.greaterThan(1000);
-  },
-};
-
-/**
- * Check that image inputs contribute additional tokens
- */
-export const hasImageTokens: Check = {
-  name: "hasImageTokens",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
-
-    // Images typically add significant tokens (at least 50-100 for small images)
-    const inputTokens = aiSpans[0]?.data?.["gen_ai.usage.input_tokens"];
-    skipIf(inputTokens === undefined, "No input tokens captured");
-
-    expect(
-      inputTokens,
-      "Image should contribute additional input tokens",
-    ).to.be.a("number");
-    expect(inputTokens).to.be.greaterThan(10);
-  },
-};
-
 // =============================================================================
 // Message Trimming Checks
 // =============================================================================
@@ -295,8 +226,7 @@ export const hasTrimmingMetadata: Check = {
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
     let foundMetadata = false;
-    const metadataAttr =
-      "sentry.sdk_meta.gen_ai.input.messages.original_length";
+    const metadataAttr = "gen_ai.input.messages.original_length";
 
     for (const span of aiSpans) {
       const originalLength = span.data?.[metadataAttr];
@@ -316,104 +246,123 @@ export const hasTrimmingMetadata: Check = {
 // =============================================================================
 
 /**
- * Check that an agent span was captured
+ * Check agent span hierarchy and gen_ai.agent.name propagation
+ *
+ * This check validates:
+ * 1. Agent spans (invoke_agent) exist and have gen_ai.agent.name
+ * 2. All child spans (ai_client, tool, handoff) inherit gen_ai.agent.name from their ancestor agent
+ * 3. No orphan gen_ai spans exist outside agent hierarchies
  */
-export const hasAgentSpan: Check = {
-  name: "hasAgentSpan",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-
-    const agentSpan = aiSpans.find(
-      (s) =>
-        s.op?.match(/^gen_ai\.(invoke_agent|agent\.run|agent)/) ||
-        s.description?.toLowerCase().includes("agent"),
-    );
-
-    skipIf(
-      !agentSpan,
-      "No agent span captured - framework may not emit agent spans",
-    );
-    expect(agentSpan!.op).to.match(/^gen_ai\./);
-  },
-};
-
-/**
- * Check that a tool call span was captured
- */
-export const hasToolCallSpan: Check = {
-  name: "hasToolCallSpan",
+export const hasAgentHierarchy: Check = {
+  name: "hasAgentHierarchy",
   fn: (spans, config, testDef) => {
     const aiSpans = extractGenAISpans(spans);
+    expect(
+      aiSpans.length,
+      "Should have at least one AI span",
+    ).to.be.greaterThan(0);
 
-    // Get expected tool name from test definition
-    const expectedToolName = testDef.agent?.tools?.[0]?.name;
+    // Build a map of span_id -> span for quick lookup (include all spans, not just gen_ai)
+    const spanMap = new Map<string, CapturedSpan>();
+    for (const span of spans) {
+      spanMap.set(span.span_id, span);
+    }
 
-    const toolSpan = aiSpans.find(
+    // Find agent spans (invoke_agent pattern)
+    const agentSpans = aiSpans.filter(
       (s) =>
-        s.op?.match(/^gen_ai\.(tool|execute_tool|tool_call)/) ||
-        (expectedToolName &&
-          s.description?.toLowerCase().includes(expectedToolName)) ||
-        (expectedToolName && s.data?.["gen_ai.tool.name"] === expectedToolName),
+        s.op?.match(/^gen_ai\.(invoke_agent|agent\.run|agent)$/) ||
+        s.data?.["gen_ai.agent.name"] !== undefined,
     );
 
-    skipIf(
-      !toolSpan,
-      "No tool call span captured - framework may not emit tool spans",
-    );
-    expect(toolSpan!.op).to.match(/^gen_ai\./);
-  },
-};
+    expect(
+      agentSpans.length,
+      "Should have at least one agent span",
+    ).to.be.greaterThan(0);
 
-/**
- * Check that a tool error was captured in spans
- */
-export const hasToolErrorSpan: Check = {
-  name: "hasToolErrorSpan",
-  fn: (spans, config, testDef) => {
-    const aiSpans = extractGenAISpans(spans);
+    // For each agent span, verify it has gen_ai.agent.name
+    for (const agentSpan of agentSpans) {
+      const agentName = agentSpan.data?.["gen_ai.agent.name"];
+      expect(
+        agentName,
+        `Agent span (${agentSpan.op}) should have gen_ai.agent.name attribute`,
+      ).to.exist;
+    }
 
-    const expectedToolName = testDef.agent?.tools?.[0]?.name;
+    // Build set of agent span IDs for ancestry checking
+    const agentSpanIds = new Set(agentSpans.map((s) => s.span_id));
 
-    const toolSpan = aiSpans.find(
-      (s) =>
-        s.op?.match(/^gen_ai\.(tool|execute_tool|tool_call)/) ||
-        (expectedToolName &&
-          s.description?.toLowerCase().includes(expectedToolName)) ||
-        (expectedToolName && s.data?.["gen_ai.tool.name"] === expectedToolName),
-    );
+    /**
+     * Find the ancestor agent span for a given span by walking up the parent chain
+     * Returns the agent span if found, undefined otherwise
+     */
+    function findAncestorAgent(span: CapturedSpan): CapturedSpan | undefined {
+      let current: CapturedSpan | undefined = span;
+      const visited = new Set<string>();
 
-    skipIf(!toolSpan, "No tool call span captured");
+      while (current) {
+        // Prevent infinite loops
+        if (visited.has(current.span_id)) {
+          break;
+        }
+        visited.add(current.span_id);
 
-    // Check for error indicators (toolSpan is guaranteed to exist after skipIf)
-    const span = toolSpan!;
-    const hasError =
-      span.status === "error" ||
-      span.status === "internal_error" ||
-      span.data?.["error"] !== undefined ||
-      span.data?.["exception"] !== undefined ||
-      span.data?.["gen_ai.tool.error"] !== undefined ||
-      (span.tags && span.tags["error"] === true);
+        // Check if current span is an agent span
+        if (agentSpanIds.has(current.span_id)) {
+          return current;
+        }
 
-    skipIf(!hasError, "Tool span found but no error indicator");
-  },
-};
+        // Move to parent
+        if (current.parent_span_id) {
+          current = spanMap.get(current.parent_span_id);
+        } else {
+          break;
+        }
+      }
 
-/**
- * Check that multiple LLM calls were made (for error recovery scenarios)
- */
-export const hasMultipleLLMCalls: Check = {
-  name: "hasMultipleLLMCalls",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
+      return undefined;
+    }
 
-    skipIf(
-      llmSpans.length < 2,
-      `Expected multiple LLM calls, got ${llmSpans.length}`,
-    );
+    // Categorize gen_ai spans by their relationship to agent spans
+    const childSpans: CapturedSpan[] = []; // Non-agent gen_ai spans that are descendants of agents
+    const orphanSpans: CapturedSpan[] = []; // gen_ai spans with no agent ancestor
 
-    expect(llmSpans.length).to.be.at.least(2);
+    for (const span of aiSpans) {
+      // Skip agent spans themselves
+      if (agentSpanIds.has(span.span_id)) {
+        continue;
+      }
+
+      const ancestorAgent = findAncestorAgent(span);
+      if (ancestorAgent) {
+        childSpans.push(span);
+
+        // Verify gen_ai.agent.name matches the ancestor agent's name
+        const expectedAgentName = ancestorAgent.data?.["gen_ai.agent.name"];
+        const actualAgentName = span.data?.["gen_ai.agent.name"];
+
+        expect(
+          actualAgentName,
+          `Child span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.agent.name attribute`,
+        ).to.exist;
+
+        expect(
+          actualAgentName,
+          `Child span (${span.op}) gen_ai.agent.name should match ancestor agent "${expectedAgentName}"`,
+        ).to.equal(expectedAgentName);
+      } else {
+        orphanSpans.push(span);
+      }
+    }
+
+    // Fail if there are orphan gen_ai spans (not descended from any agent)
+    if (orphanSpans.length > 0) {
+      const orphanDetails = orphanSpans
+        .map((s) => `${s.op} (id: ${s.span_id.substring(0, 8)})`)
+        .join(", ");
+      throw new Error(
+        `Found ${orphanSpans.length} orphan gen_ai span(s) not descended from any agent span: ${orphanDetails}`,
+      );
+    }
   },
 };

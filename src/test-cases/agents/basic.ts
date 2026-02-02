@@ -7,11 +7,9 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasAISpans,
-  hasLLMSpans,
-  hasBasicLLMAttributes,
+  hasLLMAttributes,
   hasValidTokenUsage,
-  hasAgentSpan,
+  hasAgentHierarchy,
   hasValidInputTokensCached,
   hasValidOutputTokensReasoning,
 } from "../checks.js";
@@ -39,11 +37,9 @@ export const basicAgentTest: TestDefinition = {
   ],
 
   checks: [
-    hasAISpans,
-    hasLLMSpans,
-    hasBasicLLMAttributes,
+    hasLLMAttributes,
     hasValidTokenUsage,
-    hasAgentSpan,
+    hasAgentHierarchy,
     hasValidInputTokensCached,
     hasValidOutputTokensReasoning,
   ],

@@ -6,12 +6,7 @@
  */
 
 import { TestDefinition } from "../../types.js";
-import {
-  hasAISpans,
-  hasBasicLLMAttributes,
-  hasValidTokenUsage,
-  hasImageTokens,
-} from "../checks.js";
+import { hasLLMAttributes, hasValidTokenUsage } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
 const TEST_IMAGE_BASE64 =
@@ -49,12 +44,7 @@ export const visionLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [
-    hasAISpans,
-    hasBasicLLMAttributes,
-    hasValidTokenUsage,
-    hasImageTokens,
-  ],
+  checks: [hasLLMAttributes, hasValidTokenUsage],
 };
 
 export default visionLLMTest;

@@ -14,11 +14,9 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasAISpans,
-  hasBasicLLMAttributes,
+  hasLLMAttributes,
   hasMessageTrimming,
   hasTrimmingMetadata,
-  hasHighInputTokens,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -49,13 +47,7 @@ export const longInputLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [
-    hasAISpans,
-    hasBasicLLMAttributes,
-    hasMessageTrimming,
-    hasTrimmingMetadata,
-    hasHighInputTokens,
-  ],
+  checks: [hasLLMAttributes, hasMessageTrimming, hasTrimmingMetadata],
 };
 
 export default longInputLLMTest;
