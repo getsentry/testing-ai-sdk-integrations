@@ -5,14 +5,14 @@
  * Validates that Sentry captures agent spans when processing images.
  */
 
-import { expect } from "chai";
-import { TestDefinition, CapturedSpan, FrameworkConfig } from "../../types.js";
+import { TestDefinition } from "../../types.js";
 import {
-  extractGenAISpans,
-  checkTokenUsage,
-  assertAttributes,
-  skipIf,
-} from "../utils.js";
+  hasAISpans,
+  hasBasicLLMAttributes,
+  hasValidTokenUsage,
+  hasImageTokens,
+  hasAgentSpan,
+} from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
 const TEST_IMAGE_BASE64 =
@@ -58,66 +58,13 @@ export const visionAgentTest: TestDefinition = {
     },
   ],
 
-  // Check 1: Verify we got at least one AI span
-  checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    expect(aiSpans.length).to.be.greaterThan(0);
-  },
-
-  // Check 2: Validate span attributes on LLM spans
-  checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-
-    // Find LLM spans (chat/completion/generate)
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    skipIf(llmSpans.length === 0, "No LLM spans captured");
-
-    assertAttributes(llmSpans, {
-      "gen_ai.operation.name": true,
-      "gen_ai.request.model": config.modelOverrides?.request || "gpt-4o-mini",
-      "gen_ai.response.model":
-        config.modelOverrides?.response || "gpt-4o-mini*",
-      "gen_ai.usage.input_tokens": true,
-      "gen_ai.usage.output_tokens": true,
-    });
-  },
-
-  // Check 3: Validate token usage
-  checkTokens(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    skipIf(llmSpans.length === 0, "No LLM spans captured");
-
-    for (const span of llmSpans) {
-      checkTokenUsage(span, { validateSum: true });
-    }
-  },
-
-  // Check 4: Verify image tokens are counted
-  checkImageTokens(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    skipIf(
-      llmSpans.length === 0,
-      "No LLM spans captured - cannot validate image tokens",
-    );
-
-    for (const span of llmSpans) {
-      const inputTokens = span.data?.["gen_ai.usage.input_tokens"];
-      // Images typically add tokens - different providers count differently
-      // Text alone would be ~15-25 tokens, so we expect at least 25 total
-      expect(inputTokens).to.be.greaterThan(
-        25,
-        "Image should contribute additional input tokens",
-      );
-    }
-  },
+  checks: [
+    hasAISpans,
+    hasBasicLLMAttributes,
+    hasValidTokenUsage,
+    hasImageTokens,
+    hasAgentSpan,
+  ],
 };
 
 export default visionAgentTest;

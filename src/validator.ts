@@ -2,15 +2,24 @@
  * Validator - runs test assertions on captured spans
  */
 
-import { CapturedSpan, TestDefinition, FrameworkConfig, CheckResult } from './types.js';
+import {
+  CapturedSpan,
+  TestDefinition,
+  FrameworkConfig,
+  CheckResult,
+  Check,
+} from "./types.js";
 
 /**
  * Custom error that carries check results
  */
 export class ValidationError extends Error {
-  constructor(message: string, public checkResults: CheckResult[]) {
+  constructor(
+    message: string,
+    public checkResults: CheckResult[],
+  ) {
     super(message);
-    this.name = 'ValidationError';
+    this.name = "ValidationError";
   }
 }
 
@@ -21,7 +30,7 @@ export class ValidationError extends Error {
 export class SkipCheckError extends Error {
   constructor(public reason: string) {
     super(reason);
-    this.name = 'SkipCheckError';
+    this.name = "SkipCheckError";
   }
 }
 
@@ -34,46 +43,25 @@ export class Validator {
 
   /**
    * Run validation checks on captured spans
-   * Supports both legacy single checks function and new multiple check methods
+   * Uses the checks array from the test definition
    * Returns check results for detailed reporting
    */
   async validate(
     spans: CapturedSpan[],
-    testDefinition: TestDefinition | ((spans: CapturedSpan[]) => void | Promise<void>),
+    testDefinition: TestDefinition,
     frameworkConfig: FrameworkConfig,
     onCheckStart?: (checkName: string) => void,
-    onCheckResult?: (result: CheckResult) => void
+    onCheckResult?: (result: CheckResult) => void,
   ): Promise<CheckResult[]> {
     const checkResults: CheckResult[] = [];
     const errors: Error[] = [];
 
-    // Legacy mode: single checks function
-    if (typeof testDefinition === 'function') {
-      try {
-        await testDefinition(spans);
-        checkResults.push({ name: 'checks', status: 'passed' });
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        checkResults.push({ name: 'checks', status: 'failed', error: errorMsg });
-        throw new ValidationError(`Validation failed: ${errorMsg}`, checkResults);
-      }
-      return checkResults;
-    }
+    // Get checks array from test definition
+    const checks: Check[] = testDefinition.checks || [];
 
-    // New mode: run all methods starting with "check"
-    const checkMethods = Object.keys(testDefinition)
-      .filter(key => key.startsWith('check') && typeof testDefinition[key] === 'function')
-      .sort(); // Sort for consistent execution order
-
-    if (checkMethods.length === 0 && testDefinition.checks) {
-      // Fallback to legacy checks if no check methods found
-      try {
-        await testDefinition.checks(spans);
-        checkResults.push({ name: 'checks', status: 'passed' });
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        checkResults.push({ name: 'checks', status: 'failed', error: errorMsg });
-        throw new ValidationError(`Validation failed: ${errorMsg}`, checkResults);
+    if (checks.length === 0) {
+      if (this.verbose) {
+        console.log("  No checks defined for this test");
       }
       return checkResults;
     }
@@ -82,57 +70,63 @@ export class Validator {
     const testName = testDefinition.name;
     const skippedChecks = frameworkConfig.skip?.checks?.[testName] || [];
 
-    // Run all check methods
-    for (const methodName of checkMethods) {
+    // Run all checks
+    for (const check of checks) {
+      const checkName = check.name;
+
       // Notify that check is starting
-      onCheckStart?.(methodName);
-      
+      onCheckStart?.(checkName);
+
       // Check if this check is skipped for this framework
-      if (skippedChecks.includes(methodName)) {
-        const result: CheckResult = { 
-          name: methodName, 
-          status: 'skipped', 
-          skipReason: 'Not supported by this framework'
+      if (skippedChecks.includes(checkName)) {
+        const result: CheckResult = {
+          name: checkName,
+          status: "skipped",
+          skipReason: "Not supported by this framework",
         };
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {
-          console.log(`  ⊘ ${methodName} skipped (not supported)`);
+          console.log(`  ⊘ ${checkName} skipped (not supported)`);
         }
         continue;
       }
 
       try {
-        await testDefinition[methodName](spans, frameworkConfig);
-        const result: CheckResult = { name: methodName, status: 'passed' };
+        await check.fn(spans, frameworkConfig, testDefinition);
+        const result: CheckResult = { name: checkName, status: "passed" };
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {
-          console.log(`  ✓ ${methodName} passed`);
+          console.log(`  ✓ ${checkName} passed`);
         }
       } catch (error) {
         // Handle dynamic skip from within the check
         if (error instanceof SkipCheckError) {
-          const result: CheckResult = { 
-            name: methodName, 
-            status: 'skipped', 
-            skipReason: error.reason
+          const result: CheckResult = {
+            name: checkName,
+            status: "skipped",
+            skipReason: error.reason,
           };
           checkResults.push(result);
           onCheckResult?.(result);
           if (this.verbose) {
-            console.log(`  ⊘ ${methodName} skipped: ${error.reason}`);
+            console.log(`  ⊘ ${checkName} skipped: ${error.reason}`);
           }
           continue;
         }
-        
+
         // Handle regular failures
         const errorMsg = error instanceof Error ? error.message : String(error);
-        const result: CheckResult = { name: methodName, status: 'failed', error: errorMsg };
+        const result: CheckResult = {
+          name: checkName,
+          status: "failed",
+          error: errorMsg,
+        };
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {
-          console.error(`  ✗ ${methodName} failed: ${errorMsg}`);
+          console.error(`  ✗ ${checkName} failed: ${errorMsg}`);
         }
         errors.push(error instanceof Error ? error : new Error(errorMsg));
       }
@@ -140,10 +134,13 @@ export class Validator {
 
     // If any check failed, throw combined error with check results
     if (errors.length > 0) {
-      const errorMessages = errors.map(e => e.message).join('\n');
-      throw new ValidationError(`${errors.length} check(s) failed:\n${errorMessages}`, checkResults);
+      const errorMessages = errors.map((e) => e.message).join("\n");
+      throw new ValidationError(
+        `${errors.length} check(s) failed:\n${errorMessages}`,
+        checkResults,
+      );
     }
-    
+
     return checkResults;
   }
 }

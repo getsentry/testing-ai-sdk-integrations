@@ -5,14 +5,16 @@
  * Validates that Sentry captures agent spans correctly for simple completions.
  */
 
-import { expect } from "chai";
-import { TestDefinition, CapturedSpan, FrameworkConfig } from "../../types.js";
+import { TestDefinition } from "../../types.js";
 import {
-  extractGenAISpans,
-  checkTokenUsage,
-  assertAttributes,
-  skipIf,
-} from "../utils.js";
+  hasAISpans,
+  hasLLMSpans,
+  hasBasicLLMAttributes,
+  hasValidTokenUsage,
+  hasAgentSpan,
+  hasValidInputTokensCached,
+  hasValidOutputTokensReasoning,
+} from "../checks.js";
 
 export const basicAgentTest: TestDefinition = {
   name: "Basic Agent Test",
@@ -36,94 +38,15 @@ export const basicAgentTest: TestDefinition = {
     },
   ],
 
-  checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    expect(aiSpans.length).to.be.greaterThan(
-      0,
-      "Should have at least one AI span",
-    );
-  },
-
-  checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-
-    // Find LLM spans (chat/completion/generate)
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    skipIf(llmSpans.length === 0, "No LLM spans captured");
-
-    assertAttributes(llmSpans, {
-      "gen_ai.operation.name": true,
-      "gen_ai.request.model": config.modelOverrides?.request || "gpt-4o-mini",
-      "gen_ai.response.model":
-        config.modelOverrides?.response || "gpt-4o-mini*",
-      "gen_ai.usage.input_tokens": true,
-      "gen_ai.usage.output_tokens": true,
-    });
-  },
-
-  checkTokens(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    const llmSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    skipIf(llmSpans.length === 0, "No LLM spans captured");
-
-    for (const span of llmSpans) {
-      checkTokenUsage(span, { validateSum: true });
-    }
-  },
-
-  checkAgentSpan(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-
-    // Look for agent span (for agentic frameworks)
-    const agentSpan = aiSpans.find(
-      (s) =>
-        s.op?.match(/^gen_ai\.(invoke_agent|agent\.run|agent)/) ||
-        s.description?.toLowerCase().includes("agent"),
-    );
-
-    skipIf(
-      !agentSpan,
-      "No agent span captured - framework may not emit agent spans",
-    );
-
-    // If agent span exists, verify it has the expected structure
-    expect(agentSpan!.op).to.match(/^gen_ai\./);
-  },
-
-  checkInputTokensCached(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpansWithInputTokensCached = extractGenAISpans(spans).filter(
-      (span) => span.data?.["gen_ai.usage.input_tokens.cached"] !== undefined,
-    );
-    skipIf(
-      aiSpansWithInputTokensCached.length === 0,
-      "No AI spans captured with input tokens cached - cannot validate input tokens cached",
-    );
-    for (const span of aiSpansWithInputTokensCached) {
-      expect(
-        span.data?.["gen_ai.usage.input_tokens.cached"],
-      ).to.be.lessThanOrEqual(span.data?.["gen_ai.usage.input_tokens"]);
-    }
-  },
-
-  checkOutputTokensReasoning(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpansWithOutputTokensReasoning = extractGenAISpans(spans).filter(
-      (span) =>
-        span.data?.["gen_ai.usage.output_tokens.reasoning"] !== undefined,
-    );
-    skipIf(
-      aiSpansWithOutputTokensReasoning.length === 0,
-      "No AI spans captured with output tokens reasoning - cannot validate output tokens reasoning",
-    );
-    for (const span of aiSpansWithOutputTokensReasoning) {
-      expect(
-        span.data?.["gen_ai.usage.output_tokens.reasoning"],
-      ).to.be.lessThanOrEqual(span.data?.["gen_ai.usage.output_tokens"]);
-    }
-  },
+  checks: [
+    hasAISpans,
+    hasLLMSpans,
+    hasBasicLLMAttributes,
+    hasValidTokenUsage,
+    hasAgentSpan,
+    hasValidInputTokensCached,
+    hasValidOutputTokensReasoning,
+  ],
 };
 
 export default basicAgentTest;

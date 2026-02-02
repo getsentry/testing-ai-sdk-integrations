@@ -2,6 +2,26 @@
  * Core type definitions for the test orchestrator
  */
 
+/**
+ * Check function signature
+ * @param spans - Captured spans from the test run
+ * @param config - Framework configuration
+ * @param testDef - The test definition being run
+ */
+export type CheckFunction = (
+  spans: CapturedSpan[],
+  config: FrameworkConfig,
+  testDef: TestDefinition,
+) => void | Promise<void>;
+
+/**
+ * Check definition with name and function
+ */
+export interface Check {
+  name: string;
+  fn: CheckFunction;
+}
+
 export interface TestDefinition {
   name: string;
   description: string;
@@ -11,10 +31,8 @@ export interface TestDefinition {
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
   causeAPIError?: boolean;
-  // Legacy: single checks function (still supported)
-  checks?: (spans: CapturedSpan[]) => void | Promise<void>;
-  // New: any method starting with "check" will be run as a check
-  [key: string]: any;
+  /** Array of check functions to run */
+  checks: Check[];
 }
 
 export interface AgentDefinition {
