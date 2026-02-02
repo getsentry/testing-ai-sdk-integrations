@@ -14,66 +14,68 @@ Sentry SDKs (JavaScript and Python) automatically instrument popular AI SDKs lik
 ## Project Structure
 
 ```
-ai-sdks-test/
-├── sdks/
-│   ├── js/                        # JavaScript SDK implementations
-│   │   ├── _test-utils/           # JS test utilities (mock transport, fixtures, validators)
-│   │   ├── openai/
-│   │   │   ├── setup.js           # Sentry initialization
-│   │   │   ├── config.json        # SDK configuration (framework type, overrides)
-│   │   │   ├── package.json
-│   │   │   └── cases/             # Test case implementations
-│   │   │       └── 1-simple.js
-│   │   ├── anthropic/
-│   │   ├── langchain/
-│   │   ├── langgraph/
-│   │   ├── vercel/
-│   │   └── google-genai/
-│   └── py/                        # Python SDK implementations
-│       ├── _test-utils/           # Python test utilities (mock transport, fixtures, validators)
-│       ├── openai/
-│       │   ├── setup.py           # Sentry initialization
-│       │   ├── config.json        # SDK configuration (framework type, overrides)
-│       │   ├── requirements.txt
-│       │   └── cases/             # Test case implementations
-│       │       └── 1-simple.py
-│       ├── openai-agents/
-│       ├── anthropic/
-│       ├── langchain/
-│       ├── langgraph/
-│       ├── google-genai/
-│       ├── litellm/
-│       └── pydantic-ai/
-├── shared/
-│   ├── specs/                     # Test specifications (language-agnostic)
-│   │   ├── 1-simple/
-│   │   │   ├── spec.md            # Human-readable specification
-│   │   │   ├── fixture-agentic.json    # Expected spans for agentic frameworks
-│   │   │   └── fixture-low-level.json  # Expected spans for low-level frameworks
-│   │   └── 2-multi-step/
-│   └── orchestration/             # Test runner and CLI
-│       ├── src/                   # TypeScript source
-│       │   ├── cli.ts             # CLI entry point
-│       │   ├── runner.ts          # Test execution
-│       │   ├── discovery.ts       # SDK/test discovery
-│       │   ├── setup.ts           # Dependency installation
-│       │   └── reporters/         # Test reporting (console, CTRF, HTML)
-│       ├── dist/                  # Compiled JavaScript
-│       └── test-results/          # Generated test reports
-├── .env                           # Environment variables (gitignored)
-├── .env.example                   # Template for API keys
-├── action.yml                     # GitHub Action to run the tests for a specific language on CI
-└── package.json                   # Root package.json for CLI alias
+testing-ai-sdk-integrations/
+├── src/                              # TypeScript source code (ES modules)
+│   ├── cli.ts                        # CLI entry point
+│   ├── orchestrator.ts               # Main test coordinator
+│   ├── types.ts                      # Core type definitions
+│   ├── validator.ts                  # Test validation logic
+│   ├── setup.ts                      # Setup utilities
+│   ├── concurrency.ts                # Parallel execution support
+│   ├── test-cases/                   # Test definitions
+│   │   ├── index.ts                  # Test registry
+│   │   ├── utils.ts                  # Test utilities (skip, assertions)
+│   │   ├── llm/                      # LLM test cases
+│   │   │   ├── basic.ts              # Basic single completion test
+│   │   │   ├── multi-turn.ts         # Multi-turn conversation test
+│   │   │   ├── basic-error.ts        # Error handling test
+│   │   │   ├── vision.ts             # Vision/image input test
+│   │   │   └── long-input.ts         # Long input trimming test
+│   │   └── agents/                   # Agent test cases
+│   │       ├── basic.ts              # Basic agent (no tools)
+│   │       ├── tool-call.ts          # Agent with tool calling
+│   │       ├── tool-error.ts         # Tool error handling
+│   │       ├── vision.ts             # Vision agent test
+│   │       └── long-input.ts         # Long input agent test
+│   ├── runner/                       # Test execution
+│   │   ├── runner.ts                 # Main runner
+│   │   ├── javascript-runner.ts      # JS-specific execution
+│   │   ├── python-runner.ts          # Python-specific execution
+│   │   ├── framework-config.ts       # Framework configuration types
+│   │   ├── framework-discovery.ts    # Auto-discovers frameworks
+│   │   ├── template-renderer.ts      # Nunjucks template rendering
+│   │   └── templates/                # Framework templates
+│   │       ├── base.js.njk           # Base JavaScript template
+│   │       ├── base.py.njk           # Base Python template
+│   │       ├── llm/                  # LLM framework templates
+│   │       │   ├── js/{openai,anthropic,google-genai,langchain}/
+│   │       │   └── py/{openai,anthropic,langchain,litellm}/
+│   │       └── agents/               # Agent framework templates
+│   │           ├── js/{langgraph,vercel}/
+│   │           └── py/{langgraph,openai-agents,pydantic-ai,google-genai}/
+│   ├── span-collector/               # HTTP server to capture Sentry data
+│   │   ├── server.ts                 # Hono HTTP server
+│   │   └── store.ts                  # In-memory span storage
+│   └── reporters/                    # Test output reporters
+│       ├── ctrf-reporter.ts          # CTRF JSON report generator
+│       └── live-status.ts            # Real-time test status display
+├── dist/                             # Compiled JavaScript output
+├── runs/                             # Generated test files per run
+├── test-results/                     # Generated reports
+│   └── ctrf-report.json
+├── .env                              # Environment variables (gitignored)
+├── .env.example                      # Template for API keys
+└── package.json
 ```
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ (for JavaScript tests)
+- Node.js 18+ (for JavaScript tests and orchestration)
 - Python 3.9+ (for Python tests)
-- API keys for AI services (OpenAI, Anthropic, etc.)
-- Sentry project DSN (for E2E tests)
+- uv (Python package manager, recommended)
+- API keys for AI services (OpenAI, Anthropic, Google)
 
 ### Setup
 
@@ -88,108 +90,337 @@ cd testing-ai-sdk-integrations
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys and Sentry DSN
+# Edit .env with your API keys
 ```
 
-3. Install orchestration dependencies:
+3. Install dependencies and build:
 
 ```bash
-cd shared/orchestration
 npm install
-cd ../..
+npm run build
 ```
 
-4. Set up all SDK dependencies:
+4. List available frameworks:
 
 ```bash
-npm run cli setup
+npm run test list
 ```
 
 5. Run all tests:
 
 ```bash
-npm run cli run -- --all
+npm run test run
 ```
 
-6. Run tests with filters:
+### CLI Usage
 
 ```bash
-# All JavaScript SDKs
-npm run cli run js
+# Run all tests
+npm run test run
 
-# All Python SDKs
-npm run cli run py
+# Run tests for a specific framework
+npm run test -- --framework openai
 
-# All SDKs matching "lang" (langchain + langgraph in both JS and Python)
-npm run cli run lang
+# Run tests for a specific platform
+npm run test -- --platform py
 
-# Specific SDK name across languages (js/langchain + py/langchain)
-npm run cli run langchain
+# Run a specific test
+npm run test -- --test "Basic LLM Test"
 
-# Specific SDK with exact path
-npm run cli run js/langgraph
+# Run with verbose output
+npm run test -- --framework openai --verbose
 
-# SDK that only exists in one language
-npm run cli run pydantic-ai
+# Run only streaming tests
+npm run test -- --streaming
 
-# Specific test case across all SDKs
-npm run cli run -- --case 1-simple
+# Run only blocking (non-streaming) tests
+npm run test -- --blocking
 
-# Combine filters (langchain SDKs running 1-simple test only)
-npm run cli run langchain -- --case 1-simple
+# Run only sync tests (Python)
+npm run test -- --platform py --sync
+
+# Run only async tests (Python)
+npm run test -- --platform py --async
+
+# Run tests in parallel
+npm run test -- -j=4
+
+# Setup only (generate test files without running)
+npm run test setup -- --framework openai
+
+# Use local Sentry SDK
+npm run test -- --sentry-python /path/to/sentry-python
+npm run test -- --sentry-javascript /path/to/sentry-javascript
 ```
 
-### CLI Filter Syntax
+### CLI Options
 
-The CLI supports flexible filtering to run exactly the tests you need:
+| Option                       | Description                                  |
+| ---------------------------- | -------------------------------------------- |
+| `--framework <name>`         | Filter by framework name                     |
+| `--test <name>`              | Filter by test name                          |
+| `--platform <js\|py>`        | Filter by platform                           |
+| `--sync`                     | Run only sync tests (Python, default: both)  |
+| `--async`                    | Run only async tests (Python, default: both) |
+| `--streaming`                | Run only streaming tests (default: both)     |
+| `--blocking`                 | Run only blocking tests (default: both)      |
+| `-j, --parallel <N>`         | Run up to N tests in parallel                |
+| `-v, --verbose`              | Show detailed output                         |
+| `--live-status`              | Enable real-time status display              |
+| `--sentry-python <path>`     | Use local Sentry Python SDK                  |
+| `--sentry-javascript <path>` | Use local Sentry JavaScript SDK              |
 
-**Filter Types:**
+## Supported AI SDKs
 
-- **Language filter**: `js` or `py` - Runs all SDKs in that language
-- **Exact path**: `js/openai` - Runs a specific SDK
-- **Partial name match**: Any string that matches SDK names (uses `contains`)
-  - `lang` → matches `langchain`, `langgraph` (in both JS and Python)
-  - `langchain` → matches only `langchain` (in both JS and Python)
-  - `pydantic` → matches only `pydantic-ai` (Python only)
-  - `openai` → matches `openai`, `openai-agents` (in all languages)
+| Platform   | SDK             | Type   | Streaming | Execution Modes |
+| ---------- | --------------- | ------ | --------- | --------------- |
+| JavaScript | `openai`        | llm    | both      | -               |
+| JavaScript | `anthropic`     | llm    | both      | -               |
+| JavaScript | `google-genai`  | llm    | both      | -               |
+| JavaScript | `langchain`     | llm    | both      | -               |
+| JavaScript | `vercel`        | agents | -         | -               |
+| JavaScript | `langgraph`     | agents | -         | -               |
+| Python     | `openai`        | llm    | both      | sync/async      |
+| Python     | `anthropic`     | llm    | both      | sync/async      |
+| Python     | `langchain`     | llm    | both      | sync/async      |
+| Python     | `litellm`       | llm    | both      | sync/async      |
+| Python     | `openai-agents` | agents | -         | async           |
+| Python     | `langgraph`     | agents | -         | sync/async      |
+| Python     | `pydantic-ai`   | agents | -         | async           |
+| Python     | `google-genai`  | agents | -         | sync/async      |
 
-**Additional Options:**
+## Test Cases
 
-- `--case <case-id>` - Filter to specific test case (e.g., `1-simple`)
-- `--all` - Run all tests across all SDKs
-- `--verbose` - Show detailed output including LLM responses
-- `--reports <formats>` - Generate reports (ctrf, html, or all)
+### LLM Tests
 
-**Examples:**
+| Test                   | Description                           |
+| ---------------------- | ------------------------------------- |
+| `Basic LLM Test`       | Single completion with system message |
+| `Multi Turn LLM Test`  | Multi-turn conversation               |
+| `Basic Error LLM Test` | Tests API error handling              |
+| `Vision LLM Test`      | Image input processing                |
+| `Long Input LLM Test`  | Message trimming for large inputs     |
+
+### Agent Tests
+
+| Test                    | Description                             |
+| ----------------------- | --------------------------------------- |
+| `Basic Agent Test`      | Agent without tools (simple completion) |
+| `Tool Call Agent Test`  | Agent with successful tool calling      |
+| `Tool Error Agent Test` | Agent with tool that raises exception   |
+| `Vision Agent Test`     | Agent that processes images             |
+| `Long Input Agent Test` | Agent with large input trimming         |
+
+## How It Works
+
+1. **Discovery**: Scans `templates/` directory for framework configurations
+2. **Matrix Generation**: Creates test matrix (framework × test × execution modes)
+3. **Template Rendering**: Generates runnable test files using Nunjucks templates
+4. **Execution**: Runs tests with Sentry DSN pointing to local span collector
+5. **Validation**: Runs check methods against captured spans
+6. **Reporting**: Generates console output and CTRF JSON report
+
+```
+TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
+                    ↓
+        Template Renderer generates test file
+                    ↓
+        Runner executes test file
+                    ↓
+        Sentry SDK sends spans to Span Collector
+                    ↓
+        Validator runs check methods on captured spans
+                    ↓
+        Reporter outputs results
+```
+
+## Adding a New Framework
+
+### 1. Create Template Directory
 
 ```bash
-# Quick language-wide tests
-npm run cli run js              # All JS SDKs
-npm run cli run py              # All Python SDKs
+mkdir -p src/runner/templates/{llm|agents}/{js|py}/your-framework
+```
 
-# Partial matching for related SDKs
-npm run cli run lang            # langchain + langgraph (both languages)
-npm run cli run openai          # openai + openai-agents (all languages)
+### 2. Create `config.json`
 
-# Exact SDK selection
-npm run cli run langchain       # js/langchain + py/langchain
-npm run cli run js/langgraph    # Only js/langgraph
+```json
+{
+  "name": "your-framework",
+  "displayName": "Your Framework SDK",
+  "type": "llm-only",
+  "platform": "js",
+  "streamingMode": "both",
+  "dependencies": [{ "package": "your-framework", "version": "framework" }],
+  "versions": ["1.0.0"],
+  "sentryVersions": ["latest"]
+}
+```
 
-# Test case filtering
-npm run cli run -- --case 1-simple              # Run 1-simple across all SDKs
-npm run cli run lang -- --case 1-simple         # Run 1-simple on lang* SDKs
+### 3. Create `template.njk`
 
-# List available SDKs
-npm run cli list
+```njk
+{% extends "base.js.njk" %}
+
+{% block setup %}
+let client;
+{% endblock %}
+
+{% block dynamic_imports %}
+      const SDK = (await import("your-framework")).default;
+      client = new SDK();
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+      const response = await client.complete({
+        model: "{{ input.model }}",
+        messages: {{ input.messages | dump }},
+      });
+      console.log("Response:", response.content);
+{% endfor %}
+{% endblock %}
+```
+
+### 4. Build and Test
+
+```bash
+npm run build
+npm run test -- --framework your-framework --verbose
+```
+
+## Adding a New Test Case
+
+### 1. Create Test File
+
+```typescript
+// src/test-cases/llm/your-test.ts
+import { TestDefinition, CapturedSpan, FrameworkConfig } from "../../types.js";
+import { extractGenAISpans, assertAttributes } from "../utils.js";
+
+export const yourTest: TestDefinition = {
+  name: "Your Test Name",
+  description: "What this test validates",
+  type: "llm", // or 'agent'
+
+  inputs: [
+    {
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: "Test prompt" }],
+    },
+  ],
+
+  checkYourValidation(spans: CapturedSpan[], config: FrameworkConfig) {
+    // Your validation logic
+  },
+};
+```
+
+### 2. Register in Index
+
+```typescript
+// src/test-cases/index.ts
+import { yourTest } from "./llm/your-test.js";
+
+export const testCases = {
+  llm: {
+    // ... existing tests
+    yourTest: yourTest,
+  },
+};
+```
+
+### 3. Build and Test
+
+```bash
+npm run build
+npm run test -- --test "Your Test Name" --verbose
+```
+
+## Framework Configuration
+
+Each framework has a `config.json` with these fields:
+
+| Field            | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `name`           | Framework identifier                          |
+| `displayName`    | Human-readable name                           |
+| `type`           | `"llm-only"` or `"agentic"`                   |
+| `platform`       | `"js"` or `"py"`                              |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
+| `dependencies`   | NPM/pip packages to install                   |
+| `versions`       | Framework versions to test                    |
+| `sentryVersions` | Sentry SDK versions to test against           |
+| `modelOverrides` | Override model names for validation           |
+| `skip`           | Tests or checks to skip                       |
+
+## Test Utilities
+
+Available in `src/test-cases/utils.ts`:
+
+| Function               | Purpose                                |
+| ---------------------- | -------------------------------------- |
+| `skip(reason)`         | Skip the current check with a reason   |
+| `skipIf(cond, reason)` | Conditionally skip a check             |
+| `extractGenAISpans()`  | Filter spans for `gen_ai.*` operations |
+| `checkTokenUsage()`    | Validate token count attributes        |
+| `assertAttributes()`   | Schema-based attribute validation      |
+| `printSpanSummary()`   | Debug helper to print captured spans   |
+
+### Attribute Schema
+
+```typescript
+assertAttributes(spans, {
+  "gen_ai.operation.name": true, // Must exist
+  "gen_ai.request.model": "gpt-4", // Exact match
+  "gen_ai.response.model": "gpt-4*", // Pattern match
+  sensitive_field: false, // Must NOT exist
+});
+```
+
+## Environment Variables
+
+Create a `.env` file with your API keys:
+
+```bash
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+```
+
+## Debugging
+
+### Verbose Mode
+
+```bash
+npm run test -- --framework openai --verbose
+```
+
+### Setup Only (Inspect Generated Files)
+
+```bash
+npm run test setup -- --framework openai
+# Check runs/ directory for generated test files
+```
+
+### Print Span Data
+
+Add to your check method:
+
+```typescript
+checkDebug(spans: CapturedSpan[]) {
+  printSpanSummary(spans);
+}
 ```
 
 ## Using as a GitHub Action
 
-This repository can be used as a reusable GitHub Action in SDK repositories (e.g., `sentry-javascript`, `sentry-python`) to run AI integration tests on a schedule.
+This repository can be used as a reusable GitHub Action in SDK repositories to run AI integration tests on a schedule.
 
 ### Setup in SDK Repositories
 
-1. **Create a workflow** in your SDK repo (e.g., `.github/workflows/ai-integration-tests.yml`):
+Create a workflow in your SDK repo (e.g., `.github/workflows/ai-integration-tests.yml`):
 
 ```yaml
 name: AI Integration Tests
@@ -197,7 +428,7 @@ name: AI Integration Tests
 on:
   schedule:
     - cron: "0 9 * * 1" # Weekly on Monday at 9am UTC
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   test:
@@ -209,30 +440,71 @@ jobs:
       - name: Run AI Integration Tests
         uses: getsentry/testing-ai-sdk-integrations@v1
         with:
-          language: js # or 'python'
+          platform: py # or 'js', or leave empty for both
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           google-api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
-2. **Add secrets** to your SDK repository:
-   - `OPENAI_API_KEY` - OpenAI API key
-   - `ANTHROPIC_API_KEY` - Anthropic API key
-   - `GOOGLE_API_KEY` - Google API key for GenAI
-   - `GITHUB_TOKEN` - GitHub token
+### Action Inputs
+
+| Input                    | Required | Default       | Description                                              |
+| ------------------------ | -------- | ------------- | -------------------------------------------------------- |
+| `platform`               | No       | `""`          | Platform to test: `js`, `py`, or empty for both          |
+| `framework`              | No       | `""`          | Specific framework to test (e.g., `openai`, `langchain`) |
+| `test`                   | No       | `""`          | Specific test to run (e.g., `Basic LLM Test`)            |
+| `parallel`               | No       | `4`           | Number of tests to run in parallel                       |
+| `sentry-python-path`     | No       | `""`          | Path to local sentry-python for editable install         |
+| `sentry-javascript-path` | No       | `""`          | Path to local sentry-javascript for linking              |
+| `openai-api-key`         | Yes      | -             | OpenAI API key                                           |
+| `anthropic-api-key`      | Yes      | -             | Anthropic API key                                        |
+| `google-api-key`         | Yes      | -             | Google API key for GenAI                                 |
+| `google-vertex-project`  | No       | `""`          | Google Vertex AI project ID                              |
+| `google-vertex-location` | No       | `us-central1` | Google Vertex AI location                                |
+
+### Action Outputs
+
+| Output    | Description                                   |
+| --------- | --------------------------------------------- |
+| `success` | `true` if all tests passed, `false` otherwise |
+| `total`   | Total number of tests run                     |
+| `passed`  | Number of tests that passed                   |
+| `failed`  | Number of tests that failed                   |
+
+### Advanced Usage
+
+```yaml
+# Test specific framework with local SDK
+- name: Run AI Integration Tests
+  id: ai-tests
+  uses: getsentry/testing-ai-sdk-integrations@v1
+  with:
+    platform: py
+    framework: openai
+    parallel: 8
+    sentry-python-path: ${{ github.workspace }}
+    openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    google-api-key: ${{ secrets.GOOGLE_API_KEY }}
+
+- name: Check results
+  run: |
+    echo "Success: ${{ steps.ai-tests.outputs.success }}"
+    echo "Passed: ${{ steps.ai-tests.outputs.passed }}/${{ steps.ai-tests.outputs.total }}"
+```
 
 ### How It Works
 
-- The action runs tests for the specified language (js or python)
-- On failure, it automatically creates or updates an issue in the **calling repository** (not this repo)
+- The action installs dependencies and builds the test framework
+- Runs tests for the specified platform/framework with parallel execution
+- Uploads test results as artifacts
+- On failure, automatically creates or updates an issue in the calling repository
 - Issues are labeled with `ai-integration-test-failure` for easy tracking
-- Test results are included in the issue body in JSON format
+- Test results with detailed failure information are included in the issue body
 
-## Test Scenarios
+## References
 
-Each SDK implementation includes these scenarios (where supported by the SDK):
-
-1. **Simple Chat** - Basic request-response completion
-2. **Streaming** - Streaming response handling
-3. **Function Calling** - Tool/function calling capabilities
-4. **Error Handling** - Application errors and invalid inputs
+- **Sentry JavaScript SDK:** https://github.com/getsentry/sentry-javascript
+- **Sentry Python SDK:** https://github.com/getsentry/sentry-python
+- **Vercel AI SDK:** https://sdk.vercel.ai/docs
+- **OpenAI Python SDK:** https://github.com/openai/openai-python
