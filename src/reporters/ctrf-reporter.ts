@@ -134,16 +134,33 @@ function mapStatus(
 }
 
 /**
+ * Generate timestamp string for filenames
+ * Format: YYYY-MM-DD-HHmmss
+ */
+export function getTimestamp(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day}-${hours}${minutes}${seconds}`;
+}
+
+/**
  * Write CTRF report to file
  */
 export async function writeCTRFReport(
   report: Report,
   outputDir: string = "./test-results",
+  timestamp?: string,
 ): Promise<string> {
   // Ensure output directory exists
   await fs.mkdir(outputDir, { recursive: true });
 
-  const filePath = path.join(outputDir, "ctrf-report.json");
+  const ts = timestamp || getTimestamp();
+  const filePath = path.join(outputDir, `ctrf-report-${ts}.json`);
   await fs.writeFile(filePath, JSON.stringify(report, null, 2), "utf-8");
 
   return filePath;

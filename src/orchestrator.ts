@@ -10,7 +10,9 @@ import { Validator, ValidationError } from "./validator.js";
 import {
   generateCTRFReport,
   writeCTRFReport,
+  getTimestamp,
 } from "./reporters/ctrf-reporter.js";
+import { generateHTML, writeHTMLReport } from "./reporters/html-generator.js";
 import { LiveStatusReporter } from "./reporters/live-status.js";
 import { PoolExecutionStrategy, ExecutionStrategy } from "./concurrency.js";
 import {
@@ -159,8 +161,8 @@ export class Orchestrator {
     const endTime = Date.now();
     const report = this.generateReport(startTime, endTime);
 
-    // Generate and write CTRF report
-    await this.writeCTRFReport(report);
+    // Generate and write reports (CTRF + HTML)
+    await this.writeReports(report);
 
     return report;
   }
@@ -419,18 +421,29 @@ export class Orchestrator {
   }
 
   /**
-   * Write CTRF report to file
+   * Write CTRF and HTML reports to files
    */
-  async writeCTRFReport(report: TestReport): Promise<void> {
+  async writeReports(report: TestReport): Promise<void> {
+    const timestamp = getTimestamp();
+    const outputDir = "./test-results";
+
+    // Write CTRF report
     try {
       const ctrfReport = generateCTRFReport(report);
-      const filePath = await writeCTRFReport(ctrfReport, "./test-results");
+      const ctrfPath = await writeCTRFReport(ctrfReport, outputDir, timestamp);
       if (this.verbose) {
-        console.log(`\n✓ CTRF report written to: ${filePath}`);
+        console.log(`\n✓ CTRF report written to: ${ctrfPath}`);
+      }
+
+      // Write HTML report
+      const htmlContent = generateHTML(ctrfReport);
+      const htmlPath = await writeHTMLReport(htmlContent, outputDir, timestamp);
+      if (this.verbose) {
+        console.log(`✓ HTML report written to: ${htmlPath}`);
       }
     } catch (error) {
       if (this.verbose) {
-        console.error("Failed to write CTRF report:", error);
+        console.error("Failed to write reports:", error);
       }
     }
   }
