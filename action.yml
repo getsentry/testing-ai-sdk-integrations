@@ -134,19 +134,22 @@ runs:
         EXIT_CODE=$?
         set -e
 
-        # Parse CTRF report for outputs
-        if [ -f "test-results/ctrf-report.json" ]; then
-          TOTAL=$(jq -r '.results.summary.tests' test-results/ctrf-report.json)
-          PASSED=$(jq -r '.results.summary.passed' test-results/ctrf-report.json)
-          FAILED=$(jq -r '.results.summary.failed' test-results/ctrf-report.json)
+        # Parse CTRF report for outputs (find latest report with timestamp)
+        CTRF_REPORT=$(ls -t test-results/ctrf-report-*.json 2>/dev/null | head -1)
+        if [ -n "$CTRF_REPORT" ] && [ -f "$CTRF_REPORT" ]; then
+          TOTAL=$(jq -r '.results.summary.tests' "$CTRF_REPORT")
+          PASSED=$(jq -r '.results.summary.passed' "$CTRF_REPORT")
+          FAILED=$(jq -r '.results.summary.failed' "$CTRF_REPORT")
           
           echo "total=$TOTAL" >> $GITHUB_OUTPUT
           echo "passed=$PASSED" >> $GITHUB_OUTPUT
           echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "ctrf_report=$CTRF_REPORT" >> $GITHUB_OUTPUT
         else
           echo "total=0" >> $GITHUB_OUTPUT
           echo "passed=0" >> $GITHUB_OUTPUT
           echo "failed=0" >> $GITHUB_OUTPUT
+          echo "ctrf_report=" >> $GITHUB_OUTPUT
         fi
 
         if [ $EXIT_CODE -eq 0 ]; then
@@ -180,7 +183,18 @@ runs:
           };
 
           let resultsContent = 'Test execution failed. Check the [workflow run](' + runUrl + ') for details.';
-          const ctrfPath = '${{ github.action_path }}/test-results/ctrf-report.json';
+          // Find latest CTRF report
+          const testResultsDir = '${{ github.action_path }}/test-results';
+          let ctrfPath = '';
+          if (fs.existsSync(testResultsDir)) {
+            const files = fs.readdirSync(testResultsDir)
+              .filter(f => f.startsWith('ctrf-report-') && f.endsWith('.json'))
+              .sort()
+              .reverse();
+            if (files.length > 0) {
+              ctrfPath = testResultsDir + '/' + files[0];
+            }
+          }
 
           if (fs.existsSync(ctrfPath)) {
             try {
