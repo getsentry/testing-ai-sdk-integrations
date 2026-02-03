@@ -13,6 +13,7 @@ import {
   checkAgentHierarchy,
   checkInputTokensCached,
   checkOutputTokensReasoning,
+  checkInputMessagesSchema,
 } from "../checks.js";
 
 export const basicAgentTest: TestDefinition = {
@@ -42,6 +43,7 @@ export const basicAgentTest: TestDefinition = {
     checkChatSpanAttributes,
     checkValidTokenUsage,
     checkAgentHierarchy,
+    checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],

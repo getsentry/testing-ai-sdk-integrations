@@ -12,6 +12,9 @@ import {
   checkAgentSpanAttributes,
   checkToolSpanAttributes,
   checkAgentHierarchy,
+  checkInputMessagesSchema,
+  checkAvailableTools,
+  checkResponseToolCalls,
 } from "../checks.js";
 import { extractGenAISpans, findToolSpans } from "../utils.js";
 
@@ -101,6 +104,11 @@ export const toolErrorAgentTest: TestDefinition = {
     checkChatSpanAttributes,
     checkToolSpanAttributes,
     checkAgentHierarchy,
+    checkAvailableTools,
+    checkResponseToolCalls([
+      { name: "read_file", arguments: { path: "/nonexistent/file.txt" } },
+    ]),
+    checkInputMessagesSchema,
     checkToolErrorSpan,
   ],
 };

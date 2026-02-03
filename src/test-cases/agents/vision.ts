@@ -11,6 +11,7 @@ import {
   checkAgentSpanAttributes,
   checkValidTokenUsage,
   checkAgentHierarchy,
+  checkInputMessagesSchema,
 } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
@@ -62,6 +63,7 @@ export const visionAgentTest: TestDefinition = {
     checkChatSpanAttributes,
     checkValidTokenUsage,
     checkAgentHierarchy,
+    checkInputMessagesSchema,
   ],
 };
 

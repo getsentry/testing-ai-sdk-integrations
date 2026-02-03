@@ -288,11 +288,11 @@ export const basicLLMTest: TestDefinition = {
   inputs: [...],
 
   checks: [
-    hasAISpans(1),
-    hasChatSpanAttributes,
-    hasValidTokenUsage,
-    hasValidInputTokensCached,
-    hasValidOutputTokensReasoning,
+    checkAISpanCount(1),
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkInputTokensCached,
+    checkOutputTokensReasoning,
   ],
 };
 ```
@@ -301,46 +301,84 @@ export const basicLLMTest: TestDefinition = {
 
 #### Structure Checks
 
-| Check           | Description                                |
-| --------------- | ------------------------------------------ |
-| `hasAISpans(n)` | Factory function to validate AI span count |
+| Check                 | Description                                |
+| --------------------- | ------------------------------------------ |
+| `checkAISpanCount(n)` | Factory function to validate AI span count |
 
-The `hasAISpans` factory function accepts:
+The `checkAISpanCount` factory function accepts:
 
-- A number for exact count: `hasAISpans(1)`, `hasAISpans(3)`
-- An object with bounds: `hasAISpans({ min: 1 })`, `hasAISpans({ max: 5 })`, `hasAISpans({ min: 2, max: 4 })`
+- A number for exact count: `checkAISpanCount(1)`, `checkAISpanCount(3)`
+- An object with bounds: `checkAISpanCount({ min: 1 })`, `checkAISpanCount({ max: 5 })`, `checkAISpanCount({ min: 2, max: 4 })`
 
 #### Span Type Attribute Checks
 
-| Check                      | Description                                               |
-| -------------------------- | --------------------------------------------------------- |
-| `hasChatSpanAttributes`    | Validates chat/completion spans (model, messages, tokens) |
-| `hasAgentSpanAttributes`   | Validates agent invocation spans (gen_ai.agent.name)      |
-| `hasToolSpanAttributes`    | Validates tool execution spans (gen_ai.tool.name)         |
-| `hasHandoffSpanAttributes` | Validates handoff spans (agent-to-agent transfers)        |
+| Check                           | Description                                                       |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `checkChatSpanAttributes`       | Validates chat/completion spans (model, messages, tokens)         |
+| `checkAgentSpanAttributes`      | Validates agent invocation spans (gen_ai.agent.name)              |
+| `checkToolSpanAttributes`       | Validates tool execution spans (type, name, description)          |
+| `checkHandoffSpanAttributes`    | Validates handoff spans (agent-to-agent transfers)                |
+| `checkAvailableTools`           | Validates gen_ai.request.available_tools matches test's tool defs |
+| `checkResponseToolCalls([...])` | Factory to validate gen_ai.response.tool_calls on chat spans      |
+| `checkToolCalls([...])`         | Factory to validate tool execution spans with input/output        |
 
 Each check **fails if no spans of that type are found**. Use these to verify the expected span types are captured.
 
+**Tool validation factories:**
+
+```typescript
+// Validate tool calls in LLM response (gen_ai.response.tool_calls)
+checkResponseToolCalls([
+  { name: "add", arguments: { a: 3, b: 5 } },
+  { name: "multiply", arguments: { a: 8, b: 4 } },
+]);
+
+// Validate tool execution spans (gen_ai.tool.*)
+checkToolCalls([
+  {
+    name: "add",
+    type: "function",
+    description: "Add two numbers together",
+    input: { a: 3, b: 5 },
+    output: 8,
+  },
+]);
+```
+
 #### Token Checks
 
-| Check                           | Description                                             |
-| ------------------------------- | ------------------------------------------------------- |
-| `hasValidTokenUsage`            | Token counts exist on invoke_agent and chat spans       |
-| `hasValidInputTokensCached`     | Cached tokens ≤ input tokens (skips if not present)     |
-| `hasValidOutputTokensReasoning` | Reasoning tokens ≤ output tokens (skips if not present) |
+| Check                        | Description                                             |
+| ---------------------------- | ------------------------------------------------------- |
+| `checkValidTokenUsage`       | Token counts exist on invoke_agent and chat spans       |
+| `checkInputTokensCached`     | Cached tokens ≤ input tokens (skips if not present)     |
+| `checkOutputTokensReasoning` | Reasoning tokens ≤ output tokens (skips if not present) |
+
+#### Message Schema Checks
+
+| Check                      | Description                                                  |
+| -------------------------- | ------------------------------------------------------------ |
+| `checkInputMessagesSchema` | Validates `gen_ai.input.messages` follows Sentry conventions |
+
+The `checkInputMessagesSchema` check validates that the input messages attribute follows the [Sentry conventions schema](https://getsentry.github.io/sentry-conventions/generated/attributes/gen_ai.html#gen_aiinputmessages):
+
+- Must be an array of message objects
+- Each message must have a `role` field: "user", "assistant", "tool", or "system"
+- Each message must have a `parts` array (new format) or `content` field (legacy)
+- Parts can have types: "text", "tool_call", "tool_call_response", "image"
+- Validates type-specific fields (e.g., tool_call must have name)
 
 #### Message Trimming Checks
 
-| Check                 | Description                         |
-| --------------------- | ----------------------------------- |
-| `hasMessageTrimming`  | Messages are trimmed below 15KB     |
-| `hasTrimmingMetadata` | Original length metadata is present |
+| Check                   | Description                         |
+| ----------------------- | ----------------------------------- |
+| `checkMessageTrimming`  | Messages are trimmed below 15KB     |
+| `checkTrimmingMetadata` | Original length metadata is present |
 
 #### Agent-specific Checks
 
-| Check               | Description                                                                       |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `hasAgentHierarchy` | Validates agent span hierarchy and `gen_ai.agent.name` propagation to child spans |
+| Check                 | Description                                                                       |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `checkAgentHierarchy` | Validates agent span hierarchy and `gen_ai.agent.name` propagation to child spans |
 
 ### Checks by Test Case
 
@@ -348,45 +386,45 @@ Each check **fails if no spans of that type are found**. Use these to verify the
 
 **Basic LLM Test:**
 
-- `hasAISpans(1)`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `checkAISpanCount(1)`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
 
 **Multi-Turn LLM Test:**
 
-- `hasAISpans(3)`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasTokenProgression` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `checkAISpanCount(3)`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkTokenProgression` (inline), `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
 
 **Basic Error LLM Test:**
 
-- `hasAtLeastOneAISpan` (inline), `hasErrorCaptured` (inline), `hasValidOperation` (inline), `skipTokensForError` (inline)
+- `checkAISpanCount({ min: 1 })`, `checkErrorCaptured` (inline)
 
 **Vision LLM Test:**
 
-- `hasChatSpanAttributes`, `hasValidTokenUsage`
+- `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkInputMessagesSchema`
 
 **Long Input LLM Test:**
 
-- `hasChatSpanAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`
+- `checkChatSpanAttributes`, `checkMessageTrimming`, `checkTrimmingMetadata`, `checkInputMessagesSchema`
 
 #### Agent Tests
 
 **Basic Agent Test:**
 
-- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkAgentHierarchy`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
 
 **Tool Call Agent Test:**
 
-- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasToolSpanAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasToolInputArguments` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkToolSpanAttributes`, `checkValidTokenUsage`, `checkAgentHierarchy`, `checkAvailableTools`, `checkResponseToolCalls([...])`, `checkToolCalls([...])`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
 
 **Tool Error Agent Test:**
 
-- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasToolSpanAttributes`, `hasAgentHierarchy`, `hasToolErrorSpan` (inline)
+- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkToolSpanAttributes`, `checkAgentHierarchy`, `checkAvailableTools`, `checkResponseToolCalls([...])`, `checkInputMessagesSchema`, `checkToolErrorSpan` (inline)
 
 **Vision Agent Test:**
 
-- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`
+- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkAgentHierarchy`, `checkInputMessagesSchema`
 
 **Long Input Agent Test:**
 
-- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`, `hasAgentHierarchy`
+- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkMessageTrimming`, `checkTrimmingMetadata`, `checkAgentHierarchy`, `checkInputMessagesSchema`
 
 ## How It Works
 
@@ -476,9 +514,9 @@ Test cases use an explicit `checks` array to define validations:
 // src/test-cases/llm/your-test.ts
 import { TestDefinition } from "../../types.js";
 import {
-  hasAISpans,
-  hasBasicLLMAttributes,
-  hasValidTokenUsage,
+  checkAISpanCount,
+  checkChatSpanAttributes,
+  checkValidTokenUsage,
 } from "../checks.js";
 
 export const yourTest: TestDefinition = {
@@ -493,7 +531,11 @@ export const yourTest: TestDefinition = {
     },
   ],
 
-  checks: [hasAISpans, hasBasicLLMAttributes, hasValidTokenUsage],
+  checks: [
+    checkAISpanCount({ min: 1 }),
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+  ],
 };
 
 export default yourTest;
@@ -506,12 +548,12 @@ For test-specific validations, define custom checks inline:
 ```typescript
 import { expect } from "chai";
 import { TestDefinition, Check } from "../../types.js";
-import { hasAISpans } from "../checks.js";
+import { checkAISpanCount } from "../checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
 
 // Custom check for this test
-const hasSpecificBehavior: Check = {
-  name: "hasSpecificBehavior",
+const checkSpecificBehavior: Check = {
+  name: "checkSpecificBehavior",
   fn: (spans, config, testDef) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
@@ -527,8 +569,8 @@ export const yourTest: TestDefinition = {
   inputs: [...],
 
   checks: [
-    hasAISpans,
-    hasSpecificBehavior,  // Custom check
+    checkAISpanCount({ min: 1 }),
+    checkSpecificBehavior,  // Custom check
   ],
 };
 ```

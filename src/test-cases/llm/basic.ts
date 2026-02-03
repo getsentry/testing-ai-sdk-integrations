@@ -12,6 +12,7 @@ import {
   checkValidTokenUsage,
   checkInputTokensCached,
   checkOutputTokensReasoning,
+  checkInputMessagesSchema,
 } from "../checks.js";
 
 export const basicLLMTest: TestDefinition = {
@@ -33,6 +34,7 @@ export const basicLLMTest: TestDefinition = {
     checkAISpanCount(1),
     checkChatSpanAttributes,
     checkValidTokenUsage,
+    checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],

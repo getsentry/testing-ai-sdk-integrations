@@ -6,7 +6,11 @@
  */
 
 import { TestDefinition } from "../../types.js";
-import { checkChatSpanAttributes, checkValidTokenUsage } from "../checks.js";
+import {
+  checkChatSpanAttributes,
+  checkValidTokenUsage,
+  checkInputMessagesSchema,
+} from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
 const TEST_IMAGE_BASE64 =
@@ -44,7 +48,11 @@ export const visionLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [checkChatSpanAttributes, checkValidTokenUsage],
+  checks: [
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkInputMessagesSchema,
+  ],
 };
 
 export default visionLLMTest;

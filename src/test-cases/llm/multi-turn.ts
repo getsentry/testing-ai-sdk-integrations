@@ -13,6 +13,7 @@ import {
   checkValidTokenUsage,
   checkInputTokensCached,
   checkOutputTokensReasoning,
+  checkInputMessagesSchema,
 } from "../checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
 
@@ -86,6 +87,7 @@ export const multiTurnLLMTest: TestDefinition = {
     checkChatSpanAttributes,
     checkValidTokenUsage,
     checkTokenProgression,
+    checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],

@@ -17,6 +17,7 @@ import {
   checkChatSpanAttributes,
   checkMessageTrimming,
   checkTrimmingMetadata,
+  checkInputMessagesSchema,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -51,6 +52,7 @@ export const longInputLLMTest: TestDefinition = {
     checkChatSpanAttributes,
     checkMessageTrimming,
     checkTrimmingMetadata,
+    checkInputMessagesSchema,
   ],
 };
 
