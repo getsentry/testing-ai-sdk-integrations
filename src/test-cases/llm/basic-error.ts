@@ -12,8 +12,8 @@ import { extractGenAISpans, skipIf } from "../utils.js";
 /**
  * Check that at least one AI span was captured for the errored request
  */
-const hasAtLeastOneAISpan: Check = {
-  name: "hasAtLeastOneAISpan",
+const checkAtLeastOneAISpan: Check = {
+  name: "checkAtLeastOneAISpan",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     expect(
@@ -26,8 +26,8 @@ const hasAtLeastOneAISpan: Check = {
 /**
  * Check that the span has error information
  */
-const hasErrorCaptured: Check = {
-  name: "hasErrorCaptured",
+const checkErrorCaptured: Check = {
+  name: "checkErrorCaptured",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
@@ -49,8 +49,8 @@ const hasErrorCaptured: Check = {
 /**
  * Check that the span has a gen_ai or http operation
  */
-const hasValidOperation: Check = {
-  name: "hasValidOperation",
+const checkValidOperation: Check = {
+  name: "checkValidOperation",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
@@ -96,9 +96,9 @@ export const basicErrorLLMTest: TestDefinition = {
   ],
 
   checks: [
-    hasAtLeastOneAISpan,
-    hasErrorCaptured,
-    hasValidOperation,
+    checkAtLeastOneAISpan,
+    checkErrorCaptured,
+    checkValidOperation,
     skipTokensForError,
   ],
 };

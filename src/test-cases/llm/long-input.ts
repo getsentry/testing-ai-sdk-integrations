@@ -14,9 +14,9 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasLLMAttributes,
-  hasMessageTrimming,
-  hasTrimmingMetadata,
+  checkChatSpanAttributes,
+  checkMessageTrimming,
+  checkTrimmingMetadata,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -47,7 +47,11 @@ export const longInputLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [hasLLMAttributes, hasMessageTrimming, hasTrimmingMetadata],
+  checks: [
+    checkChatSpanAttributes,
+    checkMessageTrimming,
+    checkTrimmingMetadata,
+  ],
 };
 
 export default longInputLLMTest;

@@ -7,11 +7,13 @@
 
 import { TestDefinition, CapturedSpan, Check } from "../../types.js";
 import {
-  hasLLMAttributes,
-  hasValidTokenUsage,
-  hasAgentHierarchy,
-  hasValidInputTokensCached,
-  hasValidOutputTokensReasoning,
+  checkChatSpanAttributes,
+  checkAgentSpanAttributes,
+  checkToolSpanAttributes,
+  checkValidTokenUsage,
+  checkAgentHierarchy,
+  checkInputTokensCached,
+  checkOutputTokensReasoning,
 } from "../checks.js";
 import { expect } from "chai";
 import { extractGenAISpans, findToolSpans, assertToolInput } from "../utils.js";
@@ -19,8 +21,8 @@ import { extractGenAISpans, findToolSpans, assertToolInput } from "../utils.js";
 /**
  * Check that tool input arguments are captured correctly
  */
-const hasToolInputArguments: Check = {
-  name: "hasToolInputArguments",
+const checkToolInputArguments: Check = {
+  name: "checkToolInputArguments",
   fn: (spans: CapturedSpan[], config, testDef) => {
     const toolSpans = findToolSpans(extractGenAISpans(spans));
     expect(
@@ -94,12 +96,14 @@ export const toolCallAgentTest: TestDefinition = {
   ],
 
   checks: [
-    hasLLMAttributes,
-    hasValidTokenUsage,
-    hasAgentHierarchy,
-    hasToolInputArguments,
-    hasValidInputTokensCached,
-    hasValidOutputTokensReasoning,
+    checkAgentSpanAttributes,
+    checkChatSpanAttributes,
+    checkToolSpanAttributes,
+    checkValidTokenUsage,
+    checkAgentHierarchy,
+    checkToolInputArguments,
+    checkInputTokensCached,
+    checkOutputTokensReasoning,
   ],
 };
 

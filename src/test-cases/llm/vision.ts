@@ -6,7 +6,7 @@
  */
 
 import { TestDefinition } from "../../types.js";
-import { hasLLMAttributes, hasValidTokenUsage } from "../checks.js";
+import { checkChatSpanAttributes, checkValidTokenUsage } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
 const TEST_IMAGE_BASE64 =
@@ -44,7 +44,7 @@ export const visionLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [hasLLMAttributes, hasValidTokenUsage],
+  checks: [checkChatSpanAttributes, checkValidTokenUsage],
 };
 
 export default visionLLMTest;

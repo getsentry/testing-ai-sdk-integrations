@@ -7,14 +7,19 @@
 
 import { expect } from "chai";
 import { TestDefinition, CapturedSpan, Check } from "../../types.js";
-import { hasLLMAttributes, hasAgentHierarchy } from "../checks.js";
+import {
+  checkChatSpanAttributes,
+  checkAgentSpanAttributes,
+  checkToolSpanAttributes,
+  checkAgentHierarchy,
+} from "../checks.js";
 import { extractGenAISpans, findToolSpans } from "../utils.js";
 
 /**
  * Check that a tool error was captured in spans
  */
-const hasToolErrorSpan: Check = {
-  name: "hasToolErrorSpan",
+const checkToolErrorSpan: Check = {
+  name: "checkToolErrorSpan",
   fn: (spans: CapturedSpan[], config, testDef) => {
     const toolSpans = findToolSpans(extractGenAISpans(spans));
     expect(
@@ -91,7 +96,13 @@ export const toolErrorAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [hasLLMAttributes, hasAgentHierarchy, hasToolErrorSpan],
+  checks: [
+    checkAgentSpanAttributes,
+    checkChatSpanAttributes,
+    checkToolSpanAttributes,
+    checkAgentHierarchy,
+    checkToolErrorSpan,
+  ],
 };
 
 export default toolErrorAgentTest;

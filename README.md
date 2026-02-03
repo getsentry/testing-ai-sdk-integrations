@@ -288,8 +288,8 @@ export const basicLLMTest: TestDefinition = {
   inputs: [...],
 
   checks: [
-    hasOneAISpan,
-    hasLLMAttributes,
+    hasAISpans(1),
+    hasChatSpanAttributes,
     hasValidTokenUsage,
     hasValidInputTokensCached,
     hasValidOutputTokensReasoning,
@@ -301,16 +301,25 @@ export const basicLLMTest: TestDefinition = {
 
 #### Structure Checks
 
-| Check          | Description                       |
-| -------------- | --------------------------------- |
-| `hasOneAISpan` | Exactly one AI span was captured  |
-| `hasAISpans`   | At least one AI span was captured |
+| Check           | Description                                |
+| --------------- | ------------------------------------------ |
+| `hasAISpans(n)` | Factory function to validate AI span count |
 
-#### Attribute Checks
+The `hasAISpans` factory function accepts:
 
-| Check              | Description                                                                       |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `hasLLMAttributes` | LLM attributes on chat/completion spans (operation, model, messages, token usage) |
+- A number for exact count: `hasAISpans(1)`, `hasAISpans(3)`
+- An object with bounds: `hasAISpans({ min: 1 })`, `hasAISpans({ max: 5 })`, `hasAISpans({ min: 2, max: 4 })`
+
+#### Span Type Attribute Checks
+
+| Check                      | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `hasChatSpanAttributes`    | Validates chat/completion spans (model, messages, tokens) |
+| `hasAgentSpanAttributes`   | Validates agent invocation spans (gen_ai.agent.name)      |
+| `hasToolSpanAttributes`    | Validates tool execution spans (gen_ai.tool.name)         |
+| `hasHandoffSpanAttributes` | Validates handoff spans (agent-to-agent transfers)        |
+
+Each check **fails if no spans of that type are found**. Use these to verify the expected span types are captured.
 
 #### Token Checks
 
@@ -339,11 +348,11 @@ export const basicLLMTest: TestDefinition = {
 
 **Basic LLM Test:**
 
-- `hasOneAISpan`, `hasLLMAttributes`, `hasValidTokenUsage`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `hasAISpans(1)`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
 
 **Multi-Turn LLM Test:**
 
-- `hasThreeAISpans` (inline), `hasLLMAttributes`, `hasValidTokenUsage`, `hasTokenProgression` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `hasAISpans(3)`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasTokenProgression` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
 
 **Basic Error LLM Test:**
 
@@ -351,33 +360,33 @@ export const basicLLMTest: TestDefinition = {
 
 **Vision LLM Test:**
 
-- `hasAISpans`, `hasLLMAttributes`, `hasValidTokenUsage`
+- `hasChatSpanAttributes`, `hasValidTokenUsage`
 
 **Long Input LLM Test:**
 
-- `hasAISpans`, `hasLLMAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`
+- `hasChatSpanAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`
 
 #### Agent Tests
 
 **Basic Agent Test:**
 
-- `hasLLMAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
 
 **Tool Call Agent Test:**
 
-- `hasLLMAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasToolInputArguments` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
+- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasToolSpanAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`, `hasToolInputArguments` (inline), `hasValidInputTokensCached`, `hasValidOutputTokensReasoning`
 
 **Tool Error Agent Test:**
 
-- `hasLLMAttributes`, `hasAgentHierarchy`, `hasToolErrorSpan` (inline)
+- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasToolSpanAttributes`, `hasAgentHierarchy`, `hasToolErrorSpan` (inline)
 
 **Vision Agent Test:**
 
-- `hasLLMAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`
+- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasValidTokenUsage`, `hasAgentHierarchy`
 
 **Long Input Agent Test:**
 
-- `hasLLMAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`, `hasAgentHierarchy`
+- `hasAgentSpanAttributes`, `hasChatSpanAttributes`, `hasMessageTrimming`, `hasTrimmingMetadata`, `hasAgentHierarchy`
 
 ## How It Works
 

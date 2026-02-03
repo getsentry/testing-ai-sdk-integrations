@@ -8,29 +8,19 @@
 import { expect } from "chai";
 import { TestDefinition, Check } from "../../types.js";
 import {
-  hasLLMAttributes,
-  hasValidTokenUsage,
-  hasValidInputTokensCached,
-  hasValidOutputTokensReasoning,
+  checkAISpanCount,
+  checkChatSpanAttributes,
+  checkValidTokenUsage,
+  checkInputTokensCached,
+  checkOutputTokensReasoning,
 } from "../checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
 
 /**
- * Check that exactly 3 AI spans were captured (one per turn)
- */
-const hasThreeAISpans: Check = {
-  name: "hasThreeAISpans",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    expect(aiSpans.length).to.equal(3);
-  },
-};
-
-/**
  * Check that input tokens increase with each turn (more conversation history)
  */
-const hasTokenProgression: Check = {
-  name: "hasTokenProgression",
+const checkTokenProgression: Check = {
+  name: "checkTokenProgression",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(
@@ -92,12 +82,12 @@ export const multiTurnLLMTest: TestDefinition = {
   ],
 
   checks: [
-    hasThreeAISpans,
-    hasLLMAttributes,
-    hasValidTokenUsage,
-    hasTokenProgression,
-    hasValidInputTokensCached,
-    hasValidOutputTokensReasoning,
+    checkAISpanCount(3),
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkTokenProgression,
+    checkInputTokensCached,
+    checkOutputTokensReasoning,
   ],
 };
 

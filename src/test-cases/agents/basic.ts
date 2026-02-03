@@ -7,11 +7,12 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasLLMAttributes,
-  hasValidTokenUsage,
-  hasAgentHierarchy,
-  hasValidInputTokensCached,
-  hasValidOutputTokensReasoning,
+  checkChatSpanAttributes,
+  checkAgentSpanAttributes,
+  checkValidTokenUsage,
+  checkAgentHierarchy,
+  checkInputTokensCached,
+  checkOutputTokensReasoning,
 } from "../checks.js";
 
 export const basicAgentTest: TestDefinition = {
@@ -37,11 +38,12 @@ export const basicAgentTest: TestDefinition = {
   ],
 
   checks: [
-    hasLLMAttributes,
-    hasValidTokenUsage,
-    hasAgentHierarchy,
-    hasValidInputTokensCached,
-    hasValidOutputTokensReasoning,
+    checkAgentSpanAttributes,
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkAgentHierarchy,
+    checkInputTokensCached,
+    checkOutputTokensReasoning,
   ],
 };
 

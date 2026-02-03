@@ -14,6 +14,10 @@ import { expect } from "chai";
 import { CapturedSpan, FrameworkConfig, TestDefinition } from "../types.js";
 import {
   extractGenAISpans,
+  findAgentSpans,
+  findChatSpans,
+  findToolSpans,
+  findHandoffSpans,
   assertAttributes,
   checkTokenUsage,
   skip,
@@ -42,53 +46,99 @@ export interface Check {
 // =============================================================================
 
 /**
- * Check that exactly one AI span was captured
+ * Factory function to create a check that validates the number of AI spans
+ *
+ * @param expected - The expected number of AI spans, or an object with min/max bounds
+ * @returns A Check object that validates the span count
+ *
+ * @example
+ * // Exactly 1 span
+ * checkAISpanCount(1)
+ *
+ * @example
+ * // At least 1 span
+ * checkAISpanCount({ min: 1 })
+ *
+ * @example
+ * // Between 2 and 5 spans
+ * checkAISpanCount({ min: 2, max: 5 })
+ *
+ * @example
+ * // At most 3 spans
+ * checkAISpanCount({ max: 3 })
  */
-export const hasOneAISpan: Check = {
-  name: "hasOneAISpan",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    expect(aiSpans.length, "Should have exactly one AI span").to.equal(1);
-  },
-};
+export function checkAISpanCount(
+  expected: number | { min?: number; max?: number },
+): Check {
+  // Determine name based on expected value
+  let name: string;
+  if (typeof expected === "number") {
+    name = `checkAISpanCount(${expected})`;
+  } else if (expected.min !== undefined && expected.max !== undefined) {
+    name = `checkAISpanCount(${expected.min}-${expected.max})`;
+  } else if (expected.min !== undefined) {
+    name = `checkAISpanCount(>=${expected.min})`;
+  } else if (expected.max !== undefined) {
+    name = `checkAISpanCount(<=${expected.max})`;
+  } else {
+    name = "checkAISpanCount";
+  }
 
-/**
- * Check that at least one AI span was captured
- */
-export const hasAISpans: Check = {
-  name: "hasAISpans",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    expect(
-      aiSpans.length,
-      "Should have at least one AI span",
-    ).to.be.greaterThan(0);
-  },
-};
+  return {
+    name,
+    fn: (spans) => {
+      const aiSpans = extractGenAISpans(spans);
+
+      if (typeof expected === "number") {
+        // Exact count
+        expect(
+          aiSpans.length,
+          `Should have exactly ${expected} AI span(s)`,
+        ).to.equal(expected);
+      } else {
+        // Range check
+        if (expected.min !== undefined) {
+          expect(
+            aiSpans.length,
+            `Should have at least ${expected.min} AI span(s)`,
+          ).to.be.at.least(expected.min);
+        }
+        if (expected.max !== undefined) {
+          expect(
+            aiSpans.length,
+            `Should have at most ${expected.max} AI span(s)`,
+          ).to.be.at.most(expected.max);
+        }
+      }
+    },
+  };
+}
 
 // =============================================================================
-// Attribute Checks
+// Span Type Attribute Checks
 // =============================================================================
 
 /**
- * Check LLM attributes on chat/completion spans (ai_client)
- * Only checks spans that represent LLM API calls, not tool or agent spans
- * Uses model from test inputs and config overrides
+ * Check attributes on chat/completion spans (LLM API calls)
+ *
+ * Validates:
+ * - gen_ai.operation.name exists
+ * - gen_ai.request.model matches expected model
+ * - gen_ai.request.messages exists
+ * - gen_ai.response.model matches expected pattern
+ * - gen_ai.usage.input_tokens exists
+ * - gen_ai.usage.output_tokens exists
+ *
+ * Fails if no chat spans are found.
  */
-export const hasLLMAttributes: Check = {
-  name: "hasLLMAttributes",
+export const checkChatSpanAttributes: Check = {
+  name: "checkChatSpanAttributes",
   fn: (spans, config, testDef) => {
-    const aiSpans = extractGenAISpans(spans);
+    const chatSpans = findChatSpans(extractGenAISpans(spans));
     expect(
-      aiSpans.length,
-      "Should have at least one AI span",
+      chatSpans.length,
+      "Should have at least one chat/completion span",
     ).to.be.greaterThan(0);
-
-    // Filter to only chat/completion spans (ai_client)
-    const chatSpans = aiSpans.filter((s) =>
-      s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-    );
-    skipIf(chatSpans.length === 0, "No chat/completion spans captured");
 
     const requestModel =
       config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
@@ -106,6 +156,81 @@ export const hasLLMAttributes: Check = {
   },
 };
 
+/**
+ * Check attributes on invoke_agent spans (agent invocations)
+ *
+ * Validates:
+ * - gen_ai.agent.name exists
+ *
+ * Fails if no agent spans are found.
+ */
+export const checkAgentSpanAttributes: Check = {
+  name: "checkAgentSpanAttributes",
+  fn: (spans) => {
+    const agentSpans = findAgentSpans(extractGenAISpans(spans));
+    expect(
+      agentSpans.length,
+      "Should have at least one agent span",
+    ).to.be.greaterThan(0);
+
+    // TODO: Add attribute validation once we know what attributes agent spans should have
+    for (const span of agentSpans) {
+      expect(
+        span.data?.["gen_ai.agent.name"],
+        `Agent span should have gen_ai.agent.name attribute`,
+      ).to.exist;
+    }
+  },
+};
+
+/**
+ * Check attributes on tool execution spans
+ *
+ * Validates:
+ * - gen_ai.tool.name exists
+ *
+ * Fails if no tool spans are found.
+ */
+export const checkToolSpanAttributes: Check = {
+  name: "checkToolSpanAttributes",
+  fn: (spans) => {
+    const toolSpans = findToolSpans(extractGenAISpans(spans));
+    expect(
+      toolSpans.length,
+      "Should have at least one tool span",
+    ).to.be.greaterThan(0);
+
+    // TODO: Add attribute validation once we know what attributes tool spans should have
+    for (const span of toolSpans) {
+      expect(
+        span.data?.["gen_ai.tool.name"],
+        `Tool span should have gen_ai.tool.name attribute`,
+      ).to.exist;
+    }
+  },
+};
+
+/**
+ * Check attributes on handoff spans (agent-to-agent handoffs)
+ *
+ * Validates:
+ * - Handoff spans exist
+ *
+ * Fails if no handoff spans are found.
+ */
+export const checkHandoffSpanAttributes: Check = {
+  name: "checkHandoffSpanAttributes",
+  fn: (spans) => {
+    const handoffSpans = findHandoffSpans(extractGenAISpans(spans));
+    expect(
+      handoffSpans.length,
+      "Should have at least one handoff span",
+    ).to.be.greaterThan(0);
+
+    // TODO: Add attribute validation once we know what attributes handoff spans should have
+  },
+};
+
 // =============================================================================
 // Token Checks
 // =============================================================================
@@ -114,8 +239,8 @@ export const hasLLMAttributes: Check = {
  * Check token usage on invoke_agent and ai_client spans
  * Tool spans don't have token usage attributes
  */
-export const hasValidTokenUsage: Check = {
-  name: "hasValidTokenUsage",
+export const checkValidTokenUsage: Check = {
+  name: "checkValidTokenUsage",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
@@ -137,8 +262,8 @@ export const hasValidTokenUsage: Check = {
 /**
  * Check that input tokens cached is valid when present
  */
-export const hasValidInputTokensCached: Check = {
-  name: "hasValidInputTokensCached",
+export const checkInputTokensCached: Check = {
+  name: "checkInputTokensCached",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans).filter(
       (span) => span.data?.["gen_ai.usage.input_tokens.cached"] !== undefined,
@@ -159,8 +284,8 @@ export const hasValidInputTokensCached: Check = {
 /**
  * Check that output tokens reasoning is valid when present
  */
-export const hasValidOutputTokensReasoning: Check = {
-  name: "hasValidOutputTokensReasoning",
+export const checkOutputTokensReasoning: Check = {
+  name: "checkOutputTokensReasoning",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans).filter(
       (span) =>
@@ -186,8 +311,8 @@ export const hasValidOutputTokensReasoning: Check = {
 /**
  * Check that long messages are trimmed in span data
  */
-export const hasMessageTrimming: Check = {
-  name: "hasMessageTrimming",
+export const checkMessageTrimming: Check = {
+  name: "checkMessageTrimming",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
@@ -219,8 +344,8 @@ export const hasMessageTrimming: Check = {
 /**
  * Check that trimming metadata is present
  */
-export const hasTrimmingMetadata: Check = {
-  name: "hasTrimmingMetadata",
+export const checkTrimmingMetadata: Check = {
+  name: "checkTrimmingMetadata",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
@@ -253,8 +378,8 @@ export const hasTrimmingMetadata: Check = {
  * 2. All child spans (ai_client, tool, handoff) inherit gen_ai.agent.name from their ancestor agent
  * 3. No orphan gen_ai spans exist outside agent hierarchies
  */
-export const hasAgentHierarchy: Check = {
-  name: "hasAgentHierarchy",
+export const checkAgentHierarchy: Check = {
+  name: "checkAgentHierarchy",
   fn: (spans, config, testDef) => {
     const aiSpans = extractGenAISpans(spans);
     expect(

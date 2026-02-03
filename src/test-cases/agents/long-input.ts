@@ -14,10 +14,11 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasLLMAttributes,
-  hasMessageTrimming,
-  hasTrimmingMetadata,
-  hasAgentHierarchy,
+  checkChatSpanAttributes,
+  checkAgentSpanAttributes,
+  checkMessageTrimming,
+  checkTrimmingMetadata,
+  checkAgentHierarchy,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -68,10 +69,11 @@ export const longInputAgentTest: TestDefinition = {
   ],
 
   checks: [
-    hasLLMAttributes,
-    hasMessageTrimming,
-    hasTrimmingMetadata,
-    hasAgentHierarchy,
+    checkAgentSpanAttributes,
+    checkChatSpanAttributes,
+    checkMessageTrimming,
+    checkTrimmingMetadata,
+    checkAgentHierarchy,
   ],
 };
 

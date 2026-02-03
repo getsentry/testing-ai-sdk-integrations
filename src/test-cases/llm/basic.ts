@@ -7,11 +7,11 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasOneAISpan,
-  hasLLMAttributes,
-  hasValidTokenUsage,
-  hasValidInputTokensCached,
-  hasValidOutputTokensReasoning,
+  checkAISpanCount,
+  checkChatSpanAttributes,
+  checkValidTokenUsage,
+  checkInputTokensCached,
+  checkOutputTokensReasoning,
 } from "../checks.js";
 
 export const basicLLMTest: TestDefinition = {
@@ -30,11 +30,11 @@ export const basicLLMTest: TestDefinition = {
   ],
 
   checks: [
-    hasOneAISpan,
-    hasLLMAttributes,
-    hasValidTokenUsage,
-    hasValidInputTokensCached,
-    hasValidOutputTokensReasoning,
+    checkAISpanCount(1),
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkInputTokensCached,
+    checkOutputTokensReasoning,
   ],
 };
 

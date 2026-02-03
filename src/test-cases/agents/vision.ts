@@ -7,9 +7,10 @@
 
 import { TestDefinition } from "../../types.js";
 import {
-  hasLLMAttributes,
-  hasValidTokenUsage,
-  hasAgentHierarchy,
+  checkChatSpanAttributes,
+  checkAgentSpanAttributes,
+  checkValidTokenUsage,
+  checkAgentHierarchy,
 } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
@@ -56,7 +57,12 @@ export const visionAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [hasLLMAttributes, hasValidTokenUsage, hasAgentHierarchy],
+  checks: [
+    checkAgentSpanAttributes,
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkAgentHierarchy,
+  ],
 };
 
 export default visionAgentTest;
