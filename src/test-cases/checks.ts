@@ -126,6 +126,7 @@ export function checkAISpanCount(
  * - gen_ai.request.model matches expected model
  * - gen_ai.request.messages exists
  * - gen_ai.response.model matches expected pattern
+ * - gen_ai.response.text exists
  * - gen_ai.usage.input_tokens exists
  * - gen_ai.usage.output_tokens exists
  *
@@ -150,6 +151,7 @@ export const checkChatSpanAttributes: Check = {
       "gen_ai.request.model": requestModel,
       "gen_ai.request.messages": true,
       "gen_ai.response.model": responseModel,
+      "gen_ai.response.text": true,
       "gen_ai.usage.input_tokens": true,
       "gen_ai.usage.output_tokens": true,
     });
@@ -764,6 +766,72 @@ export const checkInputMessagesSchema: Check = {
 };
 
 /**
+ * Check that binary content (images) is redacted in gen_ai.request.messages
+ *
+ * Sentry SDKs should replace binary data (base64 images, etc.) with "[Blob substitute]"
+ * to avoid capturing large binary payloads in span data.
+ *
+ * This check validates that:
+ * - Messages attribute exists
+ * - Messages contain "[Blob substitute]" marker (indicating redaction occurred)
+ * - No raw base64 data is present (would indicate redaction failed)
+ */
+export const checkBinaryRedaction: Check = {
+  name: "checkBinaryRedaction",
+  fn: (spans) => {
+    const chatSpans = findChatSpans(extractGenAISpans(spans));
+    const agentSpans = findAgentSpans(extractGenAISpans(spans));
+    const spansToCheck = [...chatSpans, ...agentSpans];
+
+    expect(
+      spansToCheck.length,
+      "Should have at least one chat or agent span",
+    ).to.be.greaterThan(0);
+
+    let foundMessages = false;
+    let foundRedaction = false;
+
+    for (const span of spansToCheck) {
+      const messagesRaw =
+        span.data?.["gen_ai.input.messages"] ??
+        span.data?.["gen_ai.request.messages"];
+
+      if (messagesRaw === undefined) continue;
+      foundMessages = true;
+
+      // Convert to string for searching
+      const messagesStr =
+        typeof messagesRaw === "string"
+          ? messagesRaw
+          : JSON.stringify(messagesRaw);
+
+      // Check for redaction marker
+      if (messagesStr.includes("[Blob substitute]")) {
+        foundRedaction = true;
+      }
+
+      // Check that no raw base64 data is present (would be very long strings)
+      // Base64 image data is typically 100+ characters of alphanumeric
+      const base64Pattern = /[A-Za-z0-9+/]{100,}={0,2}/;
+      expect(
+        base64Pattern.test(messagesStr),
+        "Messages should not contain raw base64 data (should be redacted)",
+      ).to.be.false;
+    }
+
+    expect(
+      foundMessages,
+      "Should have at least one span with messages attribute",
+    ).to.be.true;
+
+    expect(
+      foundRedaction,
+      "Messages should contain '[Blob substitute]' marker indicating binary content was redacted",
+    ).to.be.true;
+  },
+};
+
+/**
  * Check attributes on handoff spans (agent-to-agent handoffs)
  *
  * Validates:
@@ -895,7 +963,11 @@ export const checkMessageTrimming: Check = {
 };
 
 /**
- * Check that trimming metadata is present
+ * Check that trimming metadata is present and the truncation constraint is satisfied
+ *
+ * Validates:
+ * - gen_ai.input.messages.original_length (or gen_ai.request.messages.original_length) exists
+ * - The messages text content length is less than original_length (actual truncation occurred)
  */
 export const checkTrimmingMetadata: Check = {
   name: "checkTrimmingMetadata",
@@ -904,18 +976,48 @@ export const checkTrimmingMetadata: Check = {
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
     let foundMetadata = false;
-    const metadataAttr = "gen_ai.input.messages.original_length";
 
     for (const span of aiSpans) {
-      const originalLength = span.data?.[metadataAttr];
-      if (originalLength !== undefined) {
-        expect(originalLength).to.be.a("number");
-        expect(originalLength).to.be.greaterThan(0);
-        foundMetadata = true;
+      // Check both new and legacy attribute names
+      const originalLength =
+        span.data?.["gen_ai.input.messages.original_length"] ??
+        span.data?.["gen_ai.request.messages.original_length"];
+
+      if (originalLength === undefined) continue;
+
+      foundMetadata = true;
+
+      expect(originalLength, "original_length should be a number").to.be.a(
+        "number",
+      );
+      expect(
+        originalLength,
+        "original_length should be greater than 0",
+      ).to.be.greaterThan(0);
+
+      // Get the messages to validate content length constraint
+      const messagesRaw =
+        span.data?.["gen_ai.input.messages"] ??
+        span.data?.["gen_ai.request.messages"];
+
+      if (messagesRaw !== undefined) {
+        // Get the string representation to measure actual content length
+        const messagesStr =
+          typeof messagesRaw === "string"
+            ? messagesRaw
+            : JSON.stringify(messagesRaw);
+
+        expect(
+          messagesStr.length,
+          `Truncated messages content length (${messagesStr.length}) should be less than original_length (${originalLength})`,
+        ).to.be.lessThan(originalLength as number);
       }
     }
 
-    skipIf(!foundMetadata, `No trimming metadata found at '${metadataAttr}'`);
+    expect(
+      foundMetadata,
+      "Should have at least one span with original_length metadata",
+    ).to.be.true;
   },
 };
 

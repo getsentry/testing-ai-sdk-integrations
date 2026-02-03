@@ -10,6 +10,7 @@ import {
   checkChatSpanAttributes,
   checkValidTokenUsage,
   checkInputMessagesSchema,
+  checkBinaryRedaction,
 } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
@@ -52,6 +53,7 @@ export const visionLLMTest: TestDefinition = {
     checkChatSpanAttributes,
     checkValidTokenUsage,
     checkInputMessagesSchema,
+    checkBinaryRedaction,
   ],
 };
 
