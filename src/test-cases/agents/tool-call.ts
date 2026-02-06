@@ -23,6 +23,15 @@ import {
   checkResponseToolCalls,
   checkInputMessagesSchema,
 } from "../checks.js";
+import {
+  checkInputMessages,
+  checkOutputMessages,
+  checkToolDefinitions,
+  checkToolCallArguments,
+  checkToolCallResult,
+  checkToolCallsNewFormat,
+  checkOutputMessagesToolCalls,
+} from "../otel-checks.js";
 
 export const toolCallAgentTest: TestDefinition = {
   name: "Tool Call Agent Test",
@@ -117,6 +126,20 @@ export const toolCallAgentTest: TestDefinition = {
     checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
+    // OTel-aligned checks (soft failure if not migrated)
+    checkInputMessages,
+    checkOutputMessages,
+    checkToolDefinitions,
+    checkToolCallArguments,
+    checkToolCallResult,
+    checkToolCallsNewFormat([
+      { name: "add", input: { a: 3, b: 5 }, output: 8 },
+      { name: "multiply", input: { a: 8, b: 4 }, output: 32 },
+    ]),
+    checkOutputMessagesToolCalls([
+      { name: "add", arguments: { a: 3, b: 5 } },
+      { name: "multiply", arguments: { a: 8, b: 4 } },
+    ]),
   ],
 };
 

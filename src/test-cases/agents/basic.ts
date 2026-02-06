@@ -15,6 +15,11 @@ import {
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
 } from "../checks.js";
+import {
+  checkInputMessages,
+  checkOutputMessages,
+  checkSystemInstructions,
+} from "../otel-checks.js";
 
 export const basicAgentTest: TestDefinition = {
   name: "Basic Agent Test",
@@ -46,6 +51,10 @@ export const basicAgentTest: TestDefinition = {
     checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
+    // OTel-aligned checks (soft failure if not migrated)
+    checkInputMessages,
+    checkOutputMessages,
+    checkSystemInstructions,
   ],
 };
 

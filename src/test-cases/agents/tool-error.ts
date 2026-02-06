@@ -16,6 +16,13 @@ import {
   checkAvailableTools,
   checkResponseToolCalls,
 } from "../checks.js";
+import {
+  checkInputMessages,
+  checkOutputMessages,
+  checkToolDefinitions,
+  checkToolCallArguments,
+  checkOutputMessagesToolCalls,
+} from "../otel-checks.js";
 import { extractGenAISpans, findToolSpans } from "../utils.js";
 
 /**
@@ -110,6 +117,14 @@ export const toolErrorAgentTest: TestDefinition = {
     ]),
     checkInputMessagesSchema,
     checkToolErrorSpan,
+    // OTel-aligned checks (soft failure if not migrated)
+    checkInputMessages,
+    checkOutputMessages,
+    checkToolDefinitions,
+    checkToolCallArguments,
+    checkOutputMessagesToolCalls([
+      { name: "read_file", arguments: { path: "/nonexistent/file.txt" } },
+    ]),
   ],
 };
 
