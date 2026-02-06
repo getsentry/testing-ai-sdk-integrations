@@ -35,6 +35,7 @@ Options:
   --parallel, -j <N>         Run up to N tests in parallel (default: 1)
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
+  --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --help, -h                 Show this help message
@@ -48,6 +49,7 @@ Examples:
   npm run test -- --platform py --async --verbose
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
+  npm run test -- --framework openai --open
   npm run test -- --framework openai --sentry-python ~/sentry-python
   npm run test setup -- --framework openai --sync --streaming
 `;
@@ -66,6 +68,7 @@ function parseCliArgs() {
       parallel: { type: "string", short: "j" },
       verbose: { type: "boolean", short: "v", default: false },
       "live-status": { type: "boolean", default: false },
+      open: { type: "boolean", default: false },
       "sentry-python": { type: "string" },
       "sentry-javascript": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
@@ -115,6 +118,7 @@ function parseCliArgs() {
     parallel,
     verbose: values.verbose,
     liveStatus: values["live-status"],
+    open: values.open,
     sentryPythonPath: values["sentry-python"],
     sentryJavaScriptPath: values["sentry-javascript"],
     help: values.help,
@@ -148,6 +152,7 @@ async function main() {
     streaming: options.streaming,
     blocking: options.blocking,
     parallel: options.parallel,
+    openReport: options.open,
   });
 
   try {

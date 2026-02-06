@@ -93,36 +93,155 @@ function naturalSortCompare(a: string, b: string): number {
 }
 
 /**
- * Build test matrix: SDK × Test Case grid
+ * Extract base test name without mode suffixes
+ * e.g., "Basic LLM Test (async, streaming)" -> "Basic LLM Test"
  */
-function TestMatrix({ report }: { report: Report }) {
-  // Extract unique SDKs and test cases
-  // suite is string[], take first element
+function getBaseTestName(testName: string): string {
+  // Remove the mode suffix in parentheses
+  return testName.replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
+/**
+ * Combined status for multiple test variations
+ */
+interface CombinedTestResult {
+  passed: number;
+  failed: number;
+  skipped: number;
+  other: number;
+  total: number;
+  variations: Array<{
+    mode: string;
+    status: string;
+  }>;
+}
+
+/**
+ * Get overall status from combined results
+ */
+function getCombinedStatus(result: CombinedTestResult): string {
+  if (result.failed > 0) return "failed";
+  if (result.other > 0) return "failed"; // errors count as failed
+  if (result.passed > 0 && result.skipped === 0) return "passed";
+  if (result.passed > 0) return "partial"; // some passed, some skipped
+  if (result.skipped > 0) return "skipped";
+  return "not-run";
+}
+
+/**
+ * Generate cell content with status icons for each variation
+ */
+function CombinedStatusCell({ result }: { result: CombinedTestResult }) {
+  const overallStatus = getCombinedStatus(result);
+  
+  // If only one variation, show simple icon with tooltip
+  if (result.total === 1) {
+    const v = result.variations[0];
+    return html`<td class="status-${v.status}" title="${v.mode}">${getStatusIcon(v.status)}</td>`;
+  }
+  
+  // Multiple variations - show mini icons with tooltips
+  return html`
+    <td class="status-${overallStatus} multi-status">
+      <div class="status-grid">
+        ${result.variations.map(
+          (v) => html`
+            <span class="mini-status status-${v.status}" title="${v.mode}">
+              ${getStatusIcon(v.status)}
+            </span>
+          `,
+        )}
+      </div>
+    </td>
+  `;
+}
+
+/**
+ * Build test matrix for a specific test type (LLM or Agent)
+ */
+function TestMatrixByType({
+  tests,
+  testType,
+  title,
+}: {
+  tests: Test[];
+  testType: string;
+  title: string;
+}) {
+  // Filter tests by type
+  const filteredTests = tests.filter(
+    (t) => (t.extra as Record<string, unknown>)?.testType === testType,
+  );
+
+  if (filteredTests.length === 0) {
+    return html``;
+  }
+
+  // Extract unique SDKs
   const sdks = [
     ...new Set(
-      report.results.tests.map((t: Test) =>
+      filteredTests.map((t: Test) =>
         t.suite && t.suite.length > 0 ? t.suite[0] : "unknown",
       ),
     ),
   ].sort();
+
+  // Extract unique base test names (without mode suffixes)
   const testCases = [
     ...new Set(
-      report.results.tests.map((t: Test) => t.name.split(" :: ")[1] || t.name),
+      filteredTests.map((t: Test) => {
+        const fullName = t.name.split(" :: ")[1] || t.name;
+        return getBaseTestName(fullName);
+      }),
     ),
   ].sort(naturalSortCompare);
 
-  // Build lookup map for quick access
-  const testMap = new Map<string, Test>();
-  for (const test of report.results.tests) {
-    const caseId = test.name.split(" :: ")[1] || test.name;
+  // Build lookup map: sdk::baseTestName -> CombinedTestResult
+  const testMap = new Map<string, CombinedTestResult>();
+
+  for (const test of filteredTests) {
+    const fullName = test.name.split(" :: ")[1] || test.name;
+    const baseName = getBaseTestName(fullName);
     const suite =
       test.suite && test.suite.length > 0 ? test.suite[0] : "unknown";
-    const key = `${suite}::${caseId}`;
-    testMap.set(key, test);
+    const key = `${suite}::${baseName}`;
+
+    // Extract mode from the test name (e.g., "(async, streaming)")
+    const modeMatch = fullName.match(/\(([^)]+)\)$/);
+    const mode = modeMatch ? modeMatch[1] : "default";
+
+    if (!testMap.has(key)) {
+      testMap.set(key, {
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        other: 0,
+        total: 0,
+        variations: [],
+      });
+    }
+
+    const result = testMap.get(key)!;
+    result.total++;
+    result.variations.push({ mode, status: test.status });
+
+    switch (test.status) {
+      case "passed":
+        result.passed++;
+        break;
+      case "failed":
+        result.failed++;
+        break;
+      case "skipped":
+        result.skipped++;
+        break;
+      default:
+        result.other++;
+    }
   }
 
   return html`
-    <h2>Test Matrix</h2>
+    <h2>${title}</h2>
     <table class="matrix">
       <thead>
         <tr>
@@ -137,17 +256,13 @@ function TestMatrix({ report }: { report: Report }) {
               <td class="sdk-name">${sdk}</td>
               ${testCases.map((caseId) => {
                 const key = `${sdk}::${caseId}`;
-                const test = testMap.get(key);
+                const result = testMap.get(key);
 
-                if (!test) {
+                if (!result) {
                   return html`<td class="status-not-run">-</td>`;
                 }
 
-                return html`
-                  <td class="status-${test.status}">
-                    ${getStatusIcon(test.status)}
-                  </td>
-                `;
+                return CombinedStatusCell({ result });
               })}
             </tr>
           `,
@@ -155,6 +270,31 @@ function TestMatrix({ report }: { report: Report }) {
       </tbody>
     </table>
   `;
+}
+
+/**
+ * Build test matrices split by type (LLM and Agent)
+ */
+function TestMatrix({ report }: { report: Report }) {
+  return html`
+    ${TestMatrixByType({
+      tests: report.results.tests,
+      testType: "llm",
+      title: "LLM Tests",
+    })}
+    ${TestMatrixByType({
+      tests: report.results.tests,
+      testType: "agent",
+      title: "Agent Tests",
+    })}
+  `;
+}
+
+/**
+ * Render spans as JSON for display
+ */
+function formatSpans(spans: unknown[]): string {
+  return JSON.stringify(spans, null, 2);
 }
 
 /**
@@ -171,6 +311,9 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
     <h2>Failed Tests Details</h2>
     ${failedTests.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
+      const extra = test.extra as Record<string, unknown> | undefined;
+      const spans = extra?.spans as unknown[] | undefined;
+      const spanCount = extra?.spanCount as number | undefined;
 
       return html`
         <details class="failed-test">
@@ -193,6 +336,19 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
                   </div>
                 `
               : ""}
+            ${spans && spans.length > 0
+              ? html`
+                  <details class="spans-section">
+                    <summary class="spans-toggle">
+                      <span class="spans-icon">{}</span>
+                      Captured Spans (${spanCount || spans.length})
+                    </summary>
+                    <pre class="spans-json">${formatSpans(spans)}</pre>
+                  </details>
+                `
+              : spanCount === 0
+                ? html`<div class="no-spans">No spans captured</div>`
+                : ""}
           </div>
         </details>
       `;
@@ -326,6 +482,89 @@ export function generateHTML(report: Report): string {
           .matrix td.status-not-run {
             background: #f5f5f5;
             color: #999;
+          }
+          .matrix td.status-partial {
+            background: #fff3e0;
+            color: #e65100;
+            font-weight: bold;
+          }
+          .matrix td.multi-status {
+            padding: 4px;
+          }
+          .status-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            justify-content: center;
+            align-items: center;
+          }
+          .mini-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            border-radius: 3px;
+          }
+          .mini-status.status-passed {
+            background: #c8e6c9;
+            color: #2e7d32;
+          }
+          .mini-status.status-failed {
+            background: #ffcdd2;
+            color: #c62828;
+          }
+          .mini-status.status-skipped {
+            background: #fff9c4;
+            color: #f57f17;
+          }
+          .mini-status.status-other {
+            background: #e0e0e0;
+            color: #666;
+          }
+          .spans-section {
+            margin-top: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+          }
+          .spans-toggle {
+            padding: 10px 15px;
+            cursor: pointer;
+            background: #f0f4f8;
+            user-select: none;
+            font-weight: 500;
+            color: #1976d2;
+          }
+          .spans-toggle:hover {
+            background: #e3f2fd;
+          }
+          .spans-icon {
+            font-family: monospace;
+            font-weight: bold;
+            margin-right: 8px;
+            color: #1976d2;
+          }
+          .spans-section[open] .spans-toggle {
+            border-bottom: 1px solid #e0e0e0;
+          }
+          .spans-json {
+            margin: 0;
+            padding: 15px;
+            background: #263238;
+            color: #aed581;
+            font-size: 12px;
+            max-height: 400px;
+            overflow: auto;
+            border-radius: 0 0 4px 4px;
+          }
+          .no-spans {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background: #fff3e0;
+            color: #e65100;
+            border-radius: 4px;
+            font-style: italic;
           }
           .failed-test {
             margin: 15px 0;

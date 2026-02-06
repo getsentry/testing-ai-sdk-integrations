@@ -4,6 +4,7 @@
 
 import * as fs from "fs/promises";
 import * as path from "path";
+import { exec } from "child_process";
 import { SpanCollector } from "./span-collector/server.js";
 import { Runner } from "./runner/runner.js";
 import { Validator, ValidationError } from "./validator.js";
@@ -33,6 +34,7 @@ export class Orchestrator {
   private verbose: boolean = false;
   private parallelism: number = 1;
   private executionStrategy: ExecutionStrategy<TestRun, void>;
+  private openReport: boolean = false;
 
   private syncFilter?: boolean;
   private asyncFilter?: boolean;
@@ -48,6 +50,7 @@ export class Orchestrator {
       streaming?: boolean;
       blocking?: boolean;
       parallel?: number;
+      openReport?: boolean;
     } = {},
   ) {
     this.spanCollector = new SpanCollector();
@@ -64,6 +67,7 @@ export class Orchestrator {
     this.asyncFilter = options.async;
     this.streamingFilter = options.streaming;
     this.blockingFilter = options.blocking;
+    this.openReport = options.openReport === true;
 
     // Set verbose on validator
     this.validator.setVerbose(this.verbose);
@@ -162,7 +166,12 @@ export class Orchestrator {
     const report = this.generateReport(startTime, endTime);
 
     // Generate and write reports (CTRF + HTML)
-    await this.writeReports(report);
+    const htmlPath = await this.writeReports(report);
+
+    // Open report in browser if requested
+    if (this.openReport && htmlPath) {
+      this.openInBrowser(htmlPath);
+    }
 
     return report;
   }
@@ -422,8 +431,9 @@ export class Orchestrator {
 
   /**
    * Write CTRF and HTML reports to files
+   * Returns the path to the HTML report if successful
    */
-  async writeReports(report: TestReport): Promise<void> {
+  async writeReports(report: TestReport): Promise<string | undefined> {
     const timestamp = getTimestamp();
     const outputDir = "./test-results";
 
@@ -441,11 +451,41 @@ export class Orchestrator {
       if (this.verbose) {
         console.log(`✓ HTML report written to: ${htmlPath}`);
       }
+
+      return htmlPath;
     } catch (error) {
       if (this.verbose) {
         console.error("Failed to write reports:", error);
       }
+      return undefined;
     }
+  }
+
+  /**
+   * Open a file in the default browser
+   */
+  private openInBrowser(filePath: string): void {
+    const absolutePath = path.resolve(filePath);
+    const url = `file://${absolutePath}`;
+
+    // Use platform-specific command to open browser
+    const platform = process.platform;
+    let command: string;
+
+    if (platform === "darwin") {
+      command = `open "${url}"`;
+    } else if (platform === "win32") {
+      command = `start "" "${url}"`;
+    } else {
+      // Linux and others
+      command = `xdg-open "${url}"`;
+    }
+
+    exec(command, (error) => {
+      if (error && this.verbose) {
+        console.error(`Failed to open browser: ${error.message}`);
+      }
+    });
   }
 
   /**

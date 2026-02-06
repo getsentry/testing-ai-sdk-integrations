@@ -76,6 +76,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
       }),
       ...(run.spans && {
         spanCount: run.spans.length,
+        spans: run.spans,
       }),
     };
 
