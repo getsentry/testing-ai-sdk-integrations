@@ -29,13 +29,20 @@ testing-ai-sdk-integrations/
 │   ├── concurrency.ts                # Parallel execution support
 │   ├── test-cases/                   # Test definitions
 │   │   ├── index.ts                  # Test registry
+│   │   ├── checks.ts                 # Reusable check functions
 │   │   ├── utils.ts                  # Test utilities (skip, assertions)
 │   │   ├── llm/                      # LLM test cases
 │   │   │   ├── basic.ts              # Basic single completion test
 │   │   │   ├── multi-turn.ts         # Multi-turn conversation test
-│   │   │   └── basic-error.ts        # Error handling test
+│   │   │   ├── basic-error.ts        # Error handling test
+│   │   │   ├── vision.ts             # Vision/image input test
+│   │   │   └── long-input.ts         # Long input trimming test
 │   │   └── agents/                   # Agent test cases
-│   │       └── basic.ts              # Basic agent with tool calling
+│   │       ├── basic.ts              # Basic agent (no tools)
+│   │       ├── tool-call.ts          # Agent with tool calling
+│   │       ├── tool-error.ts         # Tool error handling
+│   │       ├── vision.ts             # Vision agent test
+│   │       └── long-input.ts         # Long input agent test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
 │   │   ├── javascript-runner.ts      # JS-specific execution
@@ -53,7 +60,8 @@ testing-ai-sdk-integrations/
 ├── dist/                             # Compiled JavaScript output
 ├── runs/                             # Generated test files per run
 ├── test-results/                     # Generated reports
-│   └── ctrf-report.json
+│   ├── ctrf-report-*.json
+│   └── test-report-*.html
 ├── docs/                             # Documentation
 └── package.json
 ```
@@ -159,8 +167,8 @@ Options:
 2. **Matrix Generation**: Creates test matrix (framework x test definition x execution modes)
 3. **Template Rendering**: Uses Nunjucks to generate runnable test files from templates
 4. **Execution**: Runs generated tests with Sentry DSN pointing to span collector
-5. **Validation**: Runs check methods against captured spans
-6. **Reporting**: Generates console output + CTRF JSON report
+5. **Validation**: Runs check functions from `checks` array against captured spans
+6. **Reporting**: Generates console output + CTRF JSON + HTML reports
 
 ### Test Flow
 
@@ -173,7 +181,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
                     ↓
         Sentry SDK sends spans to Span Collector
                     ↓
-        Validator runs check methods on captured spans
+        Validator runs checks array on captured spans
                     ↓
         Reporter outputs results
 ```
@@ -195,10 +203,10 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python     | `anthropic`     | llm      | llm-only | both      | sync/async      |
 | Python     | `langchain`     | llm      | llm-only | both      | sync/async      |
 | Python     | `litellm`       | llm      | llm-only | both      | sync/async      |
-| Python     | `openai-agents` | agents   | agentic  | -         | -               |
-| Python     | `langgraph`     | agents   | agentic  | -         | -               |
-| Python     | `pydantic-ai`   | agents   | agentic  | -         | -               |
-| Python     | `google-genai`  | agents   | agentic  | -         | -               |
+| Python     | `openai-agents` | agents   | agentic  | -         | async           |
+| Python     | `langgraph`     | agents   | agentic  | -         | sync/async      |
+| Python     | `pydantic-ai`   | agents   | agentic  | -         | async           |
+| Python     | `google-genai`  | agents   | agentic  | -         | sync/async      |
 
 ## Test Cases
 
@@ -208,21 +216,42 @@ Test cases are TypeScript files in `src/test-cases/` that define:
 - **description**: What the test validates
 - **type**: `"llm"` or `"agent"` (determines which frameworks can run it)
 - **inputs**: Test input data (model, messages)
-- **check methods**: Functions that validate captured spans
+- **checks**: Array of check functions that validate captured spans
 
-### Current Test Cases
+### LLM Test Cases
 
-| Test                   | Type  | Description                           |
-| ---------------------- | ----- | ------------------------------------- |
-| `Basic LLM Test`       | llm   | Single completion with system message |
-| `Multi Turn LLM Test`  | llm   | Multi-turn conversation               |
-| `Basic Error LLM Test` | llm   | Tests API error handling              |
-| `Basic Agent Test`     | agent | Agent with tool calling               |
+| Test                   | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `Basic LLM Test`       | Single completion with system message     |
+| `Multi Turn LLM Test`  | Multi-turn conversation (3 turns)         |
+| `Basic Error LLM Test` | Tests API error handling                  |
+| `Vision LLM Test`      | Image input processing                    |
+| `Long Input LLM Test`  | Message trimming for large inputs (>20KB) |
+
+### Agent Test Cases
+
+| Test                    | Description                             |
+| ----------------------- | --------------------------------------- |
+| `Basic Agent Test`      | Agent without tools (simple completion) |
+| `Tool Call Agent Test`  | Agent with successful tool calling      |
+| `Tool Error Agent Test` | Agent with tool that raises exception   |
+| `Vision Agent Test`     | Agent that processes images             |
+| `Long Input Agent Test` | Agent with large input trimming         |
 
 ### Test Definition Example
 
+Test definitions use an explicit `checks` array with reusable check functions:
+
 ```typescript
 // src/test-cases/llm/basic.ts
+import { TestDefinition } from "../../types.js";
+import {
+  checkAISpanCount,
+  checkChatSpanAttributes,
+  checkValidTokenUsage,
+  checkInputMessagesSchema,
+} from "../checks.js";
+
 export const basicLLMTest: TestDefinition = {
   name: "Basic LLM Test",
   description: "Single completion call with system message",
@@ -230,7 +259,7 @@ export const basicLLMTest: TestDefinition = {
 
   inputs: [
     {
-      model: "gpt-5-nano",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: "What is the capital of France?" },
@@ -238,31 +267,45 @@ export const basicLLMTest: TestDefinition = {
     },
   ],
 
-  // Check methods - any method starting with "check" is run as a validation
-  checkStructure(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    expect(aiSpans.length).to.equal(1);
-  },
-
-  checkAttributes(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    assertAttributes(aiSpans, {
-      "gen_ai.operation.name": true,
-      "gen_ai.request.model": config.modelOverrides?.request || "gpt-5-nano",
-      "gen_ai.response.model": config.modelOverrides?.response || "gpt-5-nano*",
-      "gen_ai.usage.input_tokens": true,
-      "gen_ai.usage.output_tokens": true,
-    });
-  },
-
-  checkTokens(spans: CapturedSpan[], config: FrameworkConfig) {
-    const aiSpans = extractGenAISpans(spans);
-    for (const span of aiSpans) {
-      checkTokenUsage(span, { validateSum: true });
-    }
-  },
+  checks: [
+    checkAISpanCount(1),
+    checkChatSpanAttributes,
+    checkValidTokenUsage,
+    checkInputMessagesSchema,
+  ],
 };
 ```
+
+## Check Functions
+
+Reusable check functions are defined in `src/test-cases/checks.ts`. Each check is an object with a `name` and `fn`:
+
+```typescript
+interface Check {
+  name: string;
+  fn: (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void;
+}
+```
+
+### Available Checks
+
+| Check                         | Description                                             |
+| ----------------------------- | ------------------------------------------------------- |
+| `checkAISpanCount(n)`         | Factory: validate AI span count (exact or min/max)      |
+| `checkChatSpanAttributes`     | Validates chat/completion spans (model, messages)       |
+| `checkAgentSpanAttributes`    | Validates agent invocation spans                        |
+| `checkToolSpanAttributes`     | Validates tool execution spans                          |
+| `checkValidTokenUsage`        | Token counts exist and are valid                        |
+| `checkInputTokensCached`      | Cached tokens ≤ input tokens                            |
+| `checkOutputTokensReasoning`  | Reasoning tokens ≤ output tokens                        |
+| `checkInputMessagesSchema`    | Validates message schema follows Sentry conventions     |
+| `checkAgentHierarchy`         | Agent span hierarchy and name propagation               |
+| `checkAvailableTools`         | Validates gen_ai.request.available_tools                |
+| `checkResponseToolCalls([])`  | Factory: validate tool calls in LLM response            |
+| `checkToolCalls([])`          | Factory: validate tool execution spans                  |
+| `checkMessageTrimming`        | Messages are trimmed below 15KB                         |
+| `checkTrimmingMetadata`       | Original length metadata is present                     |
+| `checkBinaryRedaction`        | Binary content (images) is redacted                     |
 
 ## Framework Configuration
 
@@ -277,7 +320,7 @@ Each framework has a `config.json` file that defines its capabilities:
   "streamingMode": "both",
   "dependencies": [{ "package": "openai", "version": "framework" }],
   "versions": ["4.96.0"],
-  "sentryVersions": ["10.28.0", "latest"]
+  "sentryVersions": ["latest"]
 }
 ```
 
@@ -306,8 +349,9 @@ Available in `src/test-cases/utils.ts`:
 | `skip(reason)`         | Skip the current check with a reason   |
 | `skipIf(cond, reason)` | Conditionally skip a check             |
 | `extractGenAISpans()`  | Filter spans for `gen_ai.*` operations |
-| `checkTokenUsage()`    | Validate token count attributes        |
-| `checkSpanStructure()` | Validate parent-child span hierarchy   |
+| `findAgentSpans()`     | Find `invoke_agent` spans              |
+| `findChatSpans()`      | Find `chat`/`completion` spans         |
+| `findToolSpans()`      | Find tool execution spans              |
 | `assertAttributes()`   | Schema-based attribute validation      |
 | `printSpanSummary()`   | Debug helper to print captured spans   |
 
@@ -392,8 +436,8 @@ npm run test -- --framework your-framework --verbose
 
 ```typescript
 // src/test-cases/llm/your-test.ts
-import { TestDefinition, CapturedSpan, FrameworkConfig } from "../../types.js";
-import { extractGenAISpans, assertAttributes } from "../utils.js";
+import { TestDefinition } from "../../types.js";
+import { checkAISpanCount, checkChatSpanAttributes } from "../checks.js";
 
 export const yourTest: TestDefinition = {
   name: "Your Test Name",
@@ -402,15 +446,18 @@ export const yourTest: TestDefinition = {
 
   inputs: [
     {
-      model: "gpt-5-nano",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: "Test prompt" }],
     },
   ],
 
-  checkYourValidation(spans: CapturedSpan[], config: FrameworkConfig) {
-    // Your validation logic
-  },
+  checks: [
+    checkAISpanCount({ min: 1 }),
+    checkChatSpanAttributes,
+  ],
 };
+
+export default yourTest;
 ```
 
 ### 2. Register in Index
@@ -419,14 +466,12 @@ export const yourTest: TestDefinition = {
 // src/test-cases/index.ts
 import { yourTest } from "./llm/your-test.js";
 
-export function getAllTests(): TestDefinition[] {
-  return [
-    basicLLMTest,
-    multiTurnLLMTest,
-    yourTest, // Add here
-    // ...
-  ];
-}
+export const testCases = {
+  llm: {
+    // ... existing tests
+    yourTest: yourTest,
+  },
+};
 ```
 
 ### 3. Build and Test
@@ -448,7 +493,7 @@ interface TestDefinition {
   inputs: TestInput[];
   agent?: AgentDefinition; // For agent tests
   causeAPIError?: boolean; // Trigger API errors
-  [key: string]: any; // check* methods
+  checks: Check[]; // Array of check functions
 }
 ```
 
@@ -502,14 +547,14 @@ GOOGLE_API_KEY=...
 Use `printSpanSummary()` in your check methods:
 
 ```typescript
-checkDebug(spans: CapturedSpan[]) {
-  printSpanSummary(spans);
-  // Output:
-  //   Captured 3 span(s):
-  //     [0] gen_ai.chat
-  //     [1] http.client (parent: 12345678)
-  //     [2] gen_ai.chat
-}
+import { printSpanSummary } from "../utils.js";
+
+const debugCheck: Check = {
+  name: "debugCheck",
+  fn: (spans) => {
+    printSpanSummary(spans);
+  },
+};
 ```
 
 ### Verbose Mode
@@ -538,14 +583,24 @@ Each test validates that Sentry captures:
 1. **Performance tracing** - Spans with proper timing and hierarchy
 2. **AI monitoring data** - Model name, token counts, operation names
 3. **Error tracking** - Exceptions with context (for error tests)
+4. **Message handling** - Proper schema, trimming, binary redaction
 
 ## Success Criteria
 
 A test passes when:
 
 1. Test code runs without exceptions
-2. All check methods pass (or are skipped with reason)
+2. All check functions pass (or are skipped with reason)
 3. Required spans are captured with correct attributes
+
+## Special Frameworks
+
+### Mastra
+
+Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/node`. Key differences:
+- Uses `SentryExporter` with Mastra's `Observability` system
+- Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
+- Template is standalone (does not extend base.js.njk)
 
 ## References
 

@@ -1,17 +1,16 @@
 This repo (hopefully) contains everything needed to test Sentry SDK AI integrations for Python and JavaScript.
 
-Quick start and other goodies can be found in (./README.md).
+Quick start and other goodies can be found in [README.md](./README.md).
 
-The entire repo was made with Claude Code, and all of the major changes (like refactorings, adding SDKs, etc.) should be done by an agent. Most directories contain README.md files that the agent is instructed to read and update when needed. `.claude/settings.json` make sure it can't read this file or your `.env`
+The entire repo was made with Claude Code, and all of the major changes (like refactorings, adding SDKs, etc.) should be done by an agent. Most directories contain README.md files that the agent is instructed to read and update when needed. `.claude/settings.json` makes sure it can't read this file or your `.env`
 
 ### The Gist
 
-- There is a separate project directory for every integration, ensuring they are independent of each other.
-- The setup file contains code that should be executed before the tests and, in most cases, contains only Sentry SDK initialization with the correct options and mock transport.
-- Every test performs real LLM calls.
-- After it is done, the mock transport is used to extract all of the envelopes the SDK would send.
-- The validator then extracts relevant spans and checks against the fixture.
-- The result is reported in CTRF as JSON, HTML, and printed in the console.
+- Test definitions (TypeScript) + framework templates (Nunjucks) = generated test files
+- A span collector HTTP server acts as a mock Sentry endpoint
+- Tests make real LLM calls and the Sentry SDK captures spans
+- The validator runs check functions against captured spans
+- Results are reported as CTRF JSON, HTML, and printed to the console
 
 #### What this can do:
 
@@ -19,7 +18,10 @@ Assert that AI integrations:
 
 - correctly initialize
 - capture all relevant spans in correct order/hierarchy
-- correctly capture available attributes
+- correctly capture available attributes (model, tokens, messages, tool calls)
+- properly handle streaming vs blocking modes
+- properly handle sync vs async execution (Python)
+- trim long messages and redact binary content
 
 #### What this can't do:
 
@@ -30,22 +32,27 @@ Assert that:
 
 ### JS vs. Py
 
-Some parts of the test logic are implemented twice (once for JS and once for Python). They can never be exactly the same, but it is vital that they are as close to each other as possible in terms of overall functionality, file names, function names, variable names, etc.
+The test cases are defined once in TypeScript and then rendered for each framework using Nunjucks templates. While the templates differ between JS and Python, they aim to produce equivalent behavior. Framework-specific quirks are handled in templates and the `skip` configuration.
 
 ### Adding another AI SDK integration
 
-- Should be a matter of prompting an agent to do so.
-- Make sure to repeat that it should be consistent with the other SDKs.
-- Double-check if it wrote BS tests just to have them pass.
-- Make sure it DID NOT change any fixtures or validators to make the tests pass.
-- Make sure the package versions are pinned.
+- Should be a matter of prompting an agent to do so
+- Make sure to repeat that it should be consistent with the other SDKs
+- Double-check if it wrote BS tests just to have them pass
+- Make sure it DID NOT change any check functions or skip configurations to make the tests pass
+- Make sure the package versions are pinned in `config.json`
 
 ### Adding more test cases
 
-- The fixture should be written and double-checked by a human.
-- The case should be implemented for all SDKs where it makes sense.
-- If needed, it can be split into 2 flavors - "agentic" and "low-level."
+- The check functions should be written and double-checked by a human
+- The case should be implemented for all SDKs where it makes sense
+- Test cases are split by type: `llm` (low-level SDKs) and `agent` (agentic frameworks)
+- Use existing check functions from `checks.ts` when possible
+- Add new checks to `checks.ts` if they're reusable across tests
 
 ### Versioning
 
-- Every SDK has an independent Sentry SDK installation. This can be using the CLI but if you do so, make sure that the bersion is bumped everywhere.
+- Every framework has an independent Sentry SDK version specified in `config.json`
+- The `sentryVersions` array can include specific versions or `"latest"`
+- Framework versions are specified in the `versions` array
+- Dependencies use `"framework"` as version to inherit from the framework version
