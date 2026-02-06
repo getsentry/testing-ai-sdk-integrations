@@ -156,6 +156,7 @@ Options:
   --parallel, -j <N>         Run up to N tests in parallel (default: 1)
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
+  --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --help, -h                 Show this help message

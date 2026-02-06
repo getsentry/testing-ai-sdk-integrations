@@ -146,6 +146,9 @@ npm run test -- --platform py --async
 # Run tests in parallel
 npm run test -- -j=4
 
+# Run tests and open report in browser
+npm run test -- --framework openai --open
+
 # Setup only (generate test files without running)
 npm run test setup -- --framework openai
 
@@ -168,6 +171,7 @@ npm run test -- --sentry-javascript /path/to/sentry-javascript
 | `-j, --parallel <N>`         | Run up to N tests in parallel                |
 | `-v, --verbose`              | Show detailed output                         |
 | `--live-status`              | Enable real-time status display              |
+| `--open`                     | Open HTML report in browser after test run   |
 | `--sentry-python <path>`     | Use local Sentry Python SDK                  |
 | `--sentry-javascript <path>` | Use local Sentry JavaScript SDK              |
 
