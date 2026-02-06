@@ -1,0 +1,33 @@
+/**
+ * Sentry AI SDK Integration Test: {{ testName }}
+ * Framework: {{ frameworkName }}
+ *
+ * This test verifies that Sentry correctly instruments {{ frameworkName }} SDK calls.
+ */
+
+// Initialize Sentry FIRST, before any other imports
+import * as Sentry from "@sentry/node";
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  sendDefaultPii: true,
+  // Capture 100% of traces for testing
+  tracesSampleRate: 1.0,
+});
+
+{% block setup %}{% endblock %}
+
+async function main() {
+  await Sentry.startSpan(
+    { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
+    async () => {
+      // Dynamic imports AFTER Sentry.init() to ensure instrumentation hooks are in place
+{% block dynamic_imports %}{% endblock %}
+{% block test %}{% endblock %}
+    }
+  );
+}
+
+main()
+  .catch(console.error)
+  .finally(() => Sentry.flush(5000));

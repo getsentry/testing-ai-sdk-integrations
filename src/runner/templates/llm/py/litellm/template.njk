@@ -1,0 +1,98 @@
+{% extends "base.py.njk" %}
+
+{# Macro to convert our content format to OpenAI format (LiteLLM uses OpenAI format) #}
+{% macro convertMessages(messages) %}
+[
+{% for message in messages %}
+        {
+            "role": "{{ message.role }}",
+{% if message.content is string %}
+            "content": "{{ message.content }}"
+{% else %}
+            "content": [
+{% for part in message.content %}
+{% if part.type == 'text' %}
+                {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+                {"type": "image_url", "image_url": {"url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+            ]
+{% endif %}
+        },
+{% endfor %}
+    ]
+{% endmacro %}
+
+{% block imports %}
+{{ super() }}
+import time
+
+import litellm
+from sentry_sdk.integrations.litellm import LiteLLMIntegration
+from sentry_sdk.integrations.openai import OpenAIIntegration
+{% if causeAPIError %}
+import respx
+import httpx
+{% endif %}
+{% endblock %}
+
+{% block inject_api_error %}
+{% if causeAPIError %}
+respx.route(host="api.openai.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.mock.start()
+{% endif %}
+{% endblock %}
+
+{% block sdk_setup %}
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    traces_sample_rate=1.0,
+    send_default_pii=True,
+    integrations=[LiteLLMIntegration(include_prompts=True)],
+    disabled_integrations=[OpenAIIntegration()],
+)
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
+{% if isStreaming %}
+{% if isAsync %}
+    stream = await litellm.acompletion(
+{% else %}
+    stream = litellm.completion(
+{% endif %}
+        model="openai/{{ input.model }}",
+        messages={{ convertMessages(input.messages) }},
+        stream=True,
+    )
+    
+    collected_content = []
+{% if isAsync %}
+    async for chunk in stream:
+{% else %}
+    for chunk in stream:
+{% endif %}
+        if chunk.choices[0].delta.content is not None:
+            collected_content.append(chunk.choices[0].delta.content)
+    
+    full_response = "".join(collected_content)
+    print(f"Turn {{ loop.index }} Response: {full_response}")
+{% else %}
+{% if isAsync %}
+    response = await litellm.acompletion(
+{% else %}
+    response = litellm.completion(
+{% endif %}
+        model="openai/{{ input.model }}",
+        messages={{ convertMessages(input.messages) }},
+    )
+    print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
+{% endif %}
+    time.sleep(0.1)  # sleep is necessary for LiteLLM because it needs threaded callbacks to finish
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endblock %}

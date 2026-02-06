@@ -1,0 +1,21 @@
+{
+  "name": "langgraph",
+  "displayName": "LangGraph JavaScript SDK",
+  "type": "agentic",
+  "platform": "js",
+  "dependencies": [
+    {
+      "package": "@langchain/langgraph",
+      "version": "framework"
+    },
+    {
+      "package": "@langchain/openai",
+      "version": "0.3.0"
+    },
+    {
+      "package": "@langchain/core",
+      "version": "0.3.49"
+    }
+  ],
+  "versions": ["0.2.67"]
+}

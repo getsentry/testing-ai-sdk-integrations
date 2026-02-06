@@ -1,3 +1,0 @@
-sentry-sdk==2.46.0
-litellm==1.79.3
-python-dotenv==1.2.1

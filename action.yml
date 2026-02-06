@@ -7,14 +7,30 @@ branding:
   color: "purple"
 
 inputs:
-  language:
-    description: "SDK language to test. One of: js, py, or leave empty for both"
+  platform:
+    description: "Platform to test. One of: js, py, or leave empty for both"
     required: false
     default: ""
-  sentry-python-path:
-    description: "Path to local sentry-python repository"
+  framework:
+    description: "Specific framework to test (e.g., openai, anthropic, langchain)"
     required: false
-    default: "../../../sentry-python/sentry-python"
+    default: ""
+  test:
+    description: "Specific test to run (e.g., 'Basic LLM Test')"
+    required: false
+    default: ""
+  parallel:
+    description: "Number of tests to run in parallel"
+    required: false
+    default: "4"
+  sentry-python-path:
+    description: "Path to local sentry-python repository for editable install"
+    required: false
+    default: ""
+  sentry-javascript-path:
+    description: "Path to local sentry-javascript repository for linking"
+    required: false
+    default: ""
   openai-api-key:
     description: "OpenAI API key"
     required: true
@@ -24,11 +40,28 @@ inputs:
   google-api-key:
     description: "Google API key for GenAI"
     required: true
+  google-vertex-project:
+    description: "Google Vertex AI project ID"
+    required: false
+    default: ""
+  google-vertex-location:
+    description: "Google Vertex AI location"
+    required: false
+    default: "us-central1"
 
 outputs:
   success:
     description: "Whether all tests passed"
     value: ${{ steps.run-tests.outputs.success }}
+  total:
+    description: "Total number of tests run"
+    value: ${{ steps.run-tests.outputs.total }}
+  passed:
+    description: "Number of tests passed"
+    value: ${{ steps.run-tests.outputs.passed }}
+  failed:
+    description: "Number of tests failed"
+    value: ${{ steps.run-tests.outputs.failed }}
 
 runs:
   using: "composite"
@@ -39,27 +72,21 @@ runs:
         node-version: "20"
 
     - name: Setup Python
-      if: inputs.language == 'py' || inputs.language == ''
+      if: inputs.platform == 'py' || inputs.platform == ''
       uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: "3.12"
 
-    - name: Install orchestration dependencies
-      shell: bash
-      working-directory: ${{ github.action_path }}/shared/orchestration
-      run: npm install
+    - name: Install uv (Python package manager)
+      if: inputs.platform == 'py' || inputs.platform == ''
+      uses: astral-sh/setup-uv@v5
 
-    - name: Setup SDK dependencies
+    - name: Install dependencies and build
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        if [ "${{ inputs.language }}" = "py" ]; then
-          npm run cli setup -- --local-sentry-python ${{ inputs.sentry-python-path }}
-        elif [ -z "${{ inputs.language }}" ]; then
-          npm run cli setup
-        else
-          npm run cli setup ${{ inputs.language }}
-        fi
+        npm install
+        npm run build
 
     - name: Run tests
       id: run-tests
@@ -69,15 +96,61 @@ runs:
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         GOOGLE_API_KEY: ${{ inputs.google-api-key }}
+        GOOGLE_VERTEX_PROJECT: ${{ inputs.google-vertex-project }}
+        GOOGLE_VERTEX_LOCATION: ${{ inputs.google-vertex-location }}
       run: |
         set +e
-        if [ -z "${{ inputs.language }}" ]; then
-          npm run cli run -- --all --reports ctrf
-        else
-          npm run cli run ${{ inputs.language }} -- --reports ctrf
+
+        # Build command arguments
+        ARGS=""
+
+        if [ -n "${{ inputs.platform }}" ]; then
+          ARGS="$ARGS --platform ${{ inputs.platform }}"
         fi
+
+        if [ -n "${{ inputs.framework }}" ]; then
+          ARGS="$ARGS --framework ${{ inputs.framework }}"
+        fi
+
+        if [ -n "${{ inputs.test }}" ]; then
+          ARGS="$ARGS --test \"${{ inputs.test }}\""
+        fi
+
+        if [ -n "${{ inputs.parallel }}" ]; then
+          ARGS="$ARGS -j=${{ inputs.parallel }}"
+        fi
+
+        if [ -n "${{ inputs.sentry-python-path }}" ]; then
+          ARGS="$ARGS --sentry-python ${{ inputs.sentry-python-path }}"
+        fi
+
+        if [ -n "${{ inputs.sentry-javascript-path }}" ]; then
+          ARGS="$ARGS --sentry-javascript ${{ inputs.sentry-javascript-path }}"
+        fi
+
+        # Run tests
+        echo "Running: npm run test -- $ARGS"
+        eval "npm run test -- $ARGS"
         EXIT_CODE=$?
         set -e
+
+        # Parse CTRF report for outputs (find latest report with timestamp)
+        CTRF_REPORT=$(ls -t test-results/ctrf-report-*.json 2>/dev/null | head -1)
+        if [ -n "$CTRF_REPORT" ] && [ -f "$CTRF_REPORT" ]; then
+          TOTAL=$(jq -r '.results.summary.tests' "$CTRF_REPORT")
+          PASSED=$(jq -r '.results.summary.passed' "$CTRF_REPORT")
+          FAILED=$(jq -r '.results.summary.failed' "$CTRF_REPORT")
+          
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "ctrf_report=$CTRF_REPORT" >> $GITHUB_OUTPUT
+        else
+          echo "total=0" >> $GITHUB_OUTPUT
+          echo "passed=0" >> $GITHUB_OUTPUT
+          echo "failed=0" >> $GITHUB_OUTPUT
+          echo "ctrf_report=" >> $GITHUB_OUTPUT
+        fi
 
         if [ $EXIT_CODE -eq 0 ]; then
           echo "success=true" >> $GITHUB_OUTPUT
@@ -87,6 +160,14 @@ runs:
 
         exit $EXIT_CODE
 
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: ${{ github.action_path }}/test-results/
+        if-no-files-found: ignore
+
     - name: Create or update issue on failure
       if: failure()
       uses: actions/github-script@v7
@@ -95,16 +176,25 @@ runs:
           const fs = require('fs');
           const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
-          // Helper functions
           const formatDuration = (ms) => ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
           const getStatusIcon = (status) => {
-            const icons = { passed: '✓', failed: '✗', skipped: '○' };
+            const icons = { passed: '\u2713', failed: '\u2717', skipped: '\u25CB' };
             return icons[status] || '-';
           };
 
-          // Try to read and format test results from CTRF report
           let resultsContent = 'Test execution failed. Check the [workflow run](' + runUrl + ') for details.';
-          const ctrfPath = '${{ github.action_path }}/shared/orchestration/test-results/ctrf-report.json';
+          // Find latest CTRF report
+          const testResultsDir = '${{ github.action_path }}/test-results';
+          let ctrfPath = '';
+          if (fs.existsSync(testResultsDir)) {
+            const files = fs.readdirSync(testResultsDir)
+              .filter(f => f.startsWith('ctrf-report-') && f.endsWith('.json'))
+              .sort()
+              .reverse();
+            if (files.length > 0) {
+              ctrfPath = testResultsDir + '/' + files[0];
+            }
+          }
 
           if (fs.existsSync(ctrfPath)) {
             try {
@@ -113,47 +203,49 @@ runs:
               const tests = report.results.tests;
               const duration = summary.stop - summary.start;
 
-              // Build summary table
-              let content = '## 📊 Summary\n\n';
+              let content = '## Summary\n\n';
               content += '| Metric | Value |\n|--------|-------|\n';
               content += `| **Total Tests** | ${summary.tests} |\n`;
-              content += `| **✓ Passed** | ${summary.passed} |\n`;
-              content += `| **✗ Failed** | ${summary.failed} |\n`;
+              content += `| **Passed** | ${summary.passed} |\n`;
+              content += `| **Failed** | ${summary.failed} |\n`;
+              content += `| **Skipped** | ${summary.skipped || 0} |\n`;
               content += `| **Duration** | ${formatDuration(duration)} |\n\n`;
 
-              // Build test matrix
-              const sdks = [...new Set(tests.map(t => (t.suite?.[0] || 'unknown')))].sort();
-              const testCases = [...new Set(tests.map(t => t.name.split(' :: ')[1] || t.name))].sort();
-
-              const testMap = new Map();
+              const byFramework = {};
               tests.forEach(test => {
-                const caseId = test.name.split(' :: ')[1] || test.name;
-                const suite = test.suite?.[0] || 'unknown';
-                testMap.set(`${suite}::${caseId}`, test);
+                const framework = test.suite && test.suite[0] ? test.suite[0] : 'unknown';
+                if (!byFramework[framework]) byFramework[framework] = [];
+                byFramework[framework].push(test);
               });
 
-              content += '## 🧪 Test Matrix\n\n';
-              content += '| SDK | ' + testCases.join(' | ') + ' |\n';
-              content += '|-----|' + testCases.map(() => '-----').join('|') + '|\n';
-
-              sdks.forEach(sdk => {
-                content += `| **${sdk}** |`;
-                testCases.forEach(caseId => {
-                  const test = testMap.get(`${sdk}::${caseId}`);
-                  content += test ? ` ${getStatusIcon(test.status)} |` : ' - |';
+              content += '## Results by Framework\n\n';
+              
+              Object.keys(byFramework).sort().forEach(framework => {
+                const frameworkTests = byFramework[framework];
+                const failed = frameworkTests.filter(t => t.status === 'failed').length;
+                
+                const statusIcon = failed > 0 ? 'FAILED' : 'PASSED';
+                content += `### ${statusIcon} - ${framework}\n\n`;
+                content += '| Test | Status | Duration |\n|------|--------|----------|\n';
+                
+                frameworkTests.forEach(test => {
+                  const testName = test.name.replace(framework + ' :: ', '');
+                  const icon = getStatusIcon(test.status);
+                  const dur = test.duration ? formatDuration(test.duration) : '-';
+                  content += `| ${testName} | ${icon} ${test.status} | ${dur} |\n`;
                 });
                 content += '\n';
               });
-              content += '\n';
 
-              // Build failed tests details
               const failedTests = tests.filter(t => t.status === 'failed');
               if (failedTests.length > 0) {
-                content += '## ❌ Failed Tests Details\n\n';
+                content += '## Failed Tests Details\n\n';
                 failedTests.forEach(test => {
-                  const caseId = test.name.split(' :: ')[1] || test.name;
-                  const suite = test.suite?.[0] || 'unknown';
-                  content += `<details>\n<summary><strong>${suite}</strong> :: ${caseId} (${test.duration}ms)</summary>\n\n`;
+                  const framework = test.suite && test.suite[0] ? test.suite[0] : 'unknown';
+                  const testName = test.name.replace(framework + ' :: ', '');
+                  content += '<details>\n';
+                  content += `<summary><strong>${framework}</strong> - ${testName}</summary>\n\n`;
+                  if (test.message) content += `**Error:** ${test.message}\n\n`;
                   if (test.trace) content += '```\n' + test.trace + '\n```\n';
                   content += '</details>\n\n';
                 });
@@ -167,27 +259,25 @@ runs:
 
           const issueLabel = 'ai-integration-test-failure';
           const date = new Date();
-          const formattedDate = date.toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'UTC',
-            timeZoneName: 'short'
-          });
-          const body = `## AI Integration Test Failure
+          const formattedDate = date.toISOString();
 
-          **Date**: ${formattedDate}
-          **Workflow Run**: ${runUrl}
+          const platform = '${{ inputs.platform }}' || 'all';
+          const framework = '${{ inputs.framework }}' || 'all';
 
-          ${resultsContent}
+          const body = [
+            '## AI Integration Test Failure',
+            '',
+            `**Date**: ${formattedDate}`,
+            `**Platform**: ${platform}`,
+            `**Framework**: ${framework}`,
+            `**Workflow Run**: ${runUrl}`,
+            '',
+            resultsContent,
+            '',
+            '---',
+            '*This issue was automatically created by the [AI Integration Testing framework](https://github.com/getsentry/testing-ai-sdk-integrations).*'
+          ].join('\n');
 
-          ---
-          *This issue was automatically created by the [AI Integration Testing framework](https://github.com/getsentry/testing-ai-sdk-integrations).*
-          `;
-
-          // Check for existing open issues with the label
           const issues = await github.rest.issues.listForRepo({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -196,7 +286,6 @@ runs:
           });
 
           if (issues.data.length > 0) {
-            // Update existing issue
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -205,11 +294,10 @@ runs:
             });
             console.log(`Updated existing issue #${issues.data[0].number}`);
           } else {
-            // Create new issue
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '❌ AI Integration Tests Failed',
+              title: 'AI Integration Tests Failed',
               body: body,
               labels: [issueLabel, 'automated']
             });

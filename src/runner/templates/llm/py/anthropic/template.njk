@@ -1,0 +1,101 @@
+{% extends "base.py.njk" %}
+
+{# Macro to convert content to Anthropic format #}
+{% macro convertContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+            {"type": "image", "source": {"type": "base64", "media_type": "{{ part.mediaType }}", "data": "{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+        ]
+{%- endif %}
+{% endmacro %}
+
+{% block imports %}
+{{ super() }}
+{% if isAsync %}
+from anthropic import AsyncAnthropic
+{% else %}
+from anthropic import Anthropic
+{% endif %}
+{% if causeAPIError %}
+import respx
+import httpx
+{% endif %}
+{% endblock %}
+
+{% block inject_api_error %}
+{% if causeAPIError %}
+respx.route(host="api.anthropic.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.mock.start()
+{% endif %}
+{% endblock %}
+
+{% block setup %}
+{% if isAsync %}
+client = AsyncAnthropic()
+{% else %}
+client = Anthropic()
+{% endif %}
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
+    system_prompt = None
+    messages = []
+{% for message in input.messages %}
+{% if message.role == 'system' %}
+    system_prompt = "{{ message.content }}"
+{% else %}
+    messages.append({"role": "{{ message.role }}", "content": {{ convertContent(message.content) }}})
+{% endif %}
+{% endfor %}
+
+    kwargs = {
+        "model": "{{ input.model }}",
+        "max_tokens": 1024,
+        "messages": messages,
+    }
+    if system_prompt:
+        kwargs["system"] = system_prompt
+
+{% if isStreaming %}
+{% if isAsync %}
+    async with client.messages.stream(**kwargs) as stream:
+        collected_content = []
+        async for event in stream:
+            if event.type == "content_block_delta":
+                collected_content.append(event.delta.text)
+        
+        full_response = "".join(collected_content)
+        print(f"Turn {{ loop.index }} Response: {full_response}")
+{% else %}
+    with client.messages.stream(**kwargs) as stream:
+        collected_content = []
+        for event in stream:
+            if event.type == "content_block_delta":
+                collected_content.append(event.delta.text)
+        
+        full_response = "".join(collected_content)
+        print(f"Turn {{ loop.index }} Response: {full_response}")
+{% endif %}
+{% else %}
+{% if isAsync %}
+    response = await client.messages.create(**kwargs)
+{% else %}
+    response = client.messages.create(**kwargs)
+{% endif %}
+    print(f"Turn {{ loop.index }} Response: {response.content[0].text}")
+{% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endblock %}
