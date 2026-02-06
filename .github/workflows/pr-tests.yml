@@ -24,27 +24,35 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: shared/orchestration/package-lock.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
-      - name: Cache Python venvs
+      - name: Install uv (Python package manager)
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache JS test environments
         uses: actions/cache@v4
         with:
-          path: sdks/py/*/.venv
-          key: py-venvs-${{ runner.os }}-${{ hashFiles('sdks/py/*/requirements.txt') }}
+          path: runs/js
+          key: js-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
           restore-keys: |
-            py-venvs-${{ runner.os }}-
+            js-envs-main-${{ runner.os }}-
 
-      - name: Install orchestration dependencies
-        working-directory: shared/orchestration
-        run: npm install
+      - name: Cache Python test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/py
+          key: py-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          restore-keys: |
+            py-envs-main-${{ runner.os }}-
 
-      - name: Setup SDK dependencies
-        run: npm run cli setup
+      - name: Install dependencies and build
+        run: |
+          npm install
+          npm run build
 
       - name: Run tests
         id: run-tests
@@ -52,14 +60,14 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-        run: npm run cli run -- --all --reports ctrf
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: npm run test -- -j=12
 
       - name: Upload CTRF report
         uses: actions/upload-artifact@v4
         with:
           name: ctrf-main
-          path: shared/orchestration/test-results/ctrf-report.json
+          path: test-results/ctrf-report-*.json
           retention-days: 1
 
   test-pr:
@@ -74,27 +82,35 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: shared/orchestration/package-lock.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
-      - name: Cache Python venvs
+      - name: Install uv (Python package manager)
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache JS test environments
         uses: actions/cache@v4
         with:
-          path: sdks/py/*/.venv
-          key: py-venvs-${{ runner.os }}-${{ hashFiles('sdks/py/*/requirements.txt') }}
+          path: runs/js
+          key: js-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
           restore-keys: |
-            py-venvs-${{ runner.os }}-
+            js-envs-pr-${{ runner.os }}-
 
-      - name: Install orchestration dependencies
-        working-directory: shared/orchestration
-        run: npm install
+      - name: Cache Python test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/py
+          key: py-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          restore-keys: |
+            py-envs-pr-${{ runner.os }}-
 
-      - name: Setup SDK dependencies
-        run: npm run cli setup
+      - name: Install dependencies and build
+        run: |
+          npm install
+          npm run build
 
       - name: Run tests
         id: run-tests
@@ -102,14 +118,14 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-        run: npm run cli run -- --all --reports ctrf
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: npm run test -- -j=12
 
       - name: Upload CTRF report
         uses: actions/upload-artifact@v4
         with:
           name: ctrf-pr
-          path: shared/orchestration/test-results/ctrf-report.json
+          path: test-results/ctrf-report-*.json
           retention-days: 1
 
   compare-results:
@@ -136,9 +152,20 @@ jobs:
       - name: Run comparison
         id: compare
         run: |
+          # Find the latest CTRF reports (they have timestamps in filename)
+          MAIN_REPORT=$(ls -t ctrf-main/ctrf-report-*.json 2>/dev/null | head -1)
+          PR_REPORT=$(ls -t ctrf-pr/ctrf-report-*.json 2>/dev/null | head -1)
+
+          if [ -z "$MAIN_REPORT" ] || [ -z "$PR_REPORT" ]; then
+            echo "Missing CTRF reports"
+            echo "Main: $MAIN_REPORT"
+            echo "PR: $PR_REPORT"
+            exit 1
+          fi
+
           node .github/scripts/compare-ctrf.cjs \
-            ctrf-main/ctrf-report.json \
-            ctrf-pr/ctrf-report.json \
+            "$MAIN_REPORT" \
+            "$PR_REPORT" \
             comparison-output.md
 
           # Check if there are regressions
