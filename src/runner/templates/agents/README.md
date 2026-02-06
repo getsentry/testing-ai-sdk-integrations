@@ -6,13 +6,13 @@ Templates for frameworks that support agentic workflows with tool calling.
 
 | Platform | Framework | Directory | Status |
 |----------|-----------|-----------|--------|
-| JavaScript | Vercel AI SDK | `js/vercel/` | 🚧 TODO |
-| JavaScript | LangChain | `js/langchain/` | 🚧 TODO |
-| JavaScript | LangGraph | `js/langgraph/` | 🚧 TODO |
+| JavaScript | Vercel AI SDK | `js/vercel/` | ✅ Done |
+| JavaScript | LangGraph | `js/langgraph/` | ✅ Done |
+| JavaScript | Mastra | `js/mastra/` | ✅ Done |
 | Python | OpenAI Agents | `py/openai-agents/` | ✅ Done |
-| Python | LangChain | `py/langchain/` | 🚧 TODO |
-| Python | LangGraph | `py/langgraph/` | 🚧 TODO |
-| Python | PydanticAI | `py/pydantic-ai/` | 🚧 TODO |
+| Python | LangGraph | `py/langgraph/` | ✅ Done |
+| Python | PydanticAI | `py/pydantic-ai/` | ✅ Done |
+| Python | Google GenAI | `py/google-genai/` | ✅ Done |
 
 ## Test Compatibility
 

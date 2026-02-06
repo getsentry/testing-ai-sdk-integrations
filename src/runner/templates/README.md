@@ -28,14 +28,23 @@ templates/
     │   ├── vercel/
     │   │   ├── template.njk
     │   │   └── config.json
-    │   └── langchain/
+    │   ├── langgraph/
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   └── mastra/
     │       ├── template.njk
     │       └── config.json
     └── py/
         ├── openai-agents/
         │   ├── template.njk
         │   └── config.json
-        └── langchain/
+        ├── langgraph/
+        │   ├── template.njk
+        │   └── config.json
+        ├── pydantic-ai/
+        │   ├── template.njk
+        │   └── config.json
+        └── google-genai/
             ├── template.njk
             └── config.json
 ```

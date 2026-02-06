@@ -52,7 +52,7 @@ testing-ai-sdk-integrations/
 │   │       │   ├── js/{openai,anthropic,google-genai,langchain}/
 │   │       │   └── py/{openai,anthropic,langchain,litellm}/
 │   │       └── agents/               # Agent framework templates
-│   │           ├── js/{langgraph,vercel}/
+│   │           ├── js/{langgraph,mastra,vercel}/
 │   │           └── py/{langgraph,openai-agents,pydantic-ai,google-genai}/
 │   ├── span-collector/               # HTTP server to capture Sentry data
 │   │   ├── server.ts                 # Hono HTTP server
@@ -204,6 +204,7 @@ src/runner/templates/
 └── agents/                   # Type: Agents
     ├── js/
     │   ├── langgraph/
+    │   ├── mastra/
     │   └── vercel/
     └── py/
         ├── langgraph/
@@ -231,6 +232,7 @@ When tests run, each **Test Case** is rendered using the framework's template an
 | llm    | Python     | `litellm`       | both      | sync/async      |
 | agents | JavaScript | `vercel`        | -         | -               |
 | agents | JavaScript | `langgraph`     | -         | -               |
+| agents | JavaScript | `mastra`        | -         | -               |
 | agents | Python     | `openai-agents` | -         | async           |
 | agents | Python     | `langgraph`     | -         | sync/async      |
 | agents | Python     | `pydantic-ai`   | -         | async           |
@@ -805,3 +807,4 @@ jobs:
 - **Sentry Python SDK:** https://github.com/getsentry/sentry-python
 - **Vercel AI SDK:** https://sdk.vercel.ai/docs
 - **OpenAI Python SDK:** https://github.com/openai/openai-python
+- **Mastra AI Framework:** https://mastra.ai/docs

@@ -80,6 +80,7 @@ src/runner/templates/
 └── agents/                           # Agentic frameworks
     ├── js/
     │   ├── langgraph/
+    │   ├── mastra/
     │   └── vercel/
     └── py/
         ├── google-genai/
@@ -189,6 +190,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | JavaScript | `langchain`     | llm      | llm-only | both      | -               |
 | JavaScript | `vercel`        | agents   | agentic  | -         | -               |
 | JavaScript | `langgraph`     | agents   | agentic  | -         | -               |
+| JavaScript | `mastra`        | agents   | agentic  | -         | -               |
 | Python     | `openai`        | llm      | llm-only | both      | sync/async      |
 | Python     | `anthropic`     | llm      | llm-only | both      | sync/async      |
 | Python     | `langchain`     | llm      | llm-only | both      | sync/async      |
@@ -551,3 +553,4 @@ A test passes when:
 - **Sentry Python SDK:** https://github.com/getsentry/sentry-python
 - **Vercel AI SDK:** https://sdk.vercel.ai/docs
 - **OpenAI Python SDK:** https://github.com/openai/openai-python
+- **Mastra AI Framework:** https://mastra.ai/docs
