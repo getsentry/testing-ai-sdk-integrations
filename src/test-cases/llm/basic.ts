@@ -14,6 +14,11 @@ import {
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
 } from "../checks.js";
+import {
+  checkInputMessages,
+  checkOutputMessages,
+  checkSystemInstructions,
+} from "../otel-checks.js";
 
 export const basicLLMTest: TestDefinition = {
   name: "Basic LLM Test",
@@ -37,6 +42,10 @@ export const basicLLMTest: TestDefinition = {
     checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
+    // OTel-aligned checks (soft failure if not migrated)
+    checkInputMessages,
+    checkOutputMessages,
+    checkSystemInstructions,
   ],
 };
 

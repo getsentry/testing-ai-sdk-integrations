@@ -15,6 +15,11 @@ import {
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
 } from "../checks.js";
+import {
+  checkInputMessages,
+  checkOutputMessages,
+  checkSystemInstructions,
+} from "../otel-checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
 
 /**
@@ -90,6 +95,10 @@ export const multiTurnLLMTest: TestDefinition = {
     checkInputMessagesSchema,
     checkInputTokensCached,
     checkOutputTokensReasoning,
+    // OTel-aligned checks (soft failure if not migrated)
+    checkInputMessages,
+    checkOutputMessages,
+    checkSystemInstructions,
   ],
 };
 
