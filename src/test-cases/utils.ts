@@ -38,11 +38,12 @@ export function skipIf(condition: boolean, reason: string): void {
  * Attribute schema for validation
  * - true: attribute must exist
  * - false: attribute must NOT exist
+ * - RegExp: must match the regular expression
  * - string with '*': must match pattern (glob-style)
  * - string/number: must equal exact value
  */
 export type AttributeSchema = {
-  [key: string]: boolean | string | number;
+  [key: string]: boolean | string | number | RegExp;
 };
 
 /**
@@ -221,6 +222,7 @@ function matchPattern(value: string, pattern: string): boolean {
  * Schema format:
  * - true: attribute must exist (any value)
  * - false: attribute must NOT exist
+ * - RegExp: must match the regular expression
  * - string with '*': must match pattern (e.g., "gpt-4*" matches "gpt-4-turbo")
  * - string/number: must equal exact value
  *
@@ -261,8 +263,23 @@ export function assertAttributes(
             `Span ${spanIndex}: Attribute '${attrName}' must not exist but has value: ${actual}`,
           );
         }
+      } else if (expected instanceof RegExp) {
+        // RegExp matching
+        if (actual === undefined || actual === null) {
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must exist for regex matching but is missing`,
+          );
+        } else if (typeof actual !== "string") {
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' must be a string for regex matching but is: ${typeof actual}`,
+          );
+        } else if (!expected.test(actual)) {
+          errors.push(
+            `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match regex ${expected}`,
+          );
+        }
       } else if (typeof expected === "string" && expected.includes("*")) {
-        // Pattern matching
+        // Pattern matching (glob-style)
         if (actual === undefined || actual === null) {
           errors.push(
             `Span ${spanIndex}: Attribute '${attrName}' must exist for pattern matching but is missing`,
