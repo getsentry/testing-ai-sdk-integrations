@@ -35,15 +35,26 @@ export function skipIf(condition: boolean, reason: string): void {
 }
 
 /**
+ * Callable that receives a span and returns an expected value for validation.
+ * Use this to derive expected values dynamically from span attributes.
+ *
+ * @example
+ * // Check that description equals "<operation.name> <model>"
+ * { "description": (span) => `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}` }
+ */
+export type AttributeSchemaFn = (span: CapturedSpan) => boolean | string | number | RegExp;
+
+/**
  * Attribute schema for validation
  * - true: attribute must exist
  * - false: attribute must NOT exist
  * - RegExp: must match the regular expression
  * - string with '*': must match pattern (glob-style)
  * - string/number: must equal exact value
+ * - function(span): dynamically compute the expected value from the span
  */
 export type AttributeSchema = {
-  [key: string]: boolean | string | number | RegExp;
+  [key: string]: boolean | string | number | RegExp | AttributeSchemaFn;
 };
 
 /**
@@ -217,7 +228,95 @@ function matchPattern(value: string, pattern: string): boolean {
 }
 
 /**
+ * Resolve an attribute value from a span.
+ * Looks up in span.data first, then falls back to top-level span fields
+ * (e.g. "description", "op", "status").
+ */
+function resolveAttribute(span: CapturedSpan, attrName: string): unknown {
+  // Check span.data first
+  if (span.data?.[attrName] !== undefined) {
+    return span.data[attrName];
+  }
+  // Fall back to top-level span fields
+  if (attrName in span) {
+    return (span as Record<string, unknown>)[attrName];
+  }
+  return undefined;
+}
+
+/**
+ * Validate a single attribute against an expected value, collecting errors.
+ */
+function validateAttribute(
+  actual: unknown,
+  expected: boolean | string | number | RegExp,
+  attrName: string,
+  spanIndex: number,
+  errors: string[],
+): void {
+  if (expected === true) {
+    // Must exist
+    if (actual === undefined || actual === null) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must exist but is missing`,
+      );
+    }
+  } else if (expected === false) {
+    // Must NOT exist
+    if (actual !== undefined && actual !== null) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must not exist but has value: ${actual}`,
+      );
+    }
+  } else if (expected instanceof RegExp) {
+    // RegExp matching
+    if (actual === undefined || actual === null) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must exist for regex matching but is missing`,
+      );
+    } else if (typeof actual !== "string") {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must be a string for regex matching but is: ${typeof actual}`,
+      );
+    } else if (!expected.test(actual)) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match regex ${expected}`,
+      );
+    }
+  } else if (typeof expected === "string" && expected.includes("*")) {
+    // Pattern matching (glob-style)
+    if (actual === undefined || actual === null) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must exist for pattern matching but is missing`,
+      );
+    } else if (typeof actual !== "string") {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must be a string for pattern matching but is: ${typeof actual}`,
+      );
+    } else if (!matchPattern(actual, expected)) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match pattern '${expected}'`,
+      );
+    }
+  } else {
+    // Exact value match
+    if (actual === undefined || actual === null) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is missing`,
+      );
+    } else if (actual !== expected) {
+      errors.push(
+        `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is '${actual}'`,
+      );
+    }
+  }
+}
+
+/**
  * Assert attributes on spans based on schema
+ *
+ * Attributes are resolved from span.data first, then from top-level span
+ * fields (e.g. "description", "op", "status").
  *
  * Schema format:
  * - true: attribute must exist (any value)
@@ -225,6 +324,7 @@ function matchPattern(value: string, pattern: string): boolean {
  * - RegExp: must match the regular expression
  * - string with '*': must match pattern (e.g., "gpt-4*" matches "gpt-4-turbo")
  * - string/number: must equal exact value
+ * - function(span): dynamically compute the expected value from the span
  *
  * @param spans - List of spans to check (all spans must match schema)
  * @param schema - Attribute schema to validate against
@@ -240,71 +340,17 @@ export function assertAttributes(
   const errors: string[] = [];
 
   spans.forEach((span, spanIndex) => {
-    if (!span.data) {
-      errors.push(`Span ${spanIndex}: Missing data field`);
-      return;
-    }
-
     // Check each attribute in the schema
-    for (const [attrName, expected] of Object.entries(schema)) {
-      const actual = span.data[attrName];
+    for (const [attrName, expectedOrFn] of Object.entries(schema)) {
+      const actual = resolveAttribute(span, attrName);
 
-      if (expected === true) {
-        // Must exist
-        if (actual === undefined || actual === null) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must exist but is missing`,
-          );
-        }
-      } else if (expected === false) {
-        // Must NOT exist
-        if (actual !== undefined && actual !== null) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must not exist but has value: ${actual}`,
-          );
-        }
-      } else if (expected instanceof RegExp) {
-        // RegExp matching
-        if (actual === undefined || actual === null) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must exist for regex matching but is missing`,
-          );
-        } else if (typeof actual !== "string") {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must be a string for regex matching but is: ${typeof actual}`,
-          );
-        } else if (!expected.test(actual)) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match regex ${expected}`,
-          );
-        }
-      } else if (typeof expected === "string" && expected.includes("*")) {
-        // Pattern matching (glob-style)
-        if (actual === undefined || actual === null) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must exist for pattern matching but is missing`,
-          );
-        } else if (typeof actual !== "string") {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must be a string for pattern matching but is: ${typeof actual}`,
-          );
-        } else if (!matchPattern(actual, expected)) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match pattern '${expected}'`,
-          );
-        }
-      } else {
-        // Exact value match
-        if (actual === undefined || actual === null) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is missing`,
-          );
-        } else if (actual !== expected) {
-          errors.push(
-            `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is '${actual}'`,
-          );
-        }
-      }
+      // Resolve callable to get the expected value for this span
+      const expected =
+        typeof expectedOrFn === "function"
+          ? expectedOrFn(span)
+          : expectedOrFn;
+
+      validateAttribute(actual, expected, attrName, spanIndex, errors);
     }
   });
 
