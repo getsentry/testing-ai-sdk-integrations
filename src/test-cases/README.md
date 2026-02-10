@@ -35,11 +35,10 @@ export const basicLLMTest: TestDefinition = {
     tools: [/* ... */],
   },
   
-  // Validation function (runs in orchestrator with Chai)
-  checks(spans) {
-    expect(spans.length).to.be.greaterThan(0);
-    // ... more assertions
-  }
+  // Checks grouped by severity (critical, normal, warning)
+  criticalChecks: [/* must pass */],
+  checks: [/* normal checks */],
+  warningChecks: [/* optional checks */],
 };
 ```
 
@@ -82,7 +81,7 @@ Tests for frameworks that support agentic workflows (subset of frameworks):
 2. **Define test:**
    ```typescript
    import { TestDefinition } from '../../types.js';
-   import { expect } from 'chai';
+   import { checkAISpanCount, checkChatSpanAttributes } from '../checks.js';
    
    export const myTest: TestDefinition = {
      name: 'My Test',
@@ -96,10 +95,16 @@ Tests for frameworks that support agentic workflows (subset of frameworks):
        prompt: '...',
      },
      
-     checks(spans) {
-       // Chai assertions
-       expect(spans.length).to.be.greaterThan(0);
-     }
+     // Checks grouped by severity
+     criticalChecks: [
+       checkAISpanCount(1),       // Must pass or test is broken
+     ],
+     checks: [
+       checkChatSpanAttributes,   // Normal correctness checks
+     ],
+     warningChecks: [
+       // Optional/OTel migration checks (failures don't fail the test)
+     ],
    };
    
    export default myTest;
@@ -121,52 +126,63 @@ Tests for frameworks that support agentic workflows (subset of frameworks):
 
 ## Validation Guidelines
 
-The `checks(spans)` function receives captured Sentry spans and should validate:
+Checks are reusable functions defined in `checks.ts` and `otel-checks.ts`. They throw `CheckError` (with `ErrorLocation[]`) on failure.
 
-### Basic Checks (all tests)
+### Check Severity
+
+Tests define checks in three tiers:
+
+- **`criticalChecks`** — Structural checks (span existence, hierarchy). If these fail, the test is fundamentally broken.
+- **`checks`** — Normal data correctness checks (token usage, message schema, tool calls).
+- **`warningChecks`** — Optional/OTel migration checks. Failures are reported but don't fail the test.
+
+### Writing Custom Checks
 
 ```typescript
-checks(spans) {
-  const genAISpans = spans.filter(s => s.op?.startsWith('gen_ai'));
-  
-  // Should capture spans
-  expect(genAISpans.length).to.be.at.least(1);
-  
-  // Basic span structure
-  expect(genAISpans[0].op).to.exist;
-  expect(genAISpans[0].start_timestamp).to.exist;
-  expect(genAISpans[0].timestamp).to.exist;
-}
+import { Check, ErrorLocation } from '../../types.js';
+import { CheckError } from '../../validator.js';
+import { extractGenAISpans } from '../utils.js';
+
+const myCheck: Check = {
+  name: 'myCheck',
+  fn: (spans, config, testDef) => {
+    const aiSpans = extractGenAISpans(spans);
+    if (aiSpans.length === 0) {
+      throw new CheckError('Expected at least one AI span');
+    }
+
+    const errors: ErrorLocation[] = [];
+    for (const span of aiSpans) {
+      if (!span.data?.['gen_ai.request.model']) {
+        errors.push({
+          spanId: span.span_id,
+          attribute: 'gen_ai.request.model',
+          message: 'Model attribute is missing',
+        });
+      }
+    }
+    if (errors.length > 0) {
+      throw new CheckError('Model attribute validation failed', errors);
+    }
+  },
+};
 ```
 
-### AI Monitoring Attributes
+### Reusable Check Functions
+
+Use the built-in checks from `checks.ts` for common validations:
 
 ```typescript
-// Model information
-expect(span.data['gen_ai.request.model']).to.exist;
+import {
+  checkAISpanCount,
+  checkChatSpanAttributes,
+  checkValidTokenUsage,
+  checkInputMessagesSchema,
+} from '../checks.js';
 
-// Token usage (if available)
-if (span.data['gen_ai.usage.input_tokens']) {
-  expect(span.data['gen_ai.usage.input_tokens']).to.be.a('number');
-}
-
-// Prompt data (if captured)
-if (span.data['gen_ai.prompt']) {
-  expect(span.data['gen_ai.prompt']).to.be.a('string');
-}
-```
-
-### Agent-Specific Checks
-
-```typescript
-// Agent span exists
-const agentSpan = spans.find(s => s.op === 'gen_ai.invoke_agent');
-expect(agentSpan).to.exist;
-
-// Tool calls captured
-if (span.data['gen_ai.tool_calls']) {
-  expect(span.data['gen_ai.tool_calls']).to.be.an('array');
-}
+// In your test definition:
+criticalChecks: [checkAISpanCount(1), checkChatSpanAttributes],
+checks: [checkValidTokenUsage, checkInputMessagesSchema],
 ```
 
 ## Framework Compatibility

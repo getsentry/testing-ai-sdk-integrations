@@ -54,12 +54,17 @@ export const visionLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkChatSpanAttributes,
+  ],
+
+  checks: [
     checkValidTokenUsage,
     checkInputMessagesSchema,
     checkBinaryRedaction,
-    // OTel-aligned checks (soft failure if not migrated)
+  ],
+
+  warningChecks: [
     checkInputMessages,
     checkOutputMessages,
     checkSystemInstructions,

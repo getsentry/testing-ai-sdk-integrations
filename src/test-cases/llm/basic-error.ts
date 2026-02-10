@@ -5,10 +5,10 @@
  * Uses respx to mock a 500 Internal Server Error response.
  */
 
-import { expect } from "chai";
 import { TestDefinition, Check } from "../../types.js";
 import { checkAISpanCount } from "../checks.js";
 import { extractGenAISpans } from "../utils.js";
+import { CheckError } from "../../validator.js";
 
 /**
  * Check that the span has error information
@@ -17,10 +17,9 @@ const checkErrorCaptured: Check = {
   name: "checkErrorCaptured",
   fn: (spans) => {
     const aiSpans = extractGenAISpans(spans);
-    expect(
-      aiSpans.length,
-      "Should have at least one AI span",
-    ).to.be.greaterThan(0);
+    if (aiSpans.length === 0) {
+      throw new CheckError("Should have at least one AI span but found none");
+    }
 
     // Find a span with error status or error data
     const errorSpan = aiSpans.find(
@@ -31,8 +30,15 @@ const checkErrorCaptured: Check = {
         span.data?.["http.status_code"] === 500,
     );
 
-    expect(errorSpan, "Expected to find a span with error information").to
-      .exist;
+    if (!errorSpan) {
+      throw new CheckError(
+        "Expected to find a span with error information (internal_error, unknown_error, error.type, or http.status_code=500)",
+        aiSpans.map((span) => ({
+          spanId: span.span_id,
+          message: `Span has status="${span.status}" with no error indicators`,
+        })),
+      );
+    }
   },
 };
 
@@ -54,7 +60,9 @@ export const basicErrorLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [checkAISpanCount({ min: 1 }), checkErrorCaptured],
+  criticalChecks: [checkAISpanCount({ min: 1 }), checkErrorCaptured],
+
+  checks: [],
 };
 
 export default basicErrorLLMTest;

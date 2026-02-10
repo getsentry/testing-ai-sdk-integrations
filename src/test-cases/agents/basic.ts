@@ -43,15 +43,20 @@ export const basicAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAgentSpanAttributes,
     checkChatSpanAttributes,
-    checkValidTokenUsage,
     checkAgentHierarchy,
+  ],
+
+  checks: [
+    checkValidTokenUsage,
     checkInputMessagesSchema,
+  ],
+
+  warningChecks: [
     checkInputTokensCached,
     checkOutputTokensReasoning,
-    // OTel-aligned checks (soft failure if not migrated)
     checkInputMessages,
     checkOutputMessages,
     checkSystemInstructions,

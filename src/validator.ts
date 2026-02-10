@@ -8,6 +8,7 @@ import {
   FrameworkConfig,
   CheckResult,
   Check,
+  CheckSeverity,
   ErrorLocation,
 } from "./types.js";
 
@@ -72,10 +73,21 @@ export class Validator {
     const checkResults: CheckResult[] = [];
     const errors: Error[] = [];
 
-    // Get checks array from test definition
-    const checks: Check[] = testDefinition.checks || [];
+    // Build ordered list of checks with their severity
+    const checkGroups: Array<{ severity: CheckSeverity; checks: Check[] }> = [
+      { severity: "critical", checks: testDefinition.criticalChecks || [] },
+      { severity: "normal", checks: testDefinition.checks || [] },
+      { severity: "warning", checks: testDefinition.warningChecks || [] },
+    ];
 
-    if (checks.length === 0) {
+    const allChecks: Array<{ check: Check; severity: CheckSeverity }> = [];
+    for (const group of checkGroups) {
+      for (const check of group.checks) {
+        allChecks.push({ check, severity: group.severity });
+      }
+    }
+
+    if (allChecks.length === 0) {
       if (this.verbose) {
         console.log("  No checks defined for this test");
       }
@@ -86,8 +98,8 @@ export class Validator {
     const testName = testDefinition.name;
     const skippedChecks = frameworkConfig.skip?.checks?.[testName] || [];
 
-    // Run all checks
-    for (const check of checks) {
+    // Run all checks in order (critical -> normal -> warning)
+    for (const { check, severity } of allChecks) {
       const checkName = check.name;
 
       // Notify that check is starting
@@ -97,6 +109,7 @@ export class Validator {
       if (skippedChecks.includes(checkName)) {
         const result: CheckResult = {
           name: checkName,
+          severity,
           status: "skipped",
           skipReason: "Not supported by this framework",
         };
@@ -110,7 +123,7 @@ export class Validator {
 
       try {
         await check.fn(spans, frameworkConfig, testDefinition);
-        const result: CheckResult = { name: checkName, status: "passed" };
+        const result: CheckResult = { name: checkName, severity, status: "passed" };
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {
@@ -121,6 +134,7 @@ export class Validator {
         if (error instanceof SkipCheckError) {
           const result: CheckResult = {
             name: checkName,
+            severity,
             status: "skipped",
             skipReason: error.reason,
           };
@@ -138,6 +152,7 @@ export class Validator {
           error instanceof CheckError ? error.locations : [];
         const result: CheckResult = {
           name: checkName,
+          severity,
           status: "failed",
           error: errorMsg,
           ...(errorLocations.length > 0 && { errorLocations }),
@@ -145,7 +160,8 @@ export class Validator {
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {
-          console.error(`  ✗ ${checkName} failed: ${errorMsg}`);
+          const severityLabel = severity === "critical" ? "❗" : severity === "warning" ? "⚠" : "✗";
+          console.error(`  ${severityLabel} ${checkName} failed: ${errorMsg}`);
           if (errorLocations.length > 0) {
             for (const loc of errorLocations) {
               const spanRef = `span ${loc.spanId.substring(0, 8)}`;
@@ -158,11 +174,14 @@ export class Validator {
       }
     }
 
-    // If any check failed, throw combined error with check results
-    if (errors.length > 0) {
+    // If any non-warning check failed, throw combined error with check results
+    const nonWarningErrors = checkResults.filter(
+      (r) => r.status === "failed" && r.severity !== "warning",
+    );
+    if (nonWarningErrors.length > 0) {
       const errorMessages = errors.map((e) => e.message).join("\n");
       throw new ValidationError(
-        `${errors.length} check(s) failed:\n${errorMessages}`,
+        `${nonWarningErrors.length} check(s) failed:\n${errorMessages}`,
         checkResults,
       );
     }

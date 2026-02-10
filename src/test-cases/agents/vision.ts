@@ -64,14 +64,19 @@ export const visionAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAgentSpanAttributes,
     checkChatSpanAttributes,
-    checkValidTokenUsage,
     checkAgentHierarchy,
+  ],
+
+  checks: [
+    checkValidTokenUsage,
     checkInputMessagesSchema,
     checkBinaryRedaction,
-    // OTel-aligned checks (soft failure if not migrated)
+  ],
+
+  warningChecks: [
     checkInputMessages,
     checkOutputMessages,
     checkSystemInstructions,

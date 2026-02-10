@@ -35,14 +35,19 @@ export const basicLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAISpanCount(1),
     checkChatSpanAttributes,
+  ],
+
+  checks: [
     checkValidTokenUsage,
     checkInputMessagesSchema,
+  ],
+
+  warningChecks: [
     checkInputTokensCached,
     checkOutputTokensReasoning,
-    // OTel-aligned checks (soft failure if not migrated)
     checkInputMessages,
     checkOutputMessages,
     checkSystemInstructions,

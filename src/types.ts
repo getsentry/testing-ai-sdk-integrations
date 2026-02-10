@@ -22,6 +22,14 @@ export interface Check {
   fn: CheckFunction;
 }
 
+/**
+ * Check severity levels, ordered from most to least severe.
+ * - critical: Core instrumentation (spans exist, correct attributes, hierarchy)
+ * - normal: Data correctness (token usage, messages schema, tool calls)
+ * - warning: Forward-looking / best-effort (OTel migration, optional token fields)
+ */
+export type CheckSeverity = "critical" | "normal" | "warning";
+
 export interface TestDefinition {
   name: string;
   description: string;
@@ -31,8 +39,12 @@ export interface TestDefinition {
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
   causeAPIError?: boolean;
-  /** Array of check functions to run */
+  /** Critical checks - core instrumentation must work (spans exist, attributes, hierarchy) */
+  criticalChecks?: Check[];
+  /** Normal checks - data correctness (token usage, messages, tool calls) */
   checks: Check[];
+  /** Warning checks - best-effort / forward-looking (OTel migration, optional fields) */
+  warningChecks?: Check[];
 }
 
 export interface AgentDefinition {
@@ -138,6 +150,8 @@ export interface ErrorLocation {
 export interface CheckResult {
   name: string;
   status: "passed" | "failed" | "skipped";
+  /** Severity level of this check */
+  severity: CheckSeverity;
   error?: string;
   skipReason?: string;
   /** Locations within span data that caused the failure */

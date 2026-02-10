@@ -53,12 +53,17 @@ export const longInputLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkChatSpanAttributes,
+  ],
+
+  checks: [
     checkMessageTrimming,
     checkTrimmingMetadata,
     checkInputMessagesSchema,
-    // OTel-aligned checks (soft failure if not migrated)
+  ],
+
+  warningChecks: [
     checkInputMessages,
     checkOutputMessages,
     checkSystemInstructions,

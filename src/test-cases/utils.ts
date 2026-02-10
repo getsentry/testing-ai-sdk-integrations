@@ -2,7 +2,6 @@
  * Common test utilities for span validation
  */
 
-import { expect } from "chai";
 import { CapturedSpan, ErrorLocation } from "../types.js";
 import { SkipCheckError, CheckError } from "../validator.js";
 
@@ -191,7 +190,7 @@ export function checkSpanStructure(
     : undefined;
 
   if (parentOp && !parentSpan) {
-    throw new Error(`No parent span found matching pattern: ${parentOp}`);
+    throw new CheckError(`No parent span found matching pattern: ${parentOp}`);
   }
 
   // Find child spans
@@ -206,28 +205,41 @@ export function checkSpanStructure(
   }
 
   // Check child count
-  if (minChildren !== undefined) {
-    expect(childSpans.length).to.be.at.least(
-      minChildren,
-      `Should have at least ${minChildren} child span(s)`,
-    );
+  const errors: string[] = [];
+  const locations: ErrorLocation[] = [];
+
+  if (minChildren !== undefined && childSpans.length < minChildren) {
+    const msg = `Should have at least ${minChildren} child span(s) but found ${childSpans.length}`;
+    errors.push(msg);
+    if (parentSpan) {
+      locations.push({ spanId: parentSpan.span_id, message: msg });
+    }
   }
 
-  if (exactChildren !== undefined) {
-    expect(childSpans.length).to.equal(
-      exactChildren,
-      `Should have exactly ${exactChildren} child span(s)`,
-    );
+  if (exactChildren !== undefined && childSpans.length !== exactChildren) {
+    const msg = `Should have exactly ${exactChildren} child span(s) but found ${childSpans.length}`;
+    errors.push(msg);
+    if (parentSpan) {
+      locations.push({ spanId: parentSpan.span_id, message: msg });
+    }
   }
 
   // Validate child operations
   if (childOp) {
     childSpans.forEach((child, idx) => {
-      expect(child.op).to.match(
-        childOp,
-        `Child span ${idx} operation should match pattern`,
-      );
+      if (!child.op || !child.op.match(childOp)) {
+        const msg = `Child span ${idx} operation "${child.op}" should match pattern ${childOp}`;
+        errors.push(msg);
+        locations.push({ spanId: child.span_id, attribute: "op", message: msg });
+      }
     });
+  }
+
+  if (errors.length > 0) {
+    throw new CheckError(
+      `Span structure validation failed:\n  ${errors.join("\n  ")}`,
+      locations,
+    );
   }
 }
 
