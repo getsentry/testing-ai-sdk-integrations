@@ -1,0 +1,229 @@
+{% extends "base.py.njk" %}
+
+{% block imports %}
+{{ super() }}
+import json
+{% endblock %}
+
+{% block setup %}
+def estimate_tokens(text):
+    """Rough estimate: 1 token per 4 characters."""
+    return max(1, len(str(text)) // 4)
+
+
+def messages_content_length(messages):
+    """Total character length of all message content."""
+    total = 0
+    for m in messages:
+        c = m.get("content", "")
+        if isinstance(c, str):
+            total += len(c)
+        elif isinstance(c, list):
+            for part in c:
+                if isinstance(part, dict):
+                    total += len(part.get("text", ""))
+    return total
+
+
+def trim_messages(messages, max_size=10000):
+    """Trim message content to keep total JSON size under max_size.
+    Returns (trimmed_messages, original_length, was_trimmed)."""
+    full_json = json.dumps(messages)
+    original_length = len(full_json)
+    if original_length <= max_size:
+        return messages, original_length, False
+    trimmed = [dict(msg) for msg in messages]
+    for msg in trimmed:
+        if isinstance(msg.get("content"), str) and len(msg["content"]) > 200:
+            msg["content"] = msg["content"][:200] + "... [trimmed]"
+        if isinstance(msg.get("parts"), list):
+            new_parts = []
+            for part in msg["parts"]:
+                p = dict(part) if isinstance(part, dict) else part
+                if isinstance(p, dict) and isinstance(p.get("text"), str) and len(p["text"]) > 200:
+                    p["text"] = p["text"][:200] + "... [trimmed]"
+                new_parts.append(p)
+            msg["parts"] = new_parts
+    return trimmed, original_length, True
+
+
+def build_sentry_messages(messages):
+    """Build gen_ai.input.messages and gen_ai.request.messages from raw messages."""
+    sentry_messages = []
+    legacy_messages = []
+    system_instructions = None
+
+    for msg in messages:
+        role = msg["role"]
+        content = msg.get("content", "")
+
+        if role == "system":
+            system_instructions = content if isinstance(content, str) else json.dumps(content)
+
+        # New OTel format with parts
+        parts = []
+        if isinstance(content, str):
+            parts.append({"type": "text", "text": content})
+        elif isinstance(content, list):
+            for part in content:
+                if part.get("type") == "text":
+                    parts.append({"type": "text", "text": part["text"]})
+                elif part.get("type") == "image":
+                    parts.append({"type": "text", "text": "[Blob substitute]"})
+
+        sentry_messages.append({
+            "role": role,
+            "content": content if isinstance(content, str) else "[multimodal]",
+            "parts": parts,
+        })
+
+        # Legacy format with binary redaction
+        if isinstance(content, list):
+            redacted = []
+            for part in content:
+                if part.get("type") == "text":
+                    redacted.append(part)
+                elif part.get("type") == "image":
+                    redacted.append({"type": "text", "text": "[Blob substitute]"})
+            legacy_messages.append({"role": role, "content": redacted})
+        else:
+            legacy_messages.append({"role": role, "content": content})
+
+    return sentry_messages, legacy_messages, system_instructions
+
+
+AGENT_NAME = "{{ agent.name }}"
+TOOLS = {{ agent.tools | dump }}
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # ── Turn {{ loop.index }} ──
+    model = "{{ input.model }}"
+    messages = {{ input.messages | dump }}
+
+    sentry_msgs, legacy_msgs, system_instructions = build_sentry_messages(messages)
+
+    sentry_msgs, otel_original_len, otel_trimmed = trim_messages(sentry_msgs)
+    legacy_msgs, legacy_original_len, legacy_trimmed = trim_messages(legacy_msgs)
+    otel_messages_json = json.dumps(sentry_msgs)
+    legacy_messages_json = json.dumps(legacy_msgs)
+
+    content_len = messages_content_length(messages)
+    input_tokens = estimate_tokens(content_len) + 10
+    output_tokens = 20
+    total_tokens = input_tokens + output_tokens
+    response_text = "This is a simulated agent response for turn {{ loop.index }}."
+
+    # Build available_tools and response tool_calls from TOOLS
+    available_tools = []
+    tool_definitions = []
+    response_tool_calls = []
+    output_tool_call_parts = []
+    for tool in TOOLS:
+        available_tools.append({
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool.get("parameters", {}),
+        })
+        tool_definitions.append({
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool.get("parameters", {}),
+        })
+        if tool.get("result") is not None or tool.get("error") is not None:
+            tool_args = tool.get("arguments", {})
+            response_tool_calls.append({
+                "name": tool["name"],
+                "arguments": json.dumps(tool_args),
+            })
+            output_tool_call_parts.append({
+                "type": "tool_call",
+                "name": tool["name"],
+                "arguments": json.dumps(tool_args),
+            })
+    available_tools_json = json.dumps(available_tools)
+    tool_definitions_json = json.dumps(tool_definitions)
+    response_tool_calls_json = json.dumps(response_tool_calls) if response_tool_calls else None
+
+    # Build output messages
+    output_parts = [{"type": "text", "text": response_text}]
+    output_parts.extend(output_tool_call_parts)
+    output_messages = json.dumps([{"role": "assistant", "parts": output_parts}])
+
+    # Agent span (parent)
+    agent_desc = f"invoke_agent {model}"
+    with sentry_sdk.start_span(op="gen_ai.invoke_agent", name=agent_desc) as agent_span:
+        agent_span.set_data("span.description", agent_desc)
+        agent_span.set_data("gen_ai.operation.name", "invoke_agent")
+        agent_span.set_data("gen_ai.agent.name", AGENT_NAME)
+        agent_span.set_data("gen_ai.request.model", model)
+        agent_span.set_data("gen_ai.usage.input_tokens", input_tokens)
+        agent_span.set_data("gen_ai.usage.input_tokens.cached", max(0, input_tokens // 3))
+        agent_span.set_data("gen_ai.usage.output_tokens", output_tokens)
+        agent_span.set_data("gen_ai.usage.output_tokens.reasoning", max(0, output_tokens // 4))
+        agent_span.set_data("gen_ai.usage.total_tokens", total_tokens)
+
+        # Chat span (child of agent)
+        chat_desc = f"chat {model}"
+        with sentry_sdk.start_span(op="gen_ai.chat", name=chat_desc) as chat_span:
+            chat_span.set_data("span.description", chat_desc)
+            chat_span.set_data("gen_ai.operation.name", "chat")
+            chat_span.set_data("gen_ai.agent.name", AGENT_NAME)
+            chat_span.set_data("gen_ai.request.model", model)
+            chat_span.set_data("gen_ai.response.model", model)
+            chat_span.set_data("gen_ai.response.text", response_text)
+            chat_span.set_data("gen_ai.usage.input_tokens", input_tokens)
+            chat_span.set_data("gen_ai.usage.input_tokens.cached", max(0, input_tokens // 3))
+            chat_span.set_data("gen_ai.usage.output_tokens", output_tokens)
+            chat_span.set_data("gen_ai.usage.output_tokens.reasoning", max(0, output_tokens // 4))
+            chat_span.set_data("gen_ai.usage.total_tokens", total_tokens)
+
+            chat_span.set_data("gen_ai.request.messages", legacy_messages_json)
+            if legacy_trimmed:
+                chat_span.set_data("gen_ai.request.messages.original_length", legacy_original_len)
+
+            chat_span.set_data("gen_ai.input.messages", otel_messages_json)
+            if otel_trimmed:
+                chat_span.set_data("gen_ai.input.messages.original_length", otel_original_len)
+            chat_span.set_data("gen_ai.output.messages", output_messages)
+            if system_instructions is not None:
+                chat_span.set_data("gen_ai.system_instructions", system_instructions)
+
+            if available_tools:
+                chat_span.set_data("gen_ai.request.available_tools", available_tools_json)
+                chat_span.set_data("gen_ai.tool.definitions", tool_definitions_json)
+            if response_tool_calls_json:
+                chat_span.set_data("gen_ai.response.tool_calls", response_tool_calls_json)
+
+        # Tool spans (children of agent)
+{% for tool in agent.tools %}
+{% if tool.result is defined or tool.error is defined %}
+        tool_desc = "execute_tool {{ tool.name }}"
+        with sentry_sdk.start_span(op="gen_ai.execute_tool", name=tool_desc) as tool_span:
+            tool_span.set_data("span.description", tool_desc)
+            tool_span.set_data("gen_ai.operation.name", "execute_tool")
+            tool_span.set_data("gen_ai.agent.name", AGENT_NAME)
+            tool_span.set_data("gen_ai.tool.name", "{{ tool.name }}")
+            tool_span.set_data("gen_ai.tool.type", "function")
+            tool_span.set_data("gen_ai.tool.description", "{{ tool.description }}")
+
+            tool_input_json = json.dumps({{ tool.arguments | dump }})
+            tool_span.set_data("gen_ai.tool.input", tool_input_json)
+            tool_span.set_data("gen_ai.tool.call.arguments", tool_input_json)
+{% if tool.result is defined %}
+
+            tool_span.set_data("gen_ai.tool.output", json.dumps({{ tool.result | dump }}))
+            tool_span.set_data("gen_ai.tool.call.result", json.dumps({{ tool.result | dump }}))
+{% endif %}
+{% if tool.error is defined %}
+
+            tool_span.set_status("internal_error")
+            tool_span.set_data("gen_ai.tool.error", "{{ tool.error }}")
+{% endif %}
+
+{% endif %}
+{% endfor %}
+    print(f"Turn {{ loop.index }} Agent result: {response_text}")
+{% endfor %}
+{% endblock %}

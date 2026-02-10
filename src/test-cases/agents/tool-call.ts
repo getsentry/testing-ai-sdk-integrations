@@ -59,6 +59,7 @@ export const toolCallAgentTest: TestDefinition = {
           },
           required: ["a", "b"],
         },
+        arguments: { a: 3, b: 5 },
         result: 8, // Static result: 3 + 5 = 8
       },
       {
@@ -78,6 +79,7 @@ export const toolCallAgentTest: TestDefinition = {
           },
           required: ["a", "b"],
         },
+        arguments: { a: 8, b: 4 },
         result: 32, // Static result: 8 * 4 = 32
       },
     ],

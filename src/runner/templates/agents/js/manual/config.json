@@ -1,0 +1,9 @@
+{
+  "name": "manual",
+  "displayName": "Manual JavaScript Agent (Reference)",
+  "type": "agentic",
+  "platform": "js",
+  "dependencies": [],
+  "versions": ["1.0.0"],
+  "sentryVersions": ["latest"]
+}
