@@ -42,6 +42,63 @@ export interface Check {
 }
 
 // =============================================================================
+// Operation Name Patterns
+// =============================================================================
+// These patterns are derived from the Sentry backend logic that determines
+// gen_ai.operation.type from gen_ai.operation.name.
+//
+// Reference (Rust code that determines operation type):
+// - "agent" type: invoke_agent, create_agent, ai.run.*, ai.pipeline.*, ai.streamText, ai.generateText, ai.generateObject
+// - "ai_client" type: *.doStream, *.doGenerate (the actual LLM API calls)
+// - "tool" type: execute_tool, ai.toolCall.*
+// - "handoff" type: handoff
+
+/**
+ * Pattern for agent operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.invoke_agent, invoke_agent
+ * - gen_ai.create_agent, create_agent
+ * - ai.run.generateText, ai.run.generateObject
+ * - ai.pipeline.generate_text, ai.pipeline.generate_object, ai.pipeline.stream_text, ai.pipeline.stream_object
+ * - ai.streamText (but NOT ai.streamText.doStream)
+ * - ai.generateText (but NOT ai.generateText.doGenerate)
+ * - ai.generateObject (but NOT ai.generateObject.doGenerate)
+ */
+export const AGENT_OPERATION_NAME_PATTERN =
+  /^(gen_ai\.)?(invoke_agent|create_agent)$|^ai\.run\.(generateText|generateObject)$|^ai\.pipeline\.(generate_text|generate_object|stream_text|stream_object)$|^ai\.(streamText|generateText|generateObject)(?!\.do)/;
+
+/**
+ * Pattern for ai_client (chat/completion) operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - ai.streamText.doStream.*
+ * - ai.generateText.doGenerate.*
+ * - ai.generateObject.doGenerate.*
+ * - chat, completion, generate (legacy)
+ */
+export const AI_CLIENT_OPERATION_NAME_PATTERN =
+  /^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate)|^(gen_ai\.)?(chat|completion|generate)/;
+
+/**
+ * Pattern for tool operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.execute_tool, execute_tool
+ * - ai.toolCall.*
+ */
+export const TOOL_OPERATION_NAME_PATTERN =
+  /^(gen_ai\.)?(execute_tool|tool|tool_call)$|^ai\.toolCall/;
+
+/**
+ * Pattern for handoff operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.handoff, handoff
+ */
+export const HANDOFF_OPERATION_NAME_PATTERN = /^(gen_ai\.)?handoff$/;
+
+// =============================================================================
 // Structure Checks
 // =============================================================================
 
@@ -122,7 +179,8 @@ export function checkAISpanCount(
  * Check attributes on chat/completion spans (LLM API calls)
  *
  * Validates:
- * - gen_ai.operation.name exists
+ * - span.description equals "<gen_ai.operation.name> <gen_ai.request.model>"
+ * - gen_ai.operation.name matches AI_CLIENT_OPERATION_NAME_PATTERN
  * - gen_ai.request.model matches expected model
  * - gen_ai.request.messages exists
  * - gen_ai.response.model matches expected pattern
@@ -147,7 +205,9 @@ export const checkChatSpanAttributes: Check = {
       config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
 
     assertAttributes(chatSpans, {
-      "gen_ai.operation.name": true,
+      "span.description": (span) =>
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
+      "gen_ai.operation.name": AI_CLIENT_OPERATION_NAME_PATTERN,
       "gen_ai.request.model": requestModel,
       "gen_ai.request.messages": true,
       "gen_ai.response.model": responseModel,
@@ -162,6 +222,8 @@ export const checkChatSpanAttributes: Check = {
  * Check attributes on invoke_agent spans (agent invocations)
  *
  * Validates:
+ * - span.description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
+ * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
  * - gen_ai.agent.name exists
  *
  * Fails if no agent spans are found.
@@ -175,13 +237,12 @@ export const checkAgentSpanAttributes: Check = {
       "Should have at least one agent span",
     ).to.be.greaterThan(0);
 
-    // TODO: Add attribute validation once we know what attributes agent spans should have
-    for (const span of agentSpans) {
-      expect(
-        span.data?.["gen_ai.agent.name"],
-        `Agent span should have gen_ai.agent.name attribute`,
-      ).to.exist;
-    }
+    assertAttributes(agentSpans, {
+      "span.description": (span) =>
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
+      "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
+      "gen_ai.agent.name": true,
+    });
   },
 };
 
@@ -189,6 +250,8 @@ export const checkAgentSpanAttributes: Check = {
  * Check attributes on tool execution spans
  *
  * Validates:
+ * - span.description equals "<gen_ai.operation.name> <gen_ai.tool.name>"
+ * - gen_ai.operation.name matches TOOL_OPERATION_NAME_PATTERN
  * - gen_ai.tool.type exists
  * - gen_ai.tool.name exists
  * - gen_ai.tool.description exists
@@ -204,20 +267,14 @@ export const checkToolSpanAttributes: Check = {
       "Should have at least one tool span",
     ).to.be.greaterThan(0);
 
-    for (const span of toolSpans) {
-      expect(
-        span.data?.["gen_ai.tool.type"],
-        `Tool span should have gen_ai.tool.type attribute`,
-      ).to.exist;
-      expect(
-        span.data?.["gen_ai.tool.name"],
-        `Tool span should have gen_ai.tool.name attribute`,
-      ).to.exist;
-      expect(
-        span.data?.["gen_ai.tool.description"],
-        `Tool span should have gen_ai.tool.description attribute`,
-      ).to.exist;
-    }
+    assertAttributes(toolSpans, {
+      "span.description": (span) =>
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.tool.name"]}`,
+      "gen_ai.operation.name": TOOL_OPERATION_NAME_PATTERN,
+      "gen_ai.tool.type": true,
+      "gen_ai.tool.name": true,
+      "gen_ai.tool.description": true,
+    });
   },
 };
 
@@ -835,7 +892,7 @@ export const checkBinaryRedaction: Check = {
  * Check attributes on handoff spans (agent-to-agent handoffs)
  *
  * Validates:
- * - Handoff spans exist
+ * - gen_ai.operation.name matches HANDOFF_OPERATION_NAME_PATTERN
  *
  * Fails if no handoff spans are found.
  */
@@ -848,7 +905,9 @@ export const checkHandoffSpanAttributes: Check = {
       "Should have at least one handoff span",
     ).to.be.greaterThan(0);
 
-    // TODO: Add attribute validation once we know what attributes handoff spans should have
+    assertAttributes(handoffSpans, {
+      "gen_ai.operation.name": HANDOFF_OPERATION_NAME_PATTERN,
+    });
   },
 };
 
