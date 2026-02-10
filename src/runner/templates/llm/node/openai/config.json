@@ -2,7 +2,7 @@
   "name": "openai",
   "displayName": "OpenAI JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [
     {

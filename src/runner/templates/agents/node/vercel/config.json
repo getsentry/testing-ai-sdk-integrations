@@ -2,7 +2,7 @@
   "name": "vercel",
   "displayName": "Vercel AI SDK",
   "type": "agentic",
-  "platform": "js",
+  "platform": "node",
   "dependencies": [
     {
       "package": "ai",

@@ -11,7 +11,7 @@ import { discoverFrameworks } from "./runner/framework-discovery.js";
 import { getAllTests } from "./test-cases/index.js";
 
 interface SetupOptions {
-  platform?: "js" | "py";
+  platform?: "node" | "py";
   framework?: string;
   test?: string;
   sync?: boolean;
@@ -190,7 +190,7 @@ async function main(): Promise<void> {
     let sentryVersion = df.sentryVersions[0];
     if (df.platform === "py" && options.sentryPythonPath) {
       sentryVersion = "local";
-    } else if (df.platform === "js" && options.sentryJavaScriptPath) {
+    } else if (df.platform === "node" && options.sentryJavaScriptPath) {
       sentryVersion = "local";
     }
 

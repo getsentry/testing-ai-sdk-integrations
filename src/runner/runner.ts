@@ -175,7 +175,7 @@ export class Runner {
     }
 
     // Determine test filename based on platform and modes
-    const extension = framework.platform === "js" ? "js" : "py";
+    const extension = framework.platform === "py" ? "py" : "js";
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
 
@@ -228,11 +228,11 @@ export class Runner {
 
   /**
    * Format a generated test file
-   * Uses Prettier JS API for JavaScript, black CLI for Python
+   * Uses Prettier JS API for JavaScript (node), black CLI for Python
    */
   private async formatFile(
     filePath: string,
-    platform: "js" | "py",
+    platform: "node" | "py",
   ): Promise<void> {
     try {
       if (platform === "py") {

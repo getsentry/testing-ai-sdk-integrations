@@ -2,7 +2,7 @@
   "name": "langgraph",
   "displayName": "LangGraph JavaScript SDK",
   "type": "agentic",
-  "platform": "js",
+  "platform": "node",
   "dependencies": [
     {
       "package": "@langchain/langgraph",

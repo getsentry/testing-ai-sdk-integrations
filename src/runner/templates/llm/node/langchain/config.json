@@ -2,7 +2,7 @@
   "name": "langchain",
   "displayName": "LangChain JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [
     {

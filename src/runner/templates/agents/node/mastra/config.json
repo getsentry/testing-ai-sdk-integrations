@@ -2,7 +2,7 @@
   "name": "mastra",
   "displayName": "Mastra AI Framework",
   "type": "agentic",
-  "platform": "js",
+  "platform": "node",
   "dependencies": [
     {
       "package": "@mastra/core",

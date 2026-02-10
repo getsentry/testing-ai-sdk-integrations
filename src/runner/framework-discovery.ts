@@ -51,13 +51,13 @@ export function discoverFrameworks(): DiscoveredFramework[] {
   for (const category of categories) {
     const categoryPath = path.join(TEMPLATES_DIR, category);
 
-    // Scan platforms (js, py)
+    // Scan platforms (node, py)
     const platforms = fs
       .readdirSync(categoryPath, { withFileTypes: true })
       .filter(
         (dirent) =>
           dirent.isDirectory() &&
-          (dirent.name === "js" || dirent.name === "py"),
+          (dirent.name === "node" || dirent.name === "py"),
       )
       .map((dirent) => dirent.name);
 
@@ -158,10 +158,10 @@ export function getFrameworksByCategory(
 }
 
 /**
- * Get frameworks by platform (js, py)
+ * Get frameworks by platform (node, py)
  */
 export function getFrameworksByPlatform(
-  platform: "js" | "py",
+  platform: "node" | "py",
 ): DiscoveredFramework[] {
   return discoverFrameworks().filter((f) => f.platform === platform);
 }
@@ -211,7 +211,7 @@ export function listFrameworks(): void {
     console.log(`${category.toUpperCase()}:`);
 
     for (const framework of categoryFrameworks) {
-      const platformIcon = framework.platform === "js" ? "🟨" : "🐍";
+      const platformIcon = framework.platform === "py" ? "🐍" : "🟢";
       const typeIcon = framework.type === "agentic" ? "🤖" : "💬";
 
       console.log(`  ${platformIcon} ${typeIcon} ${framework.name}`);
