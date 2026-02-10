@@ -231,7 +231,7 @@ async function main() {
         let sentryVersion = df.sentryVersions[0];
         if (df.platform === "py" && options.sentryPythonPath) {
           sentryVersion = "local";
-        } else if (df.platform === "js" && options.sentryJavaScriptPath) {
+        } else if (df.platform === "node" && options.sentryJavaScriptPath) {
           sentryVersion = "local";
         }
 

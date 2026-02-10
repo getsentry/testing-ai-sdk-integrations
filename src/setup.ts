@@ -34,8 +34,8 @@ function parseArgs(): SetupOptions {
     switch (arg) {
       case "--platform":
       case "-p":
-        if (value !== "js" && value !== "py") {
-          console.error('Error: --platform must be "js" or "py"');
+        if (value !== "node" && value !== "py") {
+          console.error('Error: --platform must be "node" or "py"');
           process.exit(1);
         }
         options.platform = value;
