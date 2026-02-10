@@ -1,0 +1,83 @@
+name: Daily Test Report
+
+on:
+  schedule:
+    # Every day at 6 AM UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch: # Allow manual triggers
+
+concurrency:
+  group: daily-tests
+  cancel-in-progress: true
+
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  test-and-deploy:
+    name: Run Tests & Deploy Report
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv (Python package manager)
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache JS test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/js
+          key: js-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          restore-keys: |
+            js-envs-daily-${{ runner.os }}-
+
+      - name: Cache Python test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/py
+          key: py-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          restore-keys: |
+            py-envs-daily-${{ runner.os }}-
+
+      - name: Install dependencies and build
+        run: |
+          npm install
+          npm run build
+
+      - name: Run tests
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: npm run test -- -j=12
+
+      - name: Generate HTML report
+        run: |
+          CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
+          npm run report "$CTRF_FILE"
+          mkdir -p _site
+          cp $(ls -t test-results/test-report-*.html | head -1) _site/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
