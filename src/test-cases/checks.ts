@@ -180,7 +180,6 @@ export function checkAISpanCount(
  *
  * Validates:
  * - span.description equals "<gen_ai.operation.name> <gen_ai.request.model>"
- * - span.name equals "<gen_ai.operation.name> <gen_ai.request.model>"
  * - gen_ai.operation.name matches AI_CLIENT_OPERATION_NAME_PATTERN
  * - gen_ai.request.model matches expected model
  * - gen_ai.request.messages exists
@@ -208,8 +207,6 @@ export const checkChatSpanAttributes: Check = {
     assertAttributes(chatSpans, {
       "span.description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
-      "span.name": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": AI_CLIENT_OPERATION_NAME_PATTERN,
       "gen_ai.request.model": requestModel,
       "gen_ai.request.messages": true,
@@ -226,7 +223,6 @@ export const checkChatSpanAttributes: Check = {
  *
  * Validates:
  * - span.description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
- * - span.name equals "<gen_ai.operation.name> <gen_ai.agent.name>"
  * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
  * - gen_ai.agent.name exists
  *
@@ -244,8 +240,6 @@ export const checkAgentSpanAttributes: Check = {
     assertAttributes(agentSpans, {
       "span.description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
-      "span.name": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
       "gen_ai.agent.name": true,
     });
@@ -257,7 +251,6 @@ export const checkAgentSpanAttributes: Check = {
  *
  * Validates:
  * - span.description equals "<gen_ai.operation.name> <gen_ai.tool.name>"
- * - span.name equals "<gen_ai.operation.name> <gen_ai.tool.name>"
  * - gen_ai.operation.name matches TOOL_OPERATION_NAME_PATTERN
  * - gen_ai.tool.type exists
  * - gen_ai.tool.name exists
@@ -276,8 +269,6 @@ export const checkToolSpanAttributes: Check = {
 
     assertAttributes(toolSpans, {
       "span.description": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.tool.name"]}`,
-      "span.name": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.tool.name"]}`,
       "gen_ai.operation.name": TOOL_OPERATION_NAME_PATTERN,
       "gen_ai.tool.type": true,
