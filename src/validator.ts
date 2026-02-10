@@ -8,6 +8,7 @@ import {
   FrameworkConfig,
   CheckResult,
   Check,
+  ErrorLocation,
 } from "./types.js";
 
 /**
@@ -31,6 +32,21 @@ export class SkipCheckError extends Error {
   constructor(public reason: string) {
     super(reason);
     this.name = "SkipCheckError";
+  }
+}
+
+/**
+ * Custom error thrown by check functions to report failures with location info.
+ * Carries ErrorLocation[] so the validator and reporters can pinpoint the exact
+ * span and attribute that caused the failure.
+ */
+export class CheckError extends Error {
+  public locations: ErrorLocation[];
+
+  constructor(message: string, locations: ErrorLocation[] = []) {
+    super(message);
+    this.name = "CheckError";
+    this.locations = locations;
   }
 }
 
@@ -118,15 +134,25 @@ export class Validator {
 
         // Handle regular failures
         const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorLocations: ErrorLocation[] =
+          error instanceof CheckError ? error.locations : [];
         const result: CheckResult = {
           name: checkName,
           status: "failed",
           error: errorMsg,
+          ...(errorLocations.length > 0 && { errorLocations }),
         };
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {
           console.error(`  ✗ ${checkName} failed: ${errorMsg}`);
+          if (errorLocations.length > 0) {
+            for (const loc of errorLocations) {
+              const spanRef = `span ${loc.spanId.substring(0, 8)}`;
+              const attrRef = loc.attribute ? ` attr="${loc.attribute}"` : "";
+              console.error(`    → ${spanRef}${attrRef}: ${loc.message}`);
+            }
+          }
         }
         errors.push(error instanceof Error ? error : new Error(errorMsg));
       }

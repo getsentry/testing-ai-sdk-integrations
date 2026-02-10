@@ -1041,6 +1041,18 @@ export class Orchestrator {
                 console.log(`    ${colors.dim}${line}${colors.reset}`);
               }
             }
+            // Show error locations
+            if (check.errorLocations && check.errorLocations.length > 0) {
+              for (const loc of check.errorLocations) {
+                const spanRef = `span ${loc.spanId.substring(0, 8)}`;
+                const attrRef = loc.attribute
+                  ? ` ${colors.yellow}${loc.attribute}${colors.reset}`
+                  : "";
+                console.log(
+                  `    ${colors.gray}→ ${spanRef}${attrRef}: ${loc.message}${colors.reset}`,
+                );
+              }
+            }
           }
         }
       } else if (run.status === "skipped") {

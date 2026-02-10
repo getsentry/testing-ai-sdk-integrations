@@ -18,7 +18,7 @@ client = genai.Client(
 {% if agent and agent.tools and agent.tools | length > 0 %}
 # Define tools for the agent
 {% for tool in agent.tools %}
-def {{ tool.name }}({% for prop, details in tool.parameters.properties %}{{ prop }}: {{ 'float' if details.type == 'number' else details.type }}{% if not loop.last %}, {% endif %}{% endfor %}):
+def {{ tool.name }}({% for prop, details in tool.parameters.properties %}{{ prop }}: {% if details.type == 'number' %}float{% elif details.type == 'string' %}str{% else %}{{ details.type }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
     """{{ tool.description }}"""
     return {{ tool.result }}
 
