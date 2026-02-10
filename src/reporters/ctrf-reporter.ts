@@ -5,7 +5,7 @@
  */
 
 import type { Report, Test } from "ctrf";
-import { TestReport, TestRun } from "../types.js";
+import { TestReport, TestRun, CheckResult } from "../types.js";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -77,6 +77,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       ...(run.spans && {
         spanCount: run.spans.length,
         spans: run.spans,
+      }),
+      ...(run.checkResults && {
+        checkResults: run.checkResults,
       }),
     };
 

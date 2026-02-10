@@ -179,6 +179,17 @@ export class LiveStatusReporter {
               // Show first line of error
               const errorFirstLine = check.error.split('\n')[0];
               lines.push(`        ${colors.red}↳${colors.reset} ${colors.dim}${errorFirstLine}${colors.reset}`);
+              // Show error locations if available
+              if (check.errorLocations && check.errorLocations.length > 0) {
+                for (const loc of check.errorLocations.slice(0, 3)) {
+                  const spanRef = `span ${loc.spanId.substring(0, 8)}`;
+                  const attrRef = loc.attribute ? ` ${colors.yellow}${loc.attribute}${colors.reset}` : '';
+                  lines.push(`        ${colors.gray}  → ${spanRef}${attrRef}${colors.reset}`);
+                }
+                if (check.errorLocations.length > 3) {
+                  lines.push(`        ${colors.gray}  ... and ${check.errorLocations.length - 3} more${colors.reset}`);
+                }
+              }
             } else {
               lines.push(checkLine);
             }

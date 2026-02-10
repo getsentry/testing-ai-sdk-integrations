@@ -291,10 +291,139 @@ function TestMatrix({ report }: { report: Report }) {
 }
 
 /**
- * Render spans as JSON for display
+ * Check result entry from the extra data
  */
-function formatSpans(spans: unknown[]): string {
-  return JSON.stringify(spans, null, 2);
+interface ReportCheckResult {
+  name: string;
+  status: "passed" | "failed" | "skipped";
+  error?: string;
+  skipReason?: string;
+  errorLocations?: Array<{
+    spanId: string;
+    attribute?: string;
+    message: string;
+  }>;
+}
+
+/**
+ * Escape HTML special characters to prevent XSS in pre-rendered HTML strings
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Render a single span as JSON with optional attribute highlighting.
+ */
+function renderSpanJson(span: unknown, highlightAttrs?: Set<string>): string {
+  const spanJson = JSON.stringify(span, null, 2);
+  if (!highlightAttrs || highlightAttrs.size === 0) {
+    return escapeHtml(spanJson);
+  }
+  return spanJson.split("\n").map((line) => {
+    for (const attr of highlightAttrs) {
+      const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`^\\s*"${escaped}"\\s*:`).test(line)) {
+        return `<span class="highlight-error">${escapeHtml(line)}</span>`;
+      }
+    }
+    return escapeHtml(line);
+  }).join("\n");
+}
+
+/**
+ * Render check results breakdown.
+ *
+ * Failed checks show the error message. Error locations are grouped by spanId;
+ * each group has a toggle icon to show/hide that span's JSON with failing
+ * attributes highlighted.
+ */
+function CheckResultsBreakdown({
+  checkResults,
+  spans,
+}: {
+  checkResults: ReportCheckResult[];
+  spans: unknown[] | undefined;
+}) {
+  if (!checkResults || checkResults.length === 0) return "";
+
+  // Index spans by span_id for quick lookup
+  const spanById = new Map<string, unknown>();
+  if (spans) {
+    for (const s of spans) {
+      const id = (s as Record<string, unknown>).span_id as string | undefined;
+      if (id) spanById.set(id, s);
+    }
+  }
+
+  const items = checkResults.map((cr) => {
+    if (cr.status === "passed") {
+      return html`<div class="check-result check-passed">
+        <span class="check-icon">✓</span>
+        <span class="check-name">${cr.name}</span>
+      </div>`;
+    } else if (cr.status === "skipped") {
+      return html`<div class="check-result check-skipped">
+        <span class="check-icon">○</span>
+        <span class="check-name">${cr.name}</span>
+        ${cr.skipReason ? html`<span class="check-skip-reason">(${cr.skipReason})</span>` : ""}
+      </div>`;
+    } else {
+      // failed - group error locations by spanId
+      const groups = new Map<string, typeof cr.errorLocations>();
+      if (cr.errorLocations) {
+        for (const loc of cr.errorLocations) {
+          if (!groups.has(loc.spanId)) groups.set(loc.spanId, []);
+          groups.get(loc.spanId)!.push(loc);
+        }
+      }
+
+      return html`<div class="check-result check-failed">
+        <span class="check-icon">✗</span>
+        <span class="check-name">${cr.name}</span>
+        ${cr.error ? html`<div class="check-error-msg">${cr.error}</div>` : ""}
+        ${groups.size > 0
+          ? html`<div class="check-locations">
+              ${[...groups.entries()].map(([spanId, locs]) => {
+                const highlightAttrs = new Set<string>();
+                for (const loc of locs!) {
+                  if (loc.attribute) highlightAttrs.add(loc.attribute);
+                }
+                const span = spanById.get(spanId);
+                return html`<div class="span-group">
+                  <div class="span-group-header">
+                    <span class="loc-span">${spanId.substring(0, 8)}</span>
+                    ${span
+                      ? html`<button class="show-span-btn" onclick="toggleSpanPreview(this)" title="Show/hide span JSON" dangerouslySetInnerHTML=${{ __html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>' }}></button>`
+                      : ""}
+                  </div>
+                  <div class="span-group-errors">
+                    ${locs!.map(
+                      (loc) => html`<div class="check-location">
+                        ${loc.attribute ? html`<span class="loc-attr">${loc.attribute}</span>` : ""}
+                        <span class="loc-msg">${loc.message}</span>
+                      </div>`,
+                    )}
+                  </div>
+                  ${span
+                    ? html`<pre class="span-preview" style="display:none" dangerouslySetInnerHTML=${{ __html: renderSpanJson(span, highlightAttrs) }}></pre>`
+                    : ""}
+                </div>`;
+              })}
+            </div>`
+          : ""}
+      </div>`;
+    }
+  });
+
+  return html`<div class="check-results-breakdown">
+    <strong>Check Results:</strong>
+    ${items}
+  </div>`;
 }
 
 /**
@@ -314,6 +443,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const extra = test.extra as Record<string, unknown> | undefined;
       const spans = extra?.spans as unknown[] | undefined;
       const spanCount = extra?.spanCount as number | undefined;
+      const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
 
       return html`
         <details class="failed-test">
@@ -328,14 +458,16 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
             <span class="duration">(${test.duration}ms)</span>
           </summary>
           <div class="error-details">
-            ${test.trace
-              ? html`
-                  <div class="error-trace">
-                    <strong>Details:</strong>
-                    <pre>${test.trace}</pre>
-                  </div>
-                `
-              : ""}
+            ${checkResults && checkResults.length > 0
+              ? CheckResultsBreakdown({ checkResults, spans })
+              : test.trace
+                ? html`
+                    <div class="error-trace">
+                      <strong>Details:</strong>
+                      <pre>${test.trace}</pre>
+                    </div>
+                  `
+                : ""}
             ${spans && spans.length > 0
               ? html`
                   <details class="spans-section">
@@ -343,7 +475,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
                       <span class="spans-icon">{}</span>
                       Captured Spans (${spanCount || spans.length})
                     </summary>
-                    <pre class="spans-json">${formatSpans(spans)}</pre>
+                    <pre class="spans-json">${JSON.stringify(spans, null, 2)}</pre>
                   </details>
                 `
               : spanCount === 0
@@ -607,6 +739,159 @@ export function generateHTML(report: Report): string {
             font-size: 13px;
             line-height: 1.5;
           }
+          /* Check results breakdown */
+          .check-results-breakdown {
+            margin: 10px 0 15px 0;
+            padding: 12px;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+          }
+          .check-results-breakdown > strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #333;
+          }
+          .check-result {
+            padding: 4px 0 4px 8px;
+            font-size: 13px;
+            border-left: 3px solid transparent;
+            margin: 2px 0;
+          }
+          .check-result .check-icon {
+            display: inline-block;
+            width: 16px;
+            font-weight: bold;
+          }
+          .check-result .check-name {
+            font-family: monospace;
+            font-size: 12px;
+          }
+          .check-passed {
+            border-left-color: #4caf50;
+          }
+          .check-passed .check-icon {
+            color: #2e7d32;
+          }
+          .check-skipped {
+            border-left-color: #ffc107;
+          }
+          .check-skipped .check-icon {
+            color: #f57f17;
+          }
+          .check-skip-reason {
+            color: #999;
+            font-size: 12px;
+            margin-left: 8px;
+          }
+          .check-failed {
+            border-left-color: #f44336;
+            background: #fff8f8;
+          }
+          .check-failed .check-icon {
+            color: #c62828;
+          }
+          .check-failed .check-name {
+            font-weight: 600;
+          }
+          .check-error-msg {
+            margin: 4px 0 4px 24px;
+            font-size: 12px;
+            color: #888;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 120px;
+            overflow: auto;
+          }
+          .check-locations {
+            margin: 6px 0 2px 24px;
+            font-size: 12px;
+          }
+          .span-group {
+            margin: 4px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+          }
+          .span-group-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #e0e0e0;
+            justify-content: space-between;
+          }
+          .span-group-errors {
+            padding: 2px 8px;
+          }
+          .check-location {
+            padding: 2px 0;
+            font-family: monospace;
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            flex-wrap: wrap;
+          }
+          .loc-span {
+            color: #1565c0;
+            font-weight: 600;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: nowrap;
+          }
+          .loc-attr {
+            color: #c62828;
+            font-weight: 600;
+            white-space: nowrap;
+          }
+          .loc-msg {
+            color: #555;
+            flex: 1;
+          }
+          .show-span-btn {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            background: none;
+            border: 1px solid #90caf9;
+            border-radius: 3px;
+            cursor: pointer;
+            flex-shrink: 0;
+            color: #1565c0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .show-span-btn svg {
+            width: 14px;
+            height: 14px;
+          }
+          .show-span-btn:hover {
+            background: #e3f2fd;
+          }
+          .show-span-btn.open {
+            background: #bbdefb;
+          }
+          .span-preview {
+            margin: 0;
+            padding: 10px 15px;
+            background: #263238;
+            color: #aed581;
+            font-size: 12px;
+            border-radius: 0;
+            overflow-x: auto;
+            max-height: 300px;
+          }
+          .span-preview .highlight-error {
+            background: rgba(244, 67, 54, 0.25);
+            display: inline-block;
+            width: 100%;
+            margin: 0 -15px;
+            padding: 0 15px;
+            border-left: 3px solid #f44336;
+          }
         </style>
       </head>
       <body>
@@ -617,6 +902,17 @@ export function generateHTML(report: Report): string {
           ${TestMatrix({ report })}
           ${FailedTestsDetails({ tests: report.results.tests })}
         </div>
+        <script dangerouslySetInnerHTML=${{ __html: `
+          function toggleSpanPreview(btn) {
+            var group = btn.closest('.span-group');
+            if (!group) return;
+            var pre = group.querySelector('.span-preview');
+            if (!pre) return;
+            var showing = pre.style.display !== 'none';
+            pre.style.display = showing ? 'none' : 'block';
+            btn.classList.toggle('open', !showing);
+          }
+        ` }}></script>
       </body>
     </html>
   `;

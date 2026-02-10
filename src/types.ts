@@ -121,11 +121,27 @@ export interface FrameworkConfig {
   };
 }
 
+/**
+ * Describes the location of a check failure within captured span data.
+ * Used to highlight the exact span and attribute that caused the failure
+ * in HTML reports and terminal output.
+ */
+export interface ErrorLocation {
+  /** The span_id of the offending span */
+  spanId: string;
+  /** The attribute key that failed validation (e.g., "gen_ai.request.model") */
+  attribute?: string;
+  /** Human-readable description of what went wrong */
+  message: string;
+}
+
 export interface CheckResult {
   name: string;
   status: "passed" | "failed" | "skipped";
   error?: string;
   skipReason?: string;
+  /** Locations within span data that caused the failure */
+  errorLocations?: ErrorLocation[];
 }
 
 export interface TestRun {

@@ -37,8 +37,8 @@
  *
  */
 
-import { expect } from "chai";
-import { CapturedSpan, FrameworkConfig, TestDefinition } from "../types.js";
+import { CapturedSpan, FrameworkConfig, TestDefinition, ErrorLocation } from "../types.js";
+import { CheckError } from "../validator.js";
 import {
   extractGenAISpans,
   findAgentSpans,
@@ -83,42 +83,56 @@ export const checkInputMessages: Check = {
       "gen_ai.input.messages not found (SDK may not have migrated to new format yet)",
     );
 
-    // Validate the schema of the new attribute
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
+
     for (const span of spansWithNewAttr) {
       const messagesRaw = span.data?.["gen_ai.input.messages"];
 
-      // Parse if JSON string
       let messages: unknown[];
       if (typeof messagesRaw === "string") {
         try {
           messages = JSON.parse(messagesRaw);
         } catch {
-          throw new Error(
-            `Invalid JSON in gen_ai.input.messages: ${messagesRaw.substring(0, 100)}...`,
-          );
+          const msg = `Invalid JSON in gen_ai.input.messages: ${messagesRaw.substring(0, 100)}...`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: msg });
+          continue;
         }
       } else {
         messages = messagesRaw as unknown[];
       }
 
-      expect(Array.isArray(messages), "gen_ai.input.messages should be an array")
-        .to.be.true;
-      expect(messages.length, "gen_ai.input.messages should not be empty").to.be
-        .greaterThan(0);
-
-      // Validate each message has required fields
-      for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i] as Record<string, unknown>;
-        expect(msg.role, `messages[${i}] should have a role field`).to.exist;
-
-        // New format uses "parts" array
-        const hasParts = msg.parts !== undefined;
-        const hasContent = msg.content !== undefined;
-        expect(
-          hasParts || hasContent,
-          `messages[${i}] should have "parts" (new format) or "content" (legacy)`,
-        ).to.be.true;
+      if (!Array.isArray(messages)) {
+        const msg = "gen_ai.input.messages should be an array";
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: msg });
+        continue;
       }
+      if (messages.length === 0) {
+        const msg = "gen_ai.input.messages should not be empty";
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: msg });
+        continue;
+      }
+
+      for (let i = 0; i < messages.length; i++) {
+        const msgObj = messages[i] as Record<string, unknown>;
+        if (!msgObj.role) {
+          const msg = `messages[${i}] should have a role field`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: msg });
+        }
+        if (msgObj.parts === undefined && msgObj.content === undefined) {
+          const msg = `messages[${i}] should have "parts" (new format) or "content" (legacy)`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: msg });
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
     }
   },
 };
@@ -152,45 +166,60 @@ export const checkOutputMessages: Check = {
       "gen_ai.output.messages not found (SDK may not have migrated to new format yet)",
     );
 
-    // Validate the schema
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
+
     for (const span of spansWithNewAttr) {
       const messagesRaw = span.data?.["gen_ai.output.messages"];
 
-      // Parse if JSON string
       let messages: unknown[];
       if (typeof messagesRaw === "string") {
         try {
           messages = JSON.parse(messagesRaw);
         } catch {
-          throw new Error(
-            `Invalid JSON in gen_ai.output.messages: ${messagesRaw.substring(0, 100)}...`,
-          );
+          const msg = `Invalid JSON in gen_ai.output.messages: ${String(messagesRaw).substring(0, 100)}...`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+          continue;
         }
       } else {
         messages = messagesRaw as unknown[];
       }
 
-      expect(
-        Array.isArray(messages),
-        "gen_ai.output.messages should be an array",
-      ).to.be.true;
-      expect(messages.length, "gen_ai.output.messages should not be empty").to.be
-        .greaterThan(0);
-
-      // Validate each output message
-      for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i] as Record<string, unknown>;
-        expect(msg.role, `output.messages[${i}] should have a role field`).to
-          .exist;
-        expect(msg.role, `output.messages[${i}].role should be "assistant"`).to
-          .equal("assistant");
-
-        // Should have parts array
-        expect(
-          msg.parts !== undefined,
-          `output.messages[${i}] should have "parts" array`,
-        ).to.be.true;
+      if (!Array.isArray(messages)) {
+        const msg = "gen_ai.output.messages should be an array";
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+        continue;
       }
+      if (messages.length === 0) {
+        const msg = "gen_ai.output.messages should not be empty";
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+        continue;
+      }
+
+      for (let i = 0; i < messages.length; i++) {
+        const msgObj = messages[i] as Record<string, unknown>;
+        if (!msgObj.role) {
+          const msg = `output.messages[${i}] should have a role field`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+        } else if (msgObj.role !== "assistant") {
+          const msg = `output.messages[${i}].role should be "assistant" but is "${msgObj.role}"`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+        }
+        if (msgObj.parts === undefined) {
+          const msg = `output.messages[${i}] should have "parts" array`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
     }
   },
 };
@@ -229,13 +258,15 @@ export const checkSystemInstructions: Check = {
       "gen_ai.system_instructions not found (SDK may not have migrated to new format yet)",
     );
 
-    // Validate the attribute
+    const locations: ErrorLocation[] = [];
     for (const span of spansWithNewAttr) {
       const instructions = span.data?.["gen_ai.system_instructions"];
-      expect(
-        typeof instructions === "string",
-        "gen_ai.system_instructions should be a string",
-      ).to.be.true;
+      if (typeof instructions !== "string") {
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.system_instructions", message: `should be a string but is ${typeof instructions}` });
+      }
+    }
+    if (locations.length > 0) {
+      throw new CheckError(`gen_ai.system_instructions validation failed:\n  ${locations.map(l => l.message).join("\n  ")}`, locations);
     }
   },
 };
@@ -274,36 +305,44 @@ export const checkToolDefinitions: Check = {
       "gen_ai.tool.definitions not found (SDK may not have migrated to new format yet)",
     );
 
-    const toolDefsRaw = spanWithNewAttr!.data?.["gen_ai.tool.definitions"];
+    const span = spanWithNewAttr!;
+    const toolDefsRaw = span.data?.["gen_ai.tool.definitions"];
 
-    // Parse if JSON string
     let toolDefs: Array<Record<string, unknown>>;
     if (typeof toolDefsRaw === "string") {
       try {
         toolDefs = JSON.parse(toolDefsRaw);
       } catch {
-        throw new Error(
+        throw new CheckError(
           `Invalid JSON in gen_ai.tool.definitions: ${toolDefsRaw}`,
+          [{ spanId: span.span_id, attribute: "gen_ai.tool.definitions", message: "Invalid JSON" }],
         );
       }
     } else {
       toolDefs = toolDefsRaw as Array<Record<string, unknown>>;
     }
 
-    expect(Array.isArray(toolDefs), "gen_ai.tool.definitions should be an array")
-      .to.be.true;
+    if (!Array.isArray(toolDefs)) {
+      throw new CheckError("gen_ai.tool.definitions should be an array", [
+        { spanId: span.span_id, attribute: "gen_ai.tool.definitions", message: "Not an array" },
+      ]);
+    }
 
-    // Check each defined tool exists
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
     for (const definedTool of definedTools) {
       const foundTool = toolDefs.find((t) => {
-        // Tools can have name at top level or nested under "function"
-        const toolName =
-          t.name || (t.function as Record<string, unknown>)?.name;
+        const toolName = t.name || (t.function as Record<string, unknown>)?.name;
         return toolName === definedTool.name;
       });
-
-      expect(foundTool, `Tool definitions should include "${definedTool.name}"`)
-        .to.exist;
+      if (!foundTool) {
+        const msg = `Tool definitions should include "${definedTool.name}"`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.definitions", message: msg });
+      }
+    }
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
     }
   },
 };
@@ -339,25 +378,21 @@ export const checkToolCallArguments: Check = {
       "gen_ai.tool.call.arguments not found (SDK may not have migrated to new format yet)",
     );
 
-    // Validate the attribute
+    const locations: ErrorLocation[] = [];
     for (const span of spansWithNewAttr) {
       const argsRaw = span.data?.["gen_ai.tool.call.arguments"];
-      expect(argsRaw, "gen_ai.tool.call.arguments should exist").to.exist;
-
-      // Should be a string (stringified JSON)
-      expect(
-        typeof argsRaw === "string",
-        "gen_ai.tool.call.arguments should be a string (stringified JSON)",
-      ).to.be.true;
-
-      // Should be valid JSON
-      try {
-        JSON.parse(argsRaw as string);
-      } catch {
-        throw new Error(
-          `gen_ai.tool.call.arguments is not valid JSON: ${argsRaw}`,
-        );
+      if (typeof argsRaw !== "string") {
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.call.arguments", message: `should be a string but is ${typeof argsRaw}` });
+        continue;
       }
+      try {
+        JSON.parse(argsRaw);
+      } catch {
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.call.arguments", message: "not valid JSON" });
+      }
+    }
+    if (locations.length > 0) {
+      throw new CheckError(`gen_ai.tool.call.arguments validation failed:\n  ${locations.map(l => l.message).join("\n  ")}`, locations);
     }
   },
 };
@@ -389,16 +424,15 @@ export const checkToolCallResult: Check = {
       "gen_ai.tool.call.result not found (SDK may not have migrated to new format yet)",
     );
 
-    // Validate the attribute
+    const locations: ErrorLocation[] = [];
     for (const span of spansWithNewAttr) {
       const resultRaw = span.data?.["gen_ai.tool.call.result"];
-      expect(resultRaw, "gen_ai.tool.call.result should exist").to.exist;
-
-      // Should be a string (stringified result)
-      expect(
-        typeof resultRaw === "string",
-        "gen_ai.tool.call.result should be a string",
-      ).to.be.true;
+      if (typeof resultRaw !== "string") {
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.call.result", message: `should be a string but is ${typeof resultRaw}` });
+      }
+    }
+    if (locations.length > 0) {
+      throw new CheckError(`gen_ai.tool.call.result validation failed:\n  ${locations.map(l => l.message).join("\n  ")}`, locations);
     }
   },
 };
@@ -427,12 +461,10 @@ export function checkToolCallsNewFormat(
     name: `checkToolCallsNewFormat(${toolNames})`,
     fn: (spans) => {
       const toolSpans = findToolSpans(extractGenAISpans(spans));
-      expect(
-        toolSpans.length,
-        `Should have at least ${expectedTools.length} tool span(s)`,
-      ).to.be.at.least(expectedTools.length);
+      if (toolSpans.length < expectedTools.length) {
+        throw new CheckError(`Should have at least ${expectedTools.length} tool span(s) but found ${toolSpans.length}`);
+      }
 
-      // Check if any spans use new format
       const hasNewFormat = toolSpans.some(
         (s) =>
           s.data?.["gen_ai.tool.call.arguments"] !== undefined ||
@@ -444,73 +476,84 @@ export function checkToolCallsNewFormat(
         "Tool spans do not use new format (gen_ai.tool.call.arguments/result)",
       );
 
+      const errors: string[] = [];
+      const locations: ErrorLocation[] = [];
+
       for (const expected of expectedTools) {
         const toolSpan = toolSpans.find(
           (s) => s.data?.["gen_ai.tool.name"] === expected.name,
         );
-        expect(toolSpan, `Should have a tool span for "${expected.name}"`).to
-          .exist;
+        if (!toolSpan) {
+          errors.push(`Should have a tool span for "${expected.name}"`);
+          continue;
+        }
 
-        const span = toolSpan!;
-
-        // Validate arguments using new format
         if (expected.input !== undefined) {
-          const argsRaw = span.data?.["gen_ai.tool.call.arguments"];
-          expect(
-            argsRaw,
-            `Tool "${expected.name}" should have gen_ai.tool.call.arguments`,
-          ).to.exist;
-
-          let args: Record<string, unknown>;
-          if (typeof argsRaw === "string") {
-            try {
-              args = JSON.parse(argsRaw);
-            } catch {
-              throw new Error(
-                `Tool "${expected.name}" has invalid JSON in gen_ai.tool.call.arguments`,
-              );
-            }
+          const argsRaw = toolSpan.data?.["gen_ai.tool.call.arguments"];
+          if (argsRaw === undefined || argsRaw === null) {
+            const msg = `Tool "${expected.name}" should have gen_ai.tool.call.arguments`;
+            errors.push(msg);
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.arguments", message: msg });
           } else {
-            args = argsRaw as Record<string, unknown>;
-          }
+            let args: Record<string, unknown>;
+            if (typeof argsRaw === "string") {
+              try { args = JSON.parse(argsRaw); } catch {
+                const msg = `Tool "${expected.name}" has invalid JSON in gen_ai.tool.call.arguments`;
+                errors.push(msg);
+                locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.arguments", message: msg });
+                continue;
+              }
+            } else {
+              args = argsRaw as Record<string, unknown>;
+            }
 
-          for (const [key, value] of Object.entries(expected.input)) {
-            expect(
-              args[key],
-              `Tool "${expected.name}" args should have "${key}"`,
-            ).to.exist;
-            if (value !== undefined) {
-              const actualValue = args[key];
-              if (typeof value === "number" && typeof actualValue === "string") {
-                expect(Number(actualValue)).to.equal(value);
-              } else {
-                expect(actualValue).to.deep.equal(value);
+            for (const [key, value] of Object.entries(expected.input)) {
+              if (args[key] === undefined || args[key] === null) {
+                const msg = `Tool "${expected.name}" args should have "${key}"`;
+                errors.push(msg);
+                locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.arguments", message: msg });
+              } else if (value !== undefined) {
+                const actualValue = args[key];
+                let matches = false;
+                if (typeof value === "number" && typeof actualValue === "string") {
+                  matches = Number(actualValue) === value;
+                } else {
+                  matches = JSON.stringify(actualValue) === JSON.stringify(value);
+                }
+                if (!matches) {
+                  const msg = `Tool "${expected.name}" args.${key} should equal ${JSON.stringify(value)} but is ${JSON.stringify(actualValue)}`;
+                  errors.push(msg);
+                  locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.arguments", message: msg });
+                }
               }
             }
           }
         }
 
-        // Validate result using new format
         if (expected.output !== undefined) {
-          const resultRaw = span.data?.["gen_ai.tool.call.result"];
-          expect(
-            resultRaw,
-            `Tool "${expected.name}" should have gen_ai.tool.call.result`,
-          ).to.exist;
-
-          let result: unknown;
-          if (typeof resultRaw === "string") {
-            try {
-              result = JSON.parse(resultRaw);
-            } catch {
+          const resultRaw = toolSpan.data?.["gen_ai.tool.call.result"];
+          if (resultRaw === undefined || resultRaw === null) {
+            const msg = `Tool "${expected.name}" should have gen_ai.tool.call.result`;
+            errors.push(msg);
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.result", message: msg });
+          } else {
+            let result: unknown;
+            if (typeof resultRaw === "string") {
+              try { result = JSON.parse(resultRaw); } catch { result = resultRaw; }
+            } else {
               result = resultRaw;
             }
-          } else {
-            result = resultRaw;
+            if (JSON.stringify(result) !== JSON.stringify(expected.output)) {
+              const msg = `Tool "${expected.name}" result should equal ${JSON.stringify(expected.output)} but is ${JSON.stringify(result)}`;
+              errors.push(msg);
+              locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.result", message: msg });
+            }
           }
-
-          expect(result).to.deep.equal(expected.output);
         }
+      }
+
+      if (errors.length > 0) {
+        throw new CheckError(errors.join("\n"), locations);
       }
     },
   };
@@ -548,23 +591,23 @@ export function checkOutputMessagesToolCalls(
         "gen_ai.output.messages not found (SDK may not have migrated to new format yet)",
       );
 
-      const outputRaw = spanWithOutput!.data?.["gen_ai.output.messages"];
+      const span = spanWithOutput!;
+      const outputRaw = span.data?.["gen_ai.output.messages"];
 
-      // Parse if JSON string
       let outputMessages: Array<Record<string, unknown>>;
       if (typeof outputRaw === "string") {
         try {
           outputMessages = JSON.parse(outputRaw);
         } catch {
-          throw new Error(
+          throw new CheckError(
             `Invalid JSON in gen_ai.output.messages: ${outputRaw}`,
+            [{ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Invalid JSON" }],
           );
         }
       } else {
         outputMessages = outputRaw as Array<Record<string, unknown>>;
       }
 
-      // Extract all tool_call parts from output messages
       const allToolCalls: Array<Record<string, unknown>> = [];
       for (const msg of outputMessages) {
         const parts = msg.parts as Array<Record<string, unknown>> | undefined;
@@ -577,47 +620,61 @@ export function checkOutputMessagesToolCalls(
         }
       }
 
-      expect(
-        allToolCalls.length,
-        `Should have at least ${expectedToolCalls.length} tool call(s) in output messages`,
-      ).to.be.at.least(expectedToolCalls.length);
+      const errors: string[] = [];
+      const locations: ErrorLocation[] = [];
 
-      // Check each expected tool call
+      if (allToolCalls.length < expectedToolCalls.length) {
+        const msg = `Should have at least ${expectedToolCalls.length} tool call(s) in output messages but found ${allToolCalls.length}`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+      }
+
       for (const expected of expectedToolCalls) {
         const foundCall = allToolCalls.find((tc) => tc.name === expected.name);
-        expect(
-          foundCall,
-          `Output messages should include tool call for "${expected.name}"`,
-        ).to.exist;
+        if (!foundCall) {
+          const msg = `Output messages should include tool call for "${expected.name}"`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+          continue;
+        }
 
-        // Check arguments
         let actualArgs: Record<string, unknown>;
-        const argsRaw = foundCall!.arguments;
-
+        const argsRaw = foundCall.arguments;
         if (typeof argsRaw === "string") {
-          try {
-            actualArgs = JSON.parse(argsRaw);
-          } catch {
-            throw new Error(
-              `Invalid JSON in tool call arguments for "${expected.name}"`,
-            );
+          try { actualArgs = JSON.parse(argsRaw); } catch {
+            const msg = `Invalid JSON in tool call arguments for "${expected.name}"`;
+            errors.push(msg);
+            locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+            continue;
           }
         } else {
           actualArgs = (argsRaw as Record<string, unknown>) || {};
         }
 
         for (const [key, value] of Object.entries(expected.arguments)) {
-          expect(
-            actualArgs[key],
-            `Tool call "${expected.name}" should have argument "${key}"`,
-          ).to.exist;
-          const actualValue = actualArgs[key];
-          if (typeof value === "number" && typeof actualValue === "string") {
-            expect(Number(actualValue)).to.equal(value);
+          if (actualArgs[key] === undefined || actualArgs[key] === null) {
+            const msg = `Tool call "${expected.name}" should have argument "${key}"`;
+            errors.push(msg);
+            locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
           } else {
-            expect(actualValue).to.deep.equal(value);
+            const actualValue = actualArgs[key];
+            let matches = false;
+            if (typeof value === "number" && typeof actualValue === "string") {
+              matches = Number(actualValue) === value;
+            } else {
+              matches = JSON.stringify(actualValue) === JSON.stringify(value);
+            }
+            if (!matches) {
+              const msg = `Tool call "${expected.name}" argument "${key}" should equal ${JSON.stringify(value)} but is ${JSON.stringify(actualValue)}`;
+              errors.push(msg);
+              locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: msg });
+            }
           }
         }
+      }
+
+      if (errors.length > 0) {
+        throw new CheckError(errors.join("\n"), locations);
       }
     },
   };

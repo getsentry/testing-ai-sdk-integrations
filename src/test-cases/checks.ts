@@ -5,13 +5,13 @@
  *   (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void
  *
  * Check functions can:
- * - Throw an error to fail the check
+ * - Throw a CheckError with ErrorLocation[] to fail with precise span/attribute info
+ * - Throw a regular Error to fail the check
  * - Call skip() or skipIf() to skip the check
- * - Use expect() from chai for assertions
  */
 
-import { expect } from "chai";
-import { CapturedSpan, FrameworkConfig, TestDefinition } from "../types.js";
+import { CapturedSpan, FrameworkConfig, TestDefinition, ErrorLocation } from "../types.js";
+import { CheckError } from "../validator.js";
 import {
   extractGenAISpans,
   findAgentSpans,
@@ -22,7 +22,13 @@ import {
   checkTokenUsage,
   skip,
   skipIf,
+  AGENT_OPERATION_NAME_PATTERN,
+  AI_CLIENT_OPERATION_NAME_PATTERN,
+  TOOL_OPERATION_NAME_PATTERN,
+  HANDOFF_OPERATION_NAME_PATTERN,
 } from "./utils.js";
+
+
 
 /**
  * Check function signature
@@ -40,63 +46,6 @@ export interface Check {
   name: string;
   fn: CheckFunction;
 }
-
-// =============================================================================
-// Operation Name Patterns
-// =============================================================================
-// These patterns are derived from the Sentry backend logic that determines
-// gen_ai.operation.type from gen_ai.operation.name.
-//
-// Reference (Rust code that determines operation type):
-// - "agent" type: invoke_agent, create_agent, ai.run.*, ai.pipeline.*, ai.streamText, ai.generateText, ai.generateObject
-// - "ai_client" type: *.doStream, *.doGenerate (the actual LLM API calls)
-// - "tool" type: execute_tool, ai.toolCall.*
-// - "handoff" type: handoff
-
-/**
- * Pattern for agent operation names (gen_ai.operation.name)
- *
- * Matches:
- * - gen_ai.invoke_agent, invoke_agent
- * - gen_ai.create_agent, create_agent
- * - ai.run.generateText, ai.run.generateObject
- * - ai.pipeline.generate_text, ai.pipeline.generate_object, ai.pipeline.stream_text, ai.pipeline.stream_object
- * - ai.streamText (but NOT ai.streamText.doStream)
- * - ai.generateText (but NOT ai.generateText.doGenerate)
- * - ai.generateObject (but NOT ai.generateObject.doGenerate)
- */
-export const AGENT_OPERATION_NAME_PATTERN =
-  /^(gen_ai\.)?(invoke_agent|create_agent)$|^ai\.run\.(generateText|generateObject)$|^ai\.pipeline\.(generate_text|generate_object|stream_text|stream_object)$|^ai\.(streamText|generateText|generateObject)(?!\.do)/;
-
-/**
- * Pattern for ai_client (chat/completion) operation names (gen_ai.operation.name)
- *
- * Matches:
- * - ai.streamText.doStream.*
- * - ai.generateText.doGenerate.*
- * - ai.generateObject.doGenerate.*
- * - chat, completion, generate (legacy)
- */
-export const AI_CLIENT_OPERATION_NAME_PATTERN =
-  /^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate)|^(gen_ai\.)?(chat|completion|generate)/;
-
-/**
- * Pattern for tool operation names (gen_ai.operation.name)
- *
- * Matches:
- * - gen_ai.execute_tool, execute_tool
- * - ai.toolCall.*
- */
-export const TOOL_OPERATION_NAME_PATTERN =
-  /^(gen_ai\.)?(execute_tool|tool|tool_call)$|^ai\.toolCall/;
-
-/**
- * Pattern for handoff operation names (gen_ai.operation.name)
- *
- * Matches:
- * - gen_ai.handoff, handoff
- */
-export const HANDOFF_OPERATION_NAME_PATTERN = /^(gen_ai\.)?handoff$/;
 
 // =============================================================================
 // Structure Checks
@@ -147,24 +96,21 @@ export function checkAISpanCount(
       const aiSpans = extractGenAISpans(spans);
 
       if (typeof expected === "number") {
-        // Exact count
-        expect(
-          aiSpans.length,
-          `Should have exactly ${expected} AI span(s)`,
-        ).to.equal(expected);
-      } else {
-        // Range check
-        if (expected.min !== undefined) {
-          expect(
-            aiSpans.length,
-            `Should have at least ${expected.min} AI span(s)`,
-          ).to.be.at.least(expected.min);
+        if (aiSpans.length !== expected) {
+          throw new CheckError(
+            `Should have exactly ${expected} AI span(s) but found ${aiSpans.length}`,
+          );
         }
-        if (expected.max !== undefined) {
-          expect(
-            aiSpans.length,
-            `Should have at most ${expected.max} AI span(s)`,
-          ).to.be.at.most(expected.max);
+      } else {
+        const errors: string[] = [];
+        if (expected.min !== undefined && aiSpans.length < expected.min) {
+          errors.push(`Should have at least ${expected.min} AI span(s) but found ${aiSpans.length}`);
+        }
+        if (expected.max !== undefined && aiSpans.length > expected.max) {
+          errors.push(`Should have at most ${expected.max} AI span(s) but found ${aiSpans.length}`);
+        }
+        if (errors.length > 0) {
+          throw new CheckError(errors.join("\n"));
         }
       }
     },
@@ -195,10 +141,9 @@ export const checkChatSpanAttributes: Check = {
   name: "checkChatSpanAttributes",
   fn: (spans, config, testDef) => {
     const chatSpans = findChatSpans(extractGenAISpans(spans));
-    expect(
-      chatSpans.length,
-      "Should have at least one chat/completion span",
-    ).to.be.greaterThan(0);
+    if (chatSpans.length === 0) {
+      throw new CheckError("Should have at least one chat/completion span");
+    }
 
     const requestModel =
       config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
@@ -236,10 +181,9 @@ export const checkAgentSpanAttributes: Check = {
   name: "checkAgentSpanAttributes",
   fn: (spans) => {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
-    expect(
-      agentSpans.length,
-      "Should have at least one agent span",
-    ).to.be.greaterThan(0);
+    if (agentSpans.length === 0) {
+      throw new CheckError("Should have at least one agent span");
+    }
 
     assertAttributes(agentSpans, {
       "span.description": (span) =>
@@ -269,10 +213,9 @@ export const checkToolSpanAttributes: Check = {
   name: "checkToolSpanAttributes",
   fn: (spans) => {
     const toolSpans = findToolSpans(extractGenAISpans(spans));
-    expect(
-      toolSpans.length,
-      "Should have at least one tool span",
-    ).to.be.greaterThan(0);
+    if (toolSpans.length === 0) {
+      throw new CheckError("Should have at least one tool span");
+    }
 
     assertAttributes(toolSpans, {
       "span.description": (span) =>
@@ -332,82 +275,88 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
     name: `checkToolCalls(${toolNames})`,
     fn: (spans) => {
       const toolSpans = findToolSpans(extractGenAISpans(spans));
-      expect(
-        toolSpans.length,
-        `Should have at least ${expectedTools.length} tool span(s)`,
-      ).to.be.at.least(expectedTools.length);
+      if (toolSpans.length < expectedTools.length) {
+        throw new CheckError(
+          `Should have at least ${expectedTools.length} tool span(s) but found ${toolSpans.length}`,
+        );
+      }
+
+      const errors: string[] = [];
+      const locations: ErrorLocation[] = [];
 
       for (const expected of expectedTools) {
         // Find the tool span matching this expected tool
         const toolSpan = toolSpans.find(
           (s) => s.data?.["gen_ai.tool.name"] === expected.name,
         );
-        expect(toolSpan, `Should have a tool span for "${expected.name}"`).to
-          .exist;
+        if (!toolSpan) {
+          errors.push(`Should have a tool span for "${expected.name}"`);
+          continue;
+        }
 
-        const span = toolSpan!;
 
         // Validate type if specified
         if (expected.type !== undefined) {
-          expect(
-            span.data?.["gen_ai.tool.type"],
-            `Tool "${expected.name}" should have type "${expected.type}"`,
-          ).to.equal(expected.type);
+          const actual = toolSpan.data?.["gen_ai.tool.type"];
+          if (actual !== expected.type) {
+            const msg = `Tool "${expected.name}" should have type "${expected.type}" but has "${actual}"`;
+            errors.push(msg);
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.type", message: msg });
+          }
         }
 
         // Validate description if specified
         if (expected.description !== undefined) {
-          expect(
-            span.data?.["gen_ai.tool.description"],
-            `Tool "${expected.name}" should have description`,
-          ).to.equal(expected.description);
+          const actual = toolSpan.data?.["gen_ai.tool.description"];
+          if (actual !== expected.description) {
+            const msg = `Tool "${expected.name}" should have description "${expected.description}" but has "${actual}"`;
+            errors.push(msg);
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.description", message: msg });
+          }
         }
 
         // Validate input if specified
         if (expected.input !== undefined) {
-          const inputRaw = span.data?.["gen_ai.tool.input"];
-          expect(
-            inputRaw,
-            `Tool "${expected.name}" should have gen_ai.tool.input`,
-          ).to.exist;
-
-          // Parse input if it's a JSON string
-          let input: Record<string, unknown>;
-          if (typeof inputRaw === "string") {
-            try {
-              input = JSON.parse(inputRaw);
-            } catch {
-              throw new Error(
-                `Tool "${expected.name}" has invalid JSON in gen_ai.tool.input: ${inputRaw}`,
-              );
-            }
+          const inputRaw = toolSpan.data?.["gen_ai.tool.input"];
+          if (inputRaw === undefined || inputRaw === null) {
+            const msg = `Tool "${expected.name}" should have gen_ai.tool.input`;
+            errors.push(msg);
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
           } else {
-            input = inputRaw as Record<string, unknown>;
-          }
+            // Parse input if it's a JSON string
+            let input: Record<string, unknown>;
+            if (typeof inputRaw === "string") {
+              try {
+                input = JSON.parse(inputRaw);
+              } catch {
+                const msg = `Tool "${expected.name}" has invalid JSON in gen_ai.tool.input: ${inputRaw}`;
+                errors.push(msg);
+                locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+                continue;
+              }
+            } else {
+              input = inputRaw as Record<string, unknown>;
+            }
 
-          // Check each expected input field
-          for (const [key, value] of Object.entries(expected.input)) {
-            expect(
-              input[key],
-              `Tool "${expected.name}" input should have "${key}"`,
-            ).to.exist;
-            // If a specific value is expected, check it (convert to same type for comparison)
-            if (value !== undefined) {
-              const actualValue = input[key];
-              // Handle numeric string comparison (some frameworks pass numbers as strings)
-              if (
-                typeof value === "number" &&
-                typeof actualValue === "string"
-              ) {
-                expect(
-                  Number(actualValue),
-                  `Tool "${expected.name}" input.${key} should equal ${value}`,
-                ).to.equal(value);
-              } else {
-                expect(
-                  actualValue,
-                  `Tool "${expected.name}" input.${key} should equal ${JSON.stringify(value)}`,
-                ).to.deep.equal(value);
+            // Check each expected input field
+            for (const [key, value] of Object.entries(expected.input)) {
+              if (input[key] === undefined || input[key] === null) {
+                const msg = `Tool "${expected.name}" input should have "${key}"`;
+                errors.push(msg);
+                locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+              } else if (value !== undefined) {
+                const actualValue = input[key];
+                let matches = false;
+                if (typeof value === "number" && typeof actualValue === "string") {
+                  matches = Number(actualValue) === value;
+                } else {
+                  matches = JSON.stringify(actualValue) === JSON.stringify(value);
+                }
+                if (!matches) {
+                  const msg = `Tool "${expected.name}" input.${key} should equal ${JSON.stringify(value)} but is ${JSON.stringify(actualValue)}`;
+                  errors.push(msg);
+                  locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+                }
               }
             }
           }
@@ -415,30 +364,30 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
 
         // Validate output if specified
         if (expected.output !== undefined) {
-          const outputRaw = span.data?.["gen_ai.tool.output"];
-          expect(
-            outputRaw,
-            `Tool "${expected.name}" should have gen_ai.tool.output`,
-          ).to.exist;
-
-          // Parse output if it's a JSON string
-          let output: unknown;
-          if (typeof outputRaw === "string") {
-            try {
-              output = JSON.parse(outputRaw);
-            } catch {
-              // Not JSON, use raw value
+          const outputRaw = toolSpan.data?.["gen_ai.tool.output"];
+          if (outputRaw === undefined || outputRaw === null) {
+            const msg = `Tool "${expected.name}" should have gen_ai.tool.output`;
+            errors.push(msg);
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.output", message: msg });
+          } else {
+            let output: unknown;
+            if (typeof outputRaw === "string") {
+              try { output = JSON.parse(outputRaw); } catch { output = outputRaw; }
+            } else {
               output = outputRaw;
             }
-          } else {
-            output = outputRaw;
-          }
 
-          expect(
-            output,
-            `Tool "${expected.name}" output should equal ${JSON.stringify(expected.output)}`,
-          ).to.deep.equal(expected.output);
+            if (JSON.stringify(output) !== JSON.stringify(expected.output)) {
+              const msg = `Tool "${expected.name}" output should equal ${JSON.stringify(expected.output)} but is ${JSON.stringify(output)}`;
+              errors.push(msg);
+              locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.output", message: msg });
+            }
+          }
         }
+      }
+
+      if (errors.length > 0) {
+        throw new CheckError(errors.join("\n"), locations);
       }
     },
   };
@@ -454,28 +403,29 @@ export const checkAvailableTools: Check = {
   name: "checkAvailableTools",
   fn: (spans, config, testDef) => {
     const chatSpans = findChatSpans(extractGenAISpans(spans));
-    expect(
-      chatSpans.length,
-      "Should have at least one chat span",
-    ).to.be.greaterThan(0);
+    if (chatSpans.length === 0) {
+      throw new CheckError("Should have at least one chat span");
+    }
 
     const definedTools = testDef.agent?.tools || [];
-    expect(
-      definedTools.length,
-      "Test should define at least one tool",
-    ).to.be.greaterThan(0);
+    if (definedTools.length === 0) {
+      throw new CheckError("Test should define at least one tool");
+    }
 
     // Find a chat span with available_tools
     const spanWithTools = chatSpans.find(
       (s) => s.data?.["gen_ai.request.available_tools"] !== undefined,
     );
-    expect(
-      spanWithTools,
-      "Should have a chat span with gen_ai.request.available_tools",
-    ).to.exist;
+    if (!spanWithTools) {
+      throw new CheckError("Should have a chat span with gen_ai.request.available_tools", chatSpans.map((s) => ({
+        spanId: s.span_id,
+        attribute: "gen_ai.request.available_tools",
+        message: "Attribute is missing",
+      })));
+    }
 
     const availableToolsRaw =
-      spanWithTools!.data?.["gen_ai.request.available_tools"];
+      spanWithTools.data?.["gen_ai.request.available_tools"];
 
     // Parse if JSON string
     let availableTools: Array<Record<string, unknown>>;
@@ -483,48 +433,62 @@ export const checkAvailableTools: Check = {
       try {
         availableTools = JSON.parse(availableToolsRaw);
       } catch {
-        throw new Error(
+        throw new CheckError(
           `Invalid JSON in gen_ai.request.available_tools: ${availableToolsRaw}`,
+          [{ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: "Invalid JSON" }],
         );
       }
     } else {
       availableTools = availableToolsRaw as Array<Record<string, unknown>>;
     }
 
-    expect(
-      Array.isArray(availableTools),
-      "gen_ai.request.available_tools should be an array",
-    ).to.be.true;
+    if (!Array.isArray(availableTools)) {
+      throw new CheckError("gen_ai.request.available_tools should be an array", [
+        { spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: "Not an array" },
+      ]);
+    }
+
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
 
     // Check each defined tool exists in available_tools
     for (const definedTool of definedTools) {
       const foundTool = availableTools.find((t) => {
-        // Tools can be nested under "function" key or at top level
         const toolName =
           t.name || (t.function as Record<string, unknown>)?.name;
         return toolName === definedTool.name;
       });
 
-      expect(foundTool, `Available tools should include "${definedTool.name}"`)
-        .to.exist;
+      if (!foundTool) {
+        const msg = `Available tools should include "${definedTool.name}"`;
+        errors.push(msg);
+        locations.push({ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: msg });
+        continue;
+      }
 
       // Check description if present
-      const toolDesc =
-        foundTool!.description ||
-        (foundTool!.function as Record<string, unknown>)?.description;
       if (definedTool.description) {
-        expect(
-          toolDesc,
-          `Tool "${definedTool.name}" should have description`,
-        ).to.equal(definedTool.description);
+        const toolDesc =
+          foundTool.description ||
+          (foundTool.function as Record<string, unknown>)?.description;
+        if (toolDesc !== definedTool.description) {
+          const msg = `Tool "${definedTool.name}" should have description "${definedTool.description}" but has "${toolDesc}"`;
+          errors.push(msg);
+          locations.push({ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: msg });
+        }
       }
     }
 
     // Check count matches
-    expect(
-      availableTools.length,
-      `Should have ${definedTools.length} available tool(s)`,
-    ).to.equal(definedTools.length);
+    if (availableTools.length !== definedTools.length) {
+      const msg = `Should have ${definedTools.length} available tool(s) but found ${availableTools.length}`;
+      errors.push(msg);
+      locations.push({ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: msg });
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 
@@ -561,26 +525,28 @@ export function checkResponseToolCalls(
     name: `checkResponseToolCalls(${toolNames})`,
     fn: (spans) => {
       const chatSpans = findChatSpans(extractGenAISpans(spans));
-      expect(
-        chatSpans.length,
-        "Should have at least one chat span",
-      ).to.be.greaterThan(0);
+      if (chatSpans.length === 0) {
+        throw new CheckError("Should have at least one chat span");
+      }
 
-      // Collect all tool_calls from all chat spans
-      const allToolCalls: Array<Record<string, unknown>> = [];
+      const errors: string[] = [];
+      const locations: ErrorLocation[] = [];
+
+      // Collect all tool_calls from all chat spans, tracking which span they came from
+      const allToolCalls: Array<{ data: Record<string, unknown>; sourceSpan: CapturedSpan }> = [];
 
       for (const span of chatSpans) {
         const toolCallsRaw = span.data?.["gen_ai.response.tool_calls"];
         if (toolCallsRaw === undefined) continue;
 
-        // Parse if JSON string
         let toolCalls: Array<Record<string, unknown>>;
         if (typeof toolCallsRaw === "string") {
           try {
             toolCalls = JSON.parse(toolCallsRaw);
           } catch {
-            throw new Error(
+            throw new CheckError(
               `Invalid JSON in gen_ai.response.tool_calls: ${toolCallsRaw}`,
+              [{ spanId: span.span_id, attribute: "gen_ai.response.tool_calls", message: "Invalid JSON" }],
             );
           }
         } else {
@@ -588,43 +554,53 @@ export function checkResponseToolCalls(
         }
 
         if (Array.isArray(toolCalls)) {
-          allToolCalls.push(...toolCalls);
+          allToolCalls.push(...toolCalls.map((tc) => ({ data: tc, sourceSpan: span })));
         }
       }
 
-      expect(
-        allToolCalls.length,
-        `Should have at least ${expectedToolCalls.length} tool call(s) in response`,
-      ).to.be.at.least(expectedToolCalls.length);
+      if (allToolCalls.length < expectedToolCalls.length) {
+        const msg = `Should have at least ${expectedToolCalls.length} tool call(s) in response but found ${allToolCalls.length}`;
+        errors.push(msg);
+        // Point to spans that have (or should have) tool_calls
+        for (const span of chatSpans) {
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.response.tool_calls",
+            message: msg,
+          });
+        }
+      }
 
       // Check each expected tool call
       for (const expected of expectedToolCalls) {
-        // Find matching tool call by name
-        const foundCall = allToolCalls.find((tc) => {
-          // Handle different formats: { name, arguments } or { function: { name, arguments } }
+        const foundEntry = allToolCalls.find((entry) => {
           const tcName =
-            tc.name || (tc.function as Record<string, unknown>)?.name;
+            entry.data.name || (entry.data.function as Record<string, unknown>)?.name;
           return tcName === expected.name;
         });
 
-        expect(
-          foundCall,
-          `Response should include tool call for "${expected.name}"`,
-        ).to.exist;
+        if (!foundEntry) {
+          const msg = `Response should include tool call for "${expected.name}"`;
+          errors.push(msg);
+          continue;
+        }
+
+        const foundCall = foundEntry.data;
 
         // Get arguments
         let actualArgs: Record<string, unknown>;
         const argsRaw =
-          foundCall!.arguments ||
-          (foundCall!.function as Record<string, unknown>)?.arguments;
+          foundCall.arguments ||
+          (foundCall.function as Record<string, unknown>)?.arguments;
 
         if (typeof argsRaw === "string") {
           try {
             actualArgs = JSON.parse(argsRaw);
           } catch {
-            throw new Error(
-              `Invalid JSON in tool call arguments for "${expected.name}": ${argsRaw}`,
-            );
+            const msg = `Invalid JSON in tool call arguments for "${expected.name}": ${argsRaw}`;
+            errors.push(msg);
+            locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: "gen_ai.response.tool_calls", message: msg });
+            continue;
           }
         } else {
           actualArgs = (argsRaw as Record<string, unknown>) || {};
@@ -632,25 +608,29 @@ export function checkResponseToolCalls(
 
         // Check each expected argument
         for (const [key, value] of Object.entries(expected.arguments)) {
-          expect(
-            actualArgs[key],
-            `Tool call "${expected.name}" should have argument "${key}"`,
-          ).to.exist;
-
-          const actualValue = actualArgs[key];
-          // Handle numeric string comparison
-          if (typeof value === "number" && typeof actualValue === "string") {
-            expect(
-              Number(actualValue),
-              `Tool call "${expected.name}" argument "${key}" should equal ${value}`,
-            ).to.equal(value);
+          if (actualArgs[key] === undefined || actualArgs[key] === null) {
+            const msg = `Tool call "${expected.name}" should have argument "${key}"`;
+            errors.push(msg);
+            locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: "gen_ai.response.tool_calls", message: msg });
           } else {
-            expect(
-              actualValue,
-              `Tool call "${expected.name}" argument "${key}" should equal ${JSON.stringify(value)}`,
-            ).to.deep.equal(value);
+            const actualValue = actualArgs[key];
+            let matches = false;
+            if (typeof value === "number" && typeof actualValue === "string") {
+              matches = Number(actualValue) === value;
+            } else {
+              matches = JSON.stringify(actualValue) === JSON.stringify(value);
+            }
+            if (!matches) {
+              const msg = `Tool call "${expected.name}" argument "${key}" should equal ${JSON.stringify(value)} but is ${JSON.stringify(actualValue)}`;
+              errors.push(msg);
+              locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: "gen_ai.response.tool_calls", message: msg });
+            }
           }
         }
+      }
+
+      if (errors.length > 0) {
+        throw new CheckError(errors.join("\n"), locations);
       }
     },
   };
@@ -693,18 +673,22 @@ export const checkInputMessagesSchema: Check = {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     const spansToCheck = [...chatSpans, ...agentSpans];
 
-    expect(
-      spansToCheck.length,
-      "Should have at least one chat or agent span",
-    ).to.be.greaterThan(0);
+    if (spansToCheck.length === 0) {
+      throw new CheckError("Should have at least one chat or agent span");
+    }
 
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
     let foundMessages = false;
 
     for (const span of spansToCheck) {
       // Check both new format (gen_ai.input.messages) and legacy (gen_ai.request.messages)
-      const messagesRaw =
-        span.data?.["gen_ai.input.messages"] ??
-        span.data?.["gen_ai.request.messages"];
+      const messagesAttr = span.data?.["gen_ai.input.messages"] !== undefined
+        ? "gen_ai.input.messages"
+        : span.data?.["gen_ai.request.messages"] !== undefined
+          ? "gen_ai.request.messages"
+          : undefined;
+      const messagesRaw = messagesAttr ? span.data?.[messagesAttr] : undefined;
 
       if (messagesRaw === undefined) continue;
       foundMessages = true;
@@ -715,94 +699,115 @@ export const checkInputMessagesSchema: Check = {
         try {
           messages = JSON.parse(messagesRaw);
         } catch {
-          throw new Error(
-            `Invalid JSON in gen_ai.input.messages: ${messagesRaw.substring(0, 100)}...`,
-          );
+          const msg = `Invalid JSON in ${messagesAttr}: ${String(messagesRaw).substring(0, 100)}...`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          continue;
         }
       } else {
         messages = messagesRaw as unknown[];
       }
 
-      expect(
-        Array.isArray(messages),
-        "gen_ai.input.messages should be an array",
-      ).to.be.true;
+      if (!Array.isArray(messages)) {
+        const msg = `${messagesAttr} should be an array`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        continue;
+      }
 
-      expect(
-        messages.length,
-        "gen_ai.input.messages should not be empty",
-      ).to.be.greaterThan(0);
+      if (messages.length === 0) {
+        const msg = `${messagesAttr} should not be empty`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        continue;
+      }
 
       // Validate each message
       for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i] as Record<string, unknown>;
+        const msgObj = messages[i] as Record<string, unknown>;
         const msgPath = `messages[${i}]`;
 
-        expect(
-          typeof msg === "object" && msg !== null,
-          `${msgPath} should be an object`,
-        ).to.be.true;
+        if (typeof msgObj !== "object" || msgObj === null) {
+          const msg = `${msgPath} should be an object`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          continue;
+        }
 
         // Check role
-        expect(msg.role, `${msgPath} should have a role field`).to.exist;
-        expect(
-          VALID_MESSAGE_ROLES.includes(
-            msg.role as (typeof VALID_MESSAGE_ROLES)[number],
-          ),
-          `${msgPath}.role should be one of: ${VALID_MESSAGE_ROLES.join(", ")} (got: ${msg.role})`,
-        ).to.be.true;
+        if (msgObj.role === undefined || msgObj.role === null) {
+          const msg = `${msgPath} should have a role field`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        } else if (
+          !VALID_MESSAGE_ROLES.includes(
+            msgObj.role as (typeof VALID_MESSAGE_ROLES)[number],
+          )
+        ) {
+          const msg = `${msgPath}.role should be one of: ${VALID_MESSAGE_ROLES.join(", ")} (got: ${msgObj.role})`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        }
 
         // Check for content (parts array or content string/array)
-        const hasParts = msg.parts !== undefined;
-        const hasContent = msg.content !== undefined;
+        const hasParts = msgObj.parts !== undefined;
+        const hasContent = msgObj.content !== undefined;
 
-        expect(
-          hasParts || hasContent,
-          `${msgPath} should have either "parts" or "content" field`,
-        ).to.be.true;
+        if (!hasParts && !hasContent) {
+          const msg = `${msgPath} should have either "parts" or "content" field`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        }
 
         // Validate parts array if present
         if (hasParts) {
-          expect(
-            Array.isArray(msg.parts),
-            `${msgPath}.parts should be an array`,
-          ).to.be.true;
+          if (!Array.isArray(msgObj.parts)) {
+            const msg = `${msgPath}.parts should be an array`;
+            errors.push(msg);
+            locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          } else {
+            const parts = msgObj.parts as Array<Record<string, unknown>>;
+            for (let j = 0; j < parts.length; j++) {
+              const part = parts[j];
+              const partPath = `${msgPath}.parts[${j}]`;
 
-          const parts = msg.parts as Array<Record<string, unknown>>;
-          for (let j = 0; j < parts.length; j++) {
-            const part = parts[j];
-            const partPath = `${msgPath}.parts[${j}]`;
+              if (typeof part !== "object" || part === null) {
+                const msg = `${partPath} should be an object`;
+                errors.push(msg);
+                locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                continue;
+              }
 
-            expect(
-              typeof part === "object" && part !== null,
-              `${partPath} should be an object`,
-            ).to.be.true;
+              if (part.type !== undefined) {
+                if (
+                  !VALID_PART_TYPES.includes(
+                    part.type as (typeof VALID_PART_TYPES)[number],
+                  )
+                ) {
+                  const msg = `${partPath}.type should be one of: ${VALID_PART_TYPES.join(", ")} (got: ${part.type})`;
+                  errors.push(msg);
+                  locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                }
 
-            // Parts should have a type
-            if (part.type !== undefined) {
-              expect(
-                VALID_PART_TYPES.includes(
-                  part.type as (typeof VALID_PART_TYPES)[number],
-                ),
-                `${partPath}.type should be one of: ${VALID_PART_TYPES.join(", ")} (got: ${part.type})`,
-              ).to.be.true;
-
-              // Validate type-specific fields
-              if (part.type === "text") {
-                expect(
-                  part.text !== undefined || part.content !== undefined,
-                  `${partPath} with type "text" should have "text" or "content" field`,
-                ).to.be.true;
-              } else if (part.type === "tool_call") {
-                expect(
-                  part.name,
-                  `${partPath} with type "tool_call" should have "name" field`,
-                ).to.exist;
-              } else if (part.type === "tool_call_response") {
-                expect(
-                  part.id !== undefined || part.tool_call_id !== undefined,
-                  `${partPath} with type "tool_call_response" should have "id" or "tool_call_id" field`,
-                ).to.be.true;
+                if (part.type === "text") {
+                  if (part.text === undefined && part.content === undefined) {
+                    const msg = `${partPath} with type "text" should have "text" or "content" field`;
+                    errors.push(msg);
+                    locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                  }
+                } else if (part.type === "tool_call") {
+                  if (part.name === undefined || part.name === null) {
+                    const msg = `${partPath} with type "tool_call" should have "name" field`;
+                    errors.push(msg);
+                    locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                  }
+                } else if (part.type === "tool_call_response") {
+                  if (part.id === undefined && part.tool_call_id === undefined) {
+                    const msg = `${partPath} with type "tool_call_response" should have "id" or "tool_call_id" field`;
+                    errors.push(msg);
+                    locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                  }
+                }
               }
             }
           }
@@ -810,24 +815,37 @@ export const checkInputMessagesSchema: Check = {
 
         // Validate content if present (can be string or array)
         if (hasContent && !hasParts) {
-          const content = msg.content;
+          const content = msgObj.content;
           const isValidContent =
             typeof content === "string" ||
             Array.isArray(content) ||
             (typeof content === "object" && content !== null);
 
-          expect(
-            isValidContent,
-            `${msgPath}.content should be a string, array, or object`,
-          ).to.be.true;
+          if (!isValidContent) {
+            const msg = `${msgPath}.content should be a string, array, or object`;
+            errors.push(msg);
+            locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          }
         }
       }
     }
 
-    expect(
-      foundMessages,
-      "Should have at least one span with gen_ai.input.messages or gen_ai.request.messages",
-    ).to.be.true;
+    if (!foundMessages) {
+      const msg = "Should have at least one span with gen_ai.input.messages or gen_ai.request.messages";
+      errors.push(msg);
+      // Point to all checked spans
+      for (const span of spansToCheck) {
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.input.messages",
+          message: msg,
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 
@@ -849,51 +867,75 @@ export const checkBinaryRedaction: Check = {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     const spansToCheck = [...chatSpans, ...agentSpans];
 
-    expect(
-      spansToCheck.length,
-      "Should have at least one chat or agent span",
-    ).to.be.greaterThan(0);
+    if (spansToCheck.length === 0) {
+      throw new CheckError("Should have at least one chat or agent span");
+    }
 
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
     let foundMessages = false;
     let foundRedaction = false;
 
     for (const span of spansToCheck) {
-      const messagesRaw =
-        span.data?.["gen_ai.input.messages"] ??
-        span.data?.["gen_ai.request.messages"];
+      const messagesAttr = span.data?.["gen_ai.input.messages"] !== undefined
+        ? "gen_ai.input.messages"
+        : span.data?.["gen_ai.request.messages"] !== undefined
+          ? "gen_ai.request.messages"
+          : undefined;
+      const messagesRaw = messagesAttr ? span.data?.[messagesAttr] : undefined;
 
       if (messagesRaw === undefined) continue;
       foundMessages = true;
 
-      // Convert to string for searching
       const messagesStr =
         typeof messagesRaw === "string"
           ? messagesRaw
           : JSON.stringify(messagesRaw);
 
-      // Check for redaction marker
       if (messagesStr.includes("[Blob substitute]")) {
         foundRedaction = true;
       }
 
-      // Check that no raw base64 data is present (would be very long strings)
-      // Base64 image data is typically 100+ characters of alphanumeric
       const base64Pattern = /[A-Za-z0-9+/]{100,}={0,2}/;
-      expect(
-        base64Pattern.test(messagesStr),
-        "Messages should not contain raw base64 data (should be redacted)",
-      ).to.be.false;
+      if (base64Pattern.test(messagesStr)) {
+        const msg = "Messages should not contain raw base64 data (should be redacted)";
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+      }
     }
 
-    expect(
-      foundMessages,
-      "Should have at least one span with messages attribute",
-    ).to.be.true;
+    if (!foundMessages) {
+      const msg = "Should have at least one span with messages attribute";
+      errors.push(msg);
+      for (const span of spansToCheck) {
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.input.messages",
+          message: msg,
+        });
+      }
+    }
 
-    expect(
-      foundRedaction,
-      "Messages should contain '[Blob substitute]' marker indicating binary content was redacted",
-    ).to.be.true;
+    if (!foundRedaction && foundMessages) {
+      const msg = "Messages should contain '[Blob substitute]' marker indicating binary content was redacted";
+      errors.push(msg);
+      for (const span of spansToCheck) {
+        const attr = span.data?.["gen_ai.input.messages"] !== undefined
+          ? "gen_ai.input.messages"
+          : "gen_ai.request.messages";
+        if (span.data?.[attr] !== undefined) {
+          locations.push({
+            spanId: span.span_id,
+            attribute: attr,
+            message: msg,
+          });
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 
@@ -909,10 +951,9 @@ export const checkHandoffSpanAttributes: Check = {
   name: "checkHandoffSpanAttributes",
   fn: (spans) => {
     const handoffSpans = findHandoffSpans(extractGenAISpans(spans));
-    expect(
-      handoffSpans.length,
-      "Should have at least one handoff span",
-    ).to.be.greaterThan(0);
+    if (handoffSpans.length === 0) {
+      throw new CheckError("Should have at least one handoff span");
+    }
 
     assertAttributes(handoffSpans, {
       "gen_ai.operation.name": HANDOFF_OPERATION_NAME_PATTERN,
@@ -962,10 +1003,23 @@ export const checkInputTokensCached: Check = {
       "No AI spans with input_tokens.cached attribute",
     );
 
+    const locations: ErrorLocation[] = [];
     for (const span of aiSpans) {
-      expect(
-        span.data?.["gen_ai.usage.input_tokens.cached"],
-      ).to.be.lessThanOrEqual(span.data?.["gen_ai.usage.input_tokens"]);
+      const cached = span.data?.["gen_ai.usage.input_tokens.cached"];
+      const input = span.data?.["gen_ai.usage.input_tokens"];
+      if (typeof cached === "number" && typeof input === "number" && cached > input) {
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.usage.input_tokens.cached",
+          message: `cached tokens (${cached}) > input tokens (${input})`,
+        });
+      }
+    }
+    if (locations.length > 0) {
+      throw new CheckError(
+        `Cached tokens exceeds input tokens:\n  ${locations.map((l) => l.message).join("\n  ")}`,
+        locations,
+      );
     }
   },
 };
@@ -985,10 +1039,23 @@ export const checkOutputTokensReasoning: Check = {
       "No AI spans with output_tokens.reasoning attribute",
     );
 
+    const locations: ErrorLocation[] = [];
     for (const span of aiSpans) {
-      expect(
-        span.data?.["gen_ai.usage.output_tokens.reasoning"],
-      ).to.be.lessThanOrEqual(span.data?.["gen_ai.usage.output_tokens"]);
+      const reasoning = span.data?.["gen_ai.usage.output_tokens.reasoning"];
+      const output = span.data?.["gen_ai.usage.output_tokens"];
+      if (typeof reasoning === "number" && typeof output === "number" && reasoning > output) {
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.usage.output_tokens.reasoning",
+          message: `reasoning tokens (${reasoning}) > output tokens (${output})`,
+        });
+      }
+    }
+    if (locations.length > 0) {
+      throw new CheckError(
+        `Reasoning tokens exceeds output tokens:\n  ${locations.map((l) => l.message).join("\n  ")}`,
+        locations,
+      );
     }
   },
 };
@@ -1006,9 +1073,10 @@ export const checkMessageTrimming: Check = {
     const aiSpans = extractGenAISpans(spans);
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
-    // Find spans with message attribute
     let foundTrimmedMessage = false;
-    const maxExpectedSize = 15000; // Sentry typically trims to ~10KB
+    const maxExpectedSize = 15000;
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
 
     for (const span of aiSpans) {
       const messageValue = span.data?.["gen_ai.request.messages"];
@@ -1018,15 +1086,25 @@ export const checkMessageTrimming: Check = {
             ? messageValue
             : JSON.stringify(messageValue);
 
-        expect(messageStr.length, "Message should be trimmed").to.be.lessThan(
-          maxExpectedSize,
-        );
+        if (messageStr.length >= maxExpectedSize) {
+          const msg = `Message should be trimmed (length ${messageStr.length} >= ${maxExpectedSize})`;
+          errors.push(msg);
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.request.messages",
+            message: msg,
+          });
+        }
 
         foundTrimmedMessage = true;
       }
     }
 
     skipIf(!foundTrimmedMessage, "No gen_ai.request.messages attribute found");
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 
@@ -1044,48 +1122,72 @@ export const checkTrimmingMetadata: Check = {
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
     let foundMetadata = false;
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
 
     for (const span of aiSpans) {
       // Check both new and legacy attribute names
-      const originalLength =
-        span.data?.["gen_ai.input.messages.original_length"] ??
-        span.data?.["gen_ai.request.messages.original_length"];
+      const originalLengthAttr = span.data?.["gen_ai.input.messages.original_length"] !== undefined
+        ? "gen_ai.input.messages.original_length"
+        : span.data?.["gen_ai.request.messages.original_length"] !== undefined
+          ? "gen_ai.request.messages.original_length"
+          : undefined;
+      const originalLength = originalLengthAttr ? span.data?.[originalLengthAttr] : undefined;
 
       if (originalLength === undefined) continue;
 
       foundMetadata = true;
 
-      expect(originalLength, "original_length should be a number").to.be.a(
-        "number",
-      );
-      expect(
-        originalLength,
-        "original_length should be greater than 0",
-      ).to.be.greaterThan(0);
+      if (typeof originalLength !== "number") {
+        const msg = `original_length should be a number but is ${typeof originalLength}`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: originalLengthAttr, message: msg });
+        continue;
+      }
+      if (originalLength <= 0) {
+        const msg = `original_length should be > 0 but is ${originalLength}`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: originalLengthAttr, message: msg });
+        continue;
+      }
 
       // Get the messages to validate content length constraint
       const messagesRaw =
         span.data?.["gen_ai.input.messages"] ??
         span.data?.["gen_ai.request.messages"];
+      const messagesAttr = span.data?.["gen_ai.input.messages"] !== undefined
+        ? "gen_ai.input.messages"
+        : "gen_ai.request.messages";
 
       if (messagesRaw !== undefined) {
-        // Get the string representation to measure actual content length
         const messagesStr =
           typeof messagesRaw === "string"
             ? messagesRaw
             : JSON.stringify(messagesRaw);
 
-        expect(
-          messagesStr.length,
-          `Truncated messages content length (${messagesStr.length}) should be less than original_length (${originalLength})`,
-        ).to.be.lessThan(originalLength as number);
+        if (messagesStr.length >= originalLength) {
+          const msg = `Truncated messages content length (${messagesStr.length}) should be less than original_length (${originalLength})`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        }
       }
     }
 
-    expect(
-      foundMetadata,
-      "Should have at least one span with original_length metadata",
-    ).to.be.true;
+    if (!foundMetadata) {
+      const msg = "Should have at least one span with original_length metadata";
+      errors.push(msg);
+      for (const span of aiSpans) {
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.input.messages.original_length",
+          message: msg,
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 
@@ -1105,10 +1207,12 @@ export const checkAgentHierarchy: Check = {
   name: "checkAgentHierarchy",
   fn: (spans, config, testDef) => {
     const aiSpans = extractGenAISpans(spans);
-    expect(
-      aiSpans.length,
-      "Should have at least one AI span",
-    ).to.be.greaterThan(0);
+    if (aiSpans.length === 0) {
+      throw new CheckError("Should have at least one AI span");
+    }
+
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
 
     // Build a map of span_id -> span for quick lookup (include all spans, not just gen_ai)
     const spanMap = new Map<string, CapturedSpan>();
@@ -1123,44 +1227,37 @@ export const checkAgentHierarchy: Check = {
         s.data?.["gen_ai.agent.name"] !== undefined,
     );
 
-    expect(
-      agentSpans.length,
-      "Should have at least one agent span",
-    ).to.be.greaterThan(0);
+    if (agentSpans.length === 0) {
+      throw new CheckError("Should have at least one agent span");
+    }
 
     // For each agent span, verify it has gen_ai.agent.name
     for (const agentSpan of agentSpans) {
       const agentName = agentSpan.data?.["gen_ai.agent.name"];
-      expect(
-        agentName,
-        `Agent span (${agentSpan.op}) should have gen_ai.agent.name attribute`,
-      ).to.exist;
+      if (agentName === undefined || agentName === null) {
+        const msg = `Agent span (${agentSpan.op}) should have gen_ai.agent.name attribute`;
+        errors.push(msg);
+        locations.push({
+          spanId: agentSpan.span_id,
+          attribute: "gen_ai.agent.name",
+          message: msg,
+        });
+      }
     }
 
     // Build set of agent span IDs for ancestry checking
     const agentSpanIds = new Set(agentSpans.map((s) => s.span_id));
 
-    /**
-     * Find the ancestor agent span for a given span by walking up the parent chain
-     * Returns the agent span if found, undefined otherwise
-     */
     function findAncestorAgent(span: CapturedSpan): CapturedSpan | undefined {
       let current: CapturedSpan | undefined = span;
       const visited = new Set<string>();
 
       while (current) {
-        // Prevent infinite loops
-        if (visited.has(current.span_id)) {
-          break;
-        }
+        if (visited.has(current.span_id)) break;
         visited.add(current.span_id);
 
-        // Check if current span is an agent span
-        if (agentSpanIds.has(current.span_id)) {
-          return current;
-        }
+        if (agentSpanIds.has(current.span_id)) return current;
 
-        // Move to parent
         if (current.parent_span_id) {
           current = spanMap.get(current.parent_span_id);
         } else {
@@ -1171,46 +1268,51 @@ export const checkAgentHierarchy: Check = {
       return undefined;
     }
 
-    // Categorize gen_ai spans by their relationship to agent spans
-    const childSpans: CapturedSpan[] = []; // Non-agent gen_ai spans that are descendants of agents
-    const orphanSpans: CapturedSpan[] = []; // gen_ai spans with no agent ancestor
+    const orphanSpans: CapturedSpan[] = [];
 
     for (const span of aiSpans) {
-      // Skip agent spans themselves
-      if (agentSpanIds.has(span.span_id)) {
-        continue;
-      }
+      if (agentSpanIds.has(span.span_id)) continue;
 
       const ancestorAgent = findAncestorAgent(span);
       if (ancestorAgent) {
-        childSpans.push(span);
-
-        // Verify gen_ai.agent.name matches the ancestor agent's name
         const expectedAgentName = ancestorAgent.data?.["gen_ai.agent.name"];
         const actualAgentName = span.data?.["gen_ai.agent.name"];
 
-        expect(
-          actualAgentName,
-          `Child span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.agent.name attribute`,
-        ).to.exist;
-
-        expect(
-          actualAgentName,
-          `Child span (${span.op}) gen_ai.agent.name should match ancestor agent "${expectedAgentName}"`,
-        ).to.equal(expectedAgentName);
+        if (actualAgentName === undefined || actualAgentName === null) {
+          const msg = `Child span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.agent.name attribute`;
+          errors.push(msg);
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.agent.name",
+            message: msg,
+          });
+        } else if (actualAgentName !== expectedAgentName) {
+          const msg = `Child span (${span.op}) gen_ai.agent.name should match ancestor agent "${expectedAgentName}" but is "${actualAgentName}"`;
+          errors.push(msg);
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.agent.name",
+            message: msg,
+          });
+        }
       } else {
         orphanSpans.push(span);
       }
     }
 
-    // Fail if there are orphan gen_ai spans (not descended from any agent)
     if (orphanSpans.length > 0) {
-      const orphanDetails = orphanSpans
-        .map((s) => `${s.op} (id: ${s.span_id.substring(0, 8)})`)
-        .join(", ");
-      throw new Error(
-        `Found ${orphanSpans.length} orphan gen_ai span(s) not descended from any agent span: ${orphanDetails}`,
-      );
+      for (const s of orphanSpans) {
+        const msg = `Orphan gen_ai span not descended from any agent span: ${s.op} (id: ${s.span_id.substring(0, 8)})`;
+        errors.push(msg);
+        locations.push({
+          spanId: s.span_id,
+          message: msg,
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
     }
   },
 };

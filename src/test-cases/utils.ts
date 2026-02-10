@@ -3,8 +3,8 @@
  */
 
 import { expect } from "chai";
-import { CapturedSpan } from "../types.js";
-import { SkipCheckError } from "../validator.js";
+import { CapturedSpan, ErrorLocation } from "../types.js";
+import { SkipCheckError, CheckError } from "../validator.js";
 
 /**
  * Skip the current check with a reason
@@ -94,7 +94,9 @@ export function checkTokenUsage(
   } = checks;
 
   if (!span.data) {
-    throw new Error("Span has no data field");
+    throw new CheckError("Span has no data field", [
+      { spanId: span.span_id, message: "Span has no data field" },
+    ]);
   }
 
   // Extract token counts (only gen_ai.* prefix)
@@ -102,35 +104,63 @@ export function checkTokenUsage(
   const outputTokens = span.data["gen_ai.usage.output_tokens"];
   const totalTokens = span.data["gen_ai.usage.total_tokens"];
 
+  const errors: string[] = [];
+  const locations: ErrorLocation[] = [];
+
+  function addError(attr: string, msg: string) {
+    errors.push(msg);
+    locations.push({ spanId: span.span_id, attribute: attr, message: msg });
+  }
+
   // Check presence
   if (hasInputTokens) {
-    expect(inputTokens).to.exist;
-    expect(inputTokens).to.be.a("number");
-    expect(inputTokens).to.be.greaterThan(0);
+    if (inputTokens === undefined || inputTokens === null) {
+      addError("gen_ai.usage.input_tokens", "input_tokens must exist");
+    } else if (typeof inputTokens !== "number") {
+      addError("gen_ai.usage.input_tokens", `input_tokens must be a number but is ${typeof inputTokens}`);
+    } else if (inputTokens <= 0) {
+      addError("gen_ai.usage.input_tokens", `input_tokens must be > 0 but is ${inputTokens}`);
+    }
   }
 
   if (hasOutputTokens) {
-    expect(outputTokens).to.exist;
-    expect(outputTokens).to.be.a("number");
-    expect(outputTokens).to.be.greaterThan(0);
+    if (outputTokens === undefined || outputTokens === null) {
+      addError("gen_ai.usage.output_tokens", "output_tokens must exist");
+    } else if (typeof outputTokens !== "number") {
+      addError("gen_ai.usage.output_tokens", `output_tokens must be a number but is ${typeof outputTokens}`);
+    } else if (outputTokens <= 0) {
+      addError("gen_ai.usage.output_tokens", `output_tokens must be > 0 but is ${outputTokens}`);
+    }
   }
 
   if (hasTotalTokens) {
-    expect(totalTokens).to.exist;
-    expect(totalTokens).to.be.a("number");
-    expect(totalTokens).to.be.greaterThan(0);
+    if (totalTokens === undefined || totalTokens === null) {
+      addError("gen_ai.usage.total_tokens", "total_tokens must exist");
+    } else if (typeof totalTokens !== "number") {
+      addError("gen_ai.usage.total_tokens", `total_tokens must be a number but is ${typeof totalTokens}`);
+    } else if (totalTokens <= 0) {
+      addError("gen_ai.usage.total_tokens", `total_tokens must be > 0 but is ${totalTokens}`);
+    }
   }
 
   // Check minimum total
-  if (minTotalTokens !== undefined && totalTokens) {
-    expect(totalTokens).to.be.at.least(minTotalTokens);
+  if (minTotalTokens !== undefined && totalTokens && typeof totalTokens === "number") {
+    if (totalTokens < minTotalTokens) {
+      addError("gen_ai.usage.total_tokens", `total_tokens (${totalTokens}) must be >= ${minTotalTokens}`);
+    }
   }
 
   // Validate sum
-  if (validateSum && inputTokens && outputTokens && totalTokens) {
-    expect(totalTokens).to.equal(
-      inputTokens + outputTokens,
-      "Total tokens should equal input + output tokens",
+  if (validateSum && typeof inputTokens === "number" && typeof outputTokens === "number" && typeof totalTokens === "number") {
+    if (totalTokens !== inputTokens + outputTokens) {
+      addError("gen_ai.usage.total_tokens", `total_tokens (${totalTokens}) should equal input (${inputTokens}) + output (${outputTokens}) = ${inputTokens + outputTokens}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new CheckError(
+      `Token usage validation failed:\n  ${errors.join("\n  ")}`,
+      locations,
     );
   }
 }
@@ -245,71 +275,48 @@ function resolveAttribute(span: CapturedSpan, attrName: string): unknown {
 }
 
 /**
- * Validate a single attribute against an expected value, collecting errors.
+ * Validate a single attribute against an expected value.
+ * Returns an error message string if validation fails, or null if it passes.
  */
 function validateAttribute(
   actual: unknown,
   expected: boolean | string | number | RegExp,
   attrName: string,
-  spanIndex: number,
-  errors: string[],
-): void {
+  spanId: string,
+): string | null {
+  const ref = `Span ${spanId.substring(0, 8)}`;
   if (expected === true) {
-    // Must exist
     if (actual === undefined || actual === null) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must exist but is missing`,
-      );
+      return `${ref}: Attribute '${attrName}' must exist but is missing`;
     }
   } else if (expected === false) {
-    // Must NOT exist
     if (actual !== undefined && actual !== null) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must not exist but has value: ${actual}`,
-      );
+      return `${ref}: Attribute '${attrName}' must not exist but has value: ${actual}`;
     }
   } else if (expected instanceof RegExp) {
-    // RegExp matching
     if (actual === undefined || actual === null) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must exist for regex matching but is missing`,
-      );
+      return `${ref}: Attribute '${attrName}' must exist for regex matching but is missing`;
     } else if (typeof actual !== "string") {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must be a string for regex matching but is: ${typeof actual}`,
-      );
+      return `${ref}: Attribute '${attrName}' must be a string for regex matching but is: ${typeof actual}`;
     } else if (!expected.test(actual)) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match regex ${expected}`,
-      );
+      return `${ref}: Attribute '${attrName}' value '${actual}' does not match regex ${expected}`;
     }
   } else if (typeof expected === "string" && expected.includes("*")) {
-    // Pattern matching (glob-style)
     if (actual === undefined || actual === null) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must exist for pattern matching but is missing`,
-      );
+      return `${ref}: Attribute '${attrName}' must exist for pattern matching but is missing`;
     } else if (typeof actual !== "string") {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must be a string for pattern matching but is: ${typeof actual}`,
-      );
+      return `${ref}: Attribute '${attrName}' must be a string for pattern matching but is: ${typeof actual}`;
     } else if (!matchPattern(actual, expected)) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' value '${actual}' does not match pattern '${expected}'`,
-      );
+      return `${ref}: Attribute '${attrName}' value '${actual}' does not match pattern '${expected}'`;
     }
   } else {
-    // Exact value match
     if (actual === undefined || actual === null) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is missing`,
-      );
+      return `${ref}: Attribute '${attrName}' must equal '${expected}' but is missing`;
     } else if (actual !== expected) {
-      errors.push(
-        `Span ${spanIndex}: Attribute '${attrName}' must equal '${expected}' but is '${actual}'`,
-      );
+      return `${ref}: Attribute '${attrName}' must equal '${expected}' but is '${actual}'`;
     }
   }
+  return null;
 }
 
 /**
@@ -334,12 +341,13 @@ export function assertAttributes(
   schema: AttributeSchema,
 ): void {
   if (spans.length === 0) {
-    throw new Error("No spans provided to assertAttributes");
+    throw new CheckError("No spans provided to assertAttributes");
   }
 
   const errors: string[] = [];
+  const locations: ErrorLocation[] = [];
 
-  spans.forEach((span, spanIndex) => {
+  for (const span of spans) {
     // Check each attribute in the schema
     for (const [attrName, expectedOrFn] of Object.entries(schema)) {
       const actual = resolveAttribute(span, attrName);
@@ -350,57 +358,125 @@ export function assertAttributes(
           ? expectedOrFn(span)
           : expectedOrFn;
 
-      validateAttribute(actual, expected, attrName, spanIndex, errors);
+      const errorMsg = validateAttribute(actual, expected, attrName, span.span_id);
+      if (errorMsg) {
+        errors.push(errorMsg);
+        locations.push({
+          spanId: span.span_id,
+          attribute: attrName,
+          message: errorMsg,
+        });
+      }
     }
-  });
+  }
 
   if (errors.length > 0) {
-    throw new Error(`Attribute validation failed:\n  ${errors.join("\n  ")}`);
+    throw new CheckError(
+      `Attribute validation failed:\n  ${errors.join("\n  ")}`,
+      locations,
+    );
   }
 }
+
+// =============================================================================
+// Operation Name Patterns
+// =============================================================================
+// These patterns are derived from the Sentry backend logic that determines
+// gen_ai.operation.type from gen_ai.operation.name.
+//
+// Reference (Rust code that determines operation type):
+// - "agent" type: invoke_agent, create_agent, ai.run.*, ai.pipeline.*, ai.streamText, ai.generateText, ai.generateObject
+// - "ai_client" type: *.doStream, *.doGenerate (the actual LLM API calls)
+// - "tool" type: execute_tool, ai.toolCall.*
+// - "handoff" type: handoff
+
+/**
+ * Pattern for agent operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.invoke_agent, invoke_agent
+ * - gen_ai.create_agent, create_agent
+ * - ai.run.generateText, ai.run.generateObject
+ * - ai.pipeline.generate_text, ai.pipeline.generate_object, ai.pipeline.stream_text, ai.pipeline.stream_object
+ * - ai.streamText (but NOT ai.streamText.doStream)
+ * - ai.generateText (but NOT ai.generateText.doGenerate)
+ * - ai.generateObject (but NOT ai.generateObject.doGenerate)
+ */
+export const AGENT_OPERATION_NAME_PATTERN =
+  /^(gen_ai\.)?(invoke_agent|create_agent)$|^ai\.run\.(generateText|generateObject)$|^ai\.pipeline\.(generate_text|generate_object|stream_text|stream_object)$|^ai\.(streamText|generateText|generateObject)(?!\.do)/;
+
+/**
+ * Pattern for ai_client (chat/completion) operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - ai.streamText.doStream.*
+ * - ai.generateText.doGenerate.*
+ * - ai.generateObject.doGenerate.*
+ * - chat, completion, generate (legacy)
+ */
+export const AI_CLIENT_OPERATION_NAME_PATTERN =
+  /^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate)|^(gen_ai\.)?(chat|completion|generate)/;
+
+/**
+ * Pattern for tool operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.execute_tool, execute_tool
+ * - ai.toolCall.*
+ */
+export const TOOL_OPERATION_NAME_PATTERN =
+  /^(gen_ai\.)?(execute_tool|tool|tool_call)$|^ai\.toolCall/;
+
+/**
+ * Pattern for handoff operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.handoff, handoff
+ */
+export const HANDOFF_OPERATION_NAME_PATTERN = /^(gen_ai\.)?handoff$/;
 
 // =============================================================================
 // Span Type Filtering Helpers
 // =============================================================================
 
 /**
- * Find invoke_agent spans (top-level agent invocation)
+ * Find agent spans by matching gen_ai.operation.name against AGENT_OPERATION_NAME_PATTERN
  */
 export function findAgentSpans(spans: CapturedSpan[]): CapturedSpan[] {
-  return spans.filter(
-    (s) =>
-      s.op?.match(/^gen_ai\.(invoke_agent|agent\.run|agent)$/) ||
-      (s.data?.["gen_ai.agent.name"] !== undefined &&
-        s.op?.match(/^gen_ai\.invoke_agent/)),
-  );
+  return spans.filter((s) => {
+    const opName = s.data?.["gen_ai.operation.name"];
+    return typeof opName === "string" && AGENT_OPERATION_NAME_PATTERN.test(opName);
+  });
 }
 
 /**
- * Find ai_client/chat spans (LLM API calls)
+ * Find ai_client/chat spans by matching gen_ai.operation.name against AI_CLIENT_OPERATION_NAME_PATTERN
  */
 export function findChatSpans(spans: CapturedSpan[]): CapturedSpan[] {
-  return spans.filter((s) =>
-    s.op?.match(/^gen_ai\.(chat|completion|generate)/),
-  );
+  return spans.filter((s) => {
+    const opName = s.data?.["gen_ai.operation.name"];
+    return typeof opName === "string" && AI_CLIENT_OPERATION_NAME_PATTERN.test(opName);
+  });
 }
 
 /**
- * Find tool execution spans
- * Matches spans with operations like gen_ai.execute_tool, gen_ai.tool, etc.
+ * Find tool spans by matching gen_ai.operation.name against TOOL_OPERATION_NAME_PATTERN
  */
 export function findToolSpans(spans: CapturedSpan[]): CapturedSpan[] {
-  return spans.filter(
-    (s) =>
-      s.op?.match(/^gen_ai\.(execute_tool|tool|tool_call)/) ||
-      s.data?.["gen_ai.tool.name"] !== undefined,
-  );
+  return spans.filter((s) => {
+    const opName = s.data?.["gen_ai.operation.name"];
+    return typeof opName === "string" && TOOL_OPERATION_NAME_PATTERN.test(opName);
+  });
 }
 
 /**
- * Find handoff spans (agent-to-agent handoffs)
+ * Find handoff spans by matching gen_ai.operation.name against HANDOFF_OPERATION_NAME_PATTERN
  */
 export function findHandoffSpans(spans: CapturedSpan[]): CapturedSpan[] {
-  return spans.filter((s) => s.op?.match(/^gen_ai\.handoff/));
+  return spans.filter((s) => {
+    const opName = s.data?.["gen_ai.operation.name"];
+    return typeof opName === "string" && HANDOFF_OPERATION_NAME_PATTERN.test(opName);
+  });
 }
 
 /**
@@ -428,7 +504,9 @@ export function assertToolInput(
   const toolInput = span.data?.["gen_ai.tool.input"];
 
   if (toolInput === undefined) {
-    throw new Error(`Tool span is missing gen_ai.tool.input attribute`);
+    throw new CheckError(`Tool span is missing gen_ai.tool.input attribute`, [
+      { spanId: span.span_id, attribute: "gen_ai.tool.input", message: "Attribute is missing" },
+    ]);
   }
 
   // Parse the tool input (it's usually a JSON string)
@@ -437,52 +515,55 @@ export function assertToolInput(
     try {
       parsedInput = JSON.parse(toolInput);
     } catch {
-      throw new Error(`Tool input is not valid JSON: ${toolInput}`);
+      throw new CheckError(`Tool input is not valid JSON: ${toolInput}`, [
+        { spanId: span.span_id, attribute: "gen_ai.tool.input", message: "Invalid JSON" },
+      ]);
     }
   } else if (typeof toolInput === "object" && toolInput !== null) {
     parsedInput = toolInput as Record<string, unknown>;
   } else {
-    throw new Error(`Unexpected tool input type: ${typeof toolInput}`);
+    throw new CheckError(`Unexpected tool input type: ${typeof toolInput}`, [
+      { spanId: span.span_id, attribute: "gen_ai.tool.input", message: `Unexpected type: ${typeof toolInput}` },
+    ]);
   }
 
   const errors: string[] = [];
+  const locations: ErrorLocation[] = [];
 
   for (const [argName, expected] of Object.entries(schema)) {
     const actual = parsedInput[argName];
 
     if (expected === true) {
-      // Must exist
       if (actual === undefined) {
-        errors.push(`Tool argument '${argName}' must exist but is missing`);
+        const msg = `Tool argument '${argName}' must exist but is missing`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
       }
     } else if (expected === false) {
-      // Must NOT exist
       if (actual !== undefined) {
-        errors.push(
-          `Tool argument '${argName}' must not exist but has value: ${actual}`,
-        );
+        const msg = `Tool argument '${argName}' must not exist but has value: ${actual}`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
       }
     } else {
-      // Exact value match (convert to string for comparison since JSON parsing may vary)
       if (actual === undefined) {
-        errors.push(
-          `Tool argument '${argName}' must equal '${expected}' but is missing`,
-        );
+        const msg = `Tool argument '${argName}' must equal '${expected}' but is missing`;
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
       } else {
-        // Compare as strings to handle type coercion (e.g., "4" vs 4)
         const actualStr = String(actual);
         const expectedStr = String(expected);
         if (actualStr !== expectedStr) {
-          errors.push(
-            `Tool argument '${argName}' must equal '${expected}' but is '${actual}'`,
-          );
+          const msg = `Tool argument '${argName}' must equal '${expected}' but is '${actual}'`;
+          errors.push(msg);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
         }
       }
     }
   }
 
   if (errors.length > 0) {
-    throw new Error(`Tool input validation failed:\n  ${errors.join("\n  ")}`);
+    throw new CheckError(`Tool input validation failed:\n  ${errors.join("\n  ")}`, locations);
   }
 }
 
