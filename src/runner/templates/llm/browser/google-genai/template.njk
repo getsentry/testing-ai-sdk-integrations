@@ -27,10 +27,10 @@
           const { GoogleGenAI } = await import("@google/genai");
 
           // Get API key from window (injected by Playwright)
-          const GOOGLE_API_KEY = window.GOOGLE_API_KEY;
+          const GOOGLE_API_KEY = window.GOOGLE_GENAI_API_KEY;
           if (!GOOGLE_API_KEY) {
-            log('ERROR: GOOGLE_API_KEY not found in window');
-            throw new Error('GOOGLE_API_KEY not provided');
+            log('ERROR: GOOGLE_GENAI_API_KEY not found in window');
+            throw new Error('GOOGLE_GENAI_API_KEY not provided');
           }
 
           // Create Google Gen AI client

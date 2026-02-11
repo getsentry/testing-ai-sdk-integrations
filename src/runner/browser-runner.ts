@@ -295,7 +295,7 @@ export default defineConfig({
         window.RUN_ID = ${JSON.stringify(runId)};
         window.OPENAI_API_KEY = ${JSON.stringify(process.env.OPENAI_API_KEY || "")};
         window.ANTHROPIC_API_KEY = ${JSON.stringify(process.env.ANTHROPIC_API_KEY || "")};
-        window.GOOGLE_API_KEY = ${JSON.stringify(process.env.GOOGLE_API_KEY || "")};
+        window.GOOGLE_GENAI_API_KEY = ${JSON.stringify(process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || "")};
         window.testComplete = false;
       `);
 
@@ -423,7 +423,7 @@ declare global {
     RUN_ID: string;
     OPENAI_API_KEY: string;
     ANTHROPIC_API_KEY: string;
-    GOOGLE_API_KEY: string;
+    GOOGLE_GENAI_API_KEY: string;
     testComplete: boolean;
   }
 }
