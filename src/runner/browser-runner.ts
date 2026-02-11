@@ -288,6 +288,8 @@ export default defineConfig({
       });
 
       // Inject environment variables before loading the page
+      // Note: Keys are runtime-injected (not bundled into HTML). Safe for testing
+      // as they come from local .env or CI secrets in controlled environments.
       await page.addInitScript(`
         window.SENTRY_DSN = ${JSON.stringify(sentryDsn)};
         window.RUN_ID = ${JSON.stringify(runId)};
