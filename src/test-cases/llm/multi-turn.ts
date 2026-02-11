@@ -5,8 +5,7 @@
  * Validates that Sentry captures multiple gen_ai spans correctly.
  */
 
-import { expect } from "chai";
-import { TestDefinition, Check } from "../../types.js";
+import { TestDefinition, Check, ErrorLocation } from "../../types.js";
 import {
   checkAISpanCount,
   checkChatSpanAttributes,
@@ -21,6 +20,7 @@ import {
   checkSystemInstructions,
 } from "../otel-checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
+import { CheckError } from "../../validator.js";
 
 /**
  * Check that input tokens increase with each turn (more conversation history)
@@ -40,8 +40,27 @@ const checkTokenProgression: Check = {
     );
 
     // Input tokens should increase with each turn (more conversation history)
-    expect(inputTokens[1]).to.be.greaterThan(inputTokens[0]);
-    expect(inputTokens[2]).to.be.greaterThan(inputTokens[1]);
+    const errors: ErrorLocation[] = [];
+    if (!(inputTokens[1] > inputTokens[0])) {
+      errors.push({
+        spanId: aiSpans[1].span_id,
+        attribute: "gen_ai.usage.input_tokens",
+        message: `Turn 2 input tokens (${inputTokens[1]}) should be greater than turn 1 (${inputTokens[0]})`,
+      });
+    }
+    if (!(inputTokens[2] > inputTokens[1])) {
+      errors.push({
+        spanId: aiSpans[2].span_id,
+        attribute: "gen_ai.usage.input_tokens",
+        message: `Turn 3 input tokens (${inputTokens[2]}) should be greater than turn 2 (${inputTokens[1]})`,
+      });
+    }
+    if (errors.length > 0) {
+      throw new CheckError(
+        `Input token progression failed: tokens should increase with each turn`,
+        errors,
+      );
+    }
   },
 };
 
@@ -87,15 +106,20 @@ export const multiTurnLLMTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAISpanCount(3),
     checkChatSpanAttributes,
+  ],
+
+  checks: [
     checkValidTokenUsage,
     checkTokenProgression,
     checkInputMessagesSchema,
+  ],
+
+  warningChecks: [
     checkInputTokensCached,
     checkOutputTokensReasoning,
-    // OTel-aligned checks (soft failure if not migrated)
     checkInputMessages,
     checkOutputMessages,
     checkSystemInstructions,

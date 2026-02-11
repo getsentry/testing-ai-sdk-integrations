@@ -296,6 +296,7 @@ function TestMatrix({ report }: { report: Report }) {
 interface ReportCheckResult {
   name: string;
   status: "passed" | "failed" | "skipped";
+  severity?: "critical" | "normal" | "warning";
   error?: string;
   skipReason?: string;
   errorLocations?: Array<{
@@ -342,6 +343,64 @@ function renderSpanJson(span: unknown, highlightAttrs?: Set<string>): string {
  * each group has a toggle icon to show/hide that span's JSON with failing
  * attributes highlighted.
  */
+/**
+ * Render a single failed check result with its error locations grouped by span.
+ */
+function FailedCheckDetail({
+  cr,
+  spanById,
+}: {
+  cr: ReportCheckResult;
+  spanById: Map<string, unknown>;
+}) {
+  const severity = cr.severity || "normal";
+  const icon = severity === "critical" ? "❗" : severity === "warning" ? "⚠" : "✗";
+
+  const groups = new Map<string, typeof cr.errorLocations>();
+  if (cr.errorLocations) {
+    for (const loc of cr.errorLocations) {
+      if (!groups.has(loc.spanId)) groups.set(loc.spanId, []);
+      groups.get(loc.spanId)!.push(loc);
+    }
+  }
+
+  return html`<div class="check-result check-failed check-severity-${severity}">
+    <span class="check-icon">${icon}</span>
+    <span class="check-name">${cr.name}</span>
+    ${cr.error ? html`<div class="check-error-msg">${cr.error}</div>` : ""}
+    ${groups.size > 0
+      ? html`<div class="check-locations">
+          ${[...groups.entries()].map(([spanId, locs]) => {
+            const highlightAttrs = new Set<string>();
+            for (const loc of locs!) {
+              if (loc.attribute) highlightAttrs.add(loc.attribute);
+            }
+            const span = spanById.get(spanId);
+            return html`<div class="span-group">
+              <div class="span-group-header">
+                <span class="loc-span">${spanId.substring(0, 8)}</span>
+                ${span
+                  ? html`<button class="show-span-btn" onclick="toggleSpanPreview(this)" title="Show/hide span JSON" dangerouslySetInnerHTML=${{ __html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>' }}></button>`
+                  : ""}
+              </div>
+              <div class="span-group-errors">
+                ${locs!.map(
+                  (loc) => html`<div class="check-location">
+                    ${loc.attribute ? html`<span class="loc-attr">${loc.attribute}</span>` : ""}
+                    <span class="loc-msg">${loc.message}</span>
+                  </div>`,
+                )}
+              </div>
+              ${span
+                ? html`<pre class="span-preview" style="display:none" dangerouslySetInnerHTML=${{ __html: renderSpanJson(span, highlightAttrs) }}></pre>`
+                : ""}
+            </div>`;
+          })}
+        </div>`
+      : ""}
+  </div>`;
+}
+
 function CheckResultsBreakdown({
   checkResults,
   spans,
@@ -360,69 +419,43 @@ function CheckResultsBreakdown({
     }
   }
 
-  const items = checkResults.map((cr) => {
-    if (cr.status === "passed") {
-      return html`<div class="check-result check-passed">
-        <span class="check-icon">✓</span>
-        <span class="check-name">${cr.name}</span>
-      </div>`;
-    } else if (cr.status === "skipped") {
-      return html`<div class="check-result check-skipped">
-        <span class="check-icon">○</span>
-        <span class="check-name">${cr.name}</span>
-        ${cr.skipReason ? html`<span class="check-skip-reason">(${cr.skipReason})</span>` : ""}
-      </div>`;
-    } else {
-      // failed - group error locations by spanId
-      const groups = new Map<string, typeof cr.errorLocations>();
-      if (cr.errorLocations) {
-        for (const loc of cr.errorLocations) {
-          if (!groups.has(loc.spanId)) groups.set(loc.spanId, []);
-          groups.get(loc.spanId)!.push(loc);
-        }
-      }
+  // Split checks by severity, keeping original order within each group
+  const severityOrder: Array<"critical" | "normal" | "warning"> = ["critical", "normal", "warning"];
+  const groups: Record<string, ReportCheckResult[]> = { critical: [], normal: [], warning: [] };
+  for (const cr of checkResults) {
+    const sev = cr.severity || "normal";
+    groups[sev].push(cr);
+  }
 
-      return html`<div class="check-result check-failed">
-        <span class="check-icon">✗</span>
-        <span class="check-name">${cr.name}</span>
-        ${cr.error ? html`<div class="check-error-msg">${cr.error}</div>` : ""}
-        ${groups.size > 0
-          ? html`<div class="check-locations">
-              ${[...groups.entries()].map(([spanId, locs]) => {
-                const highlightAttrs = new Set<string>();
-                for (const loc of locs!) {
-                  if (loc.attribute) highlightAttrs.add(loc.attribute);
-                }
-                const span = spanById.get(spanId);
-                return html`<div class="span-group">
-                  <div class="span-group-header">
-                    <span class="loc-span">${spanId.substring(0, 8)}</span>
-                    ${span
-                      ? html`<button class="show-span-btn" onclick="toggleSpanPreview(this)" title="Show/hide span JSON" dangerouslySetInnerHTML=${{ __html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>' }}></button>`
-                      : ""}
-                  </div>
-                  <div class="span-group-errors">
-                    ${locs!.map(
-                      (loc) => html`<div class="check-location">
-                        ${loc.attribute ? html`<span class="loc-attr">${loc.attribute}</span>` : ""}
-                        <span class="loc-msg">${loc.message}</span>
-                      </div>`,
-                    )}
-                  </div>
-                  ${span
-                    ? html`<pre class="span-preview" style="display:none" dangerouslySetInnerHTML=${{ __html: renderSpanJson(span, highlightAttrs) }}></pre>`
-                    : ""}
-                </div>`;
-              })}
-            </div>`
-          : ""}
+  const sections = severityOrder
+    .filter((sev) => groups[sev].length > 0)
+    .map((sev) => {
+      const label = sev === "critical" ? "Critical" : sev === "warning" ? "Warnings" : "Checks";
+      const items = groups[sev].map((cr) => {
+        if (cr.status === "passed") {
+          return html`<div class="check-result check-passed">
+            <span class="check-icon">✓</span>
+            <span class="check-name">${cr.name}</span>
+          </div>`;
+        } else if (cr.status === "skipped") {
+          return html`<div class="check-result check-skipped">
+            <span class="check-icon">○</span>
+            <span class="check-name">${cr.name}</span>
+            ${cr.skipReason ? html`<span class="check-skip-reason">(${cr.skipReason})</span>` : ""}
+          </div>`;
+        } else {
+          return FailedCheckDetail({ cr, spanById });
+        }
+      });
+
+      return html`<div class="check-section check-section-${sev}">
+        <div class="check-section-label">${label}</div>
+        ${items}
       </div>`;
-    }
-  });
+    });
 
   return html`<div class="check-results-breakdown">
-    <strong>Check Results:</strong>
-    ${items}
+    ${sections}
   </div>`;
 }
 
@@ -445,6 +478,17 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const spanCount = extra?.spanCount as number | undefined;
       const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
 
+      // Count failures by severity for summary badges
+      const severityCounts = { critical: 0, normal: 0, warning: 0 };
+      if (checkResults) {
+        for (const cr of checkResults) {
+          if (cr.status === "failed") {
+            const sev = cr.severity || "normal";
+            severityCounts[sev]++;
+          }
+        }
+      }
+
       return html`
         <details class="failed-test">
           <summary>
@@ -455,6 +499,17 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
                 : "unknown"}</strong
             >
             :: ${caseId}
+            <span class="severity-badges">
+              ${severityCounts.critical > 0
+                ? html`<span class="sev-badge sev-badge-critical">${"❗"} ${severityCounts.critical}</span>`
+                : ""}
+              ${severityCounts.normal > 0
+                ? html`<span class="sev-badge sev-badge-normal">${"✗"} ${severityCounts.normal}</span>`
+                : ""}
+              ${severityCounts.warning > 0
+                ? html`<span class="sev-badge sev-badge-warning">${"⚠"} ${severityCounts.warning}</span>`
+                : ""}
+            </span>
             <span class="duration">(${test.duration}ms)</span>
           </summary>
           <div class="error-details">
@@ -719,6 +774,34 @@ export function generateHTML(report: Report): string {
             color: #c62828;
             margin-right: 8px;
           }
+          .severity-badges {
+            display: inline-flex;
+            gap: 6px;
+            margin-left: 8px;
+            vertical-align: middle;
+          }
+          .sev-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 10px;
+            line-height: 1.4;
+          }
+          .sev-badge-critical {
+            background: #ffcdd2;
+            color: #b71c1c;
+          }
+          .sev-badge-normal {
+            background: #ffcdd2;
+            color: #c62828;
+          }
+          .sev-badge-warning {
+            background: #fff3e0;
+            color: #e65100;
+          }
           .duration {
             color: #666;
             font-size: 12px;
@@ -742,16 +825,35 @@ export function generateHTML(report: Report): string {
           /* Check results breakdown */
           .check-results-breakdown {
             margin: 10px 0 15px 0;
-            padding: 12px;
-            background: #fafafa;
+          }
+          .check-section {
+            margin-bottom: 8px;
+            padding: 8px 12px;
             border: 1px solid #e0e0e0;
             border-radius: 4px;
+            background: #fafafa;
           }
-          .check-results-breakdown > strong {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #333;
+          .check-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            color: #888;
+          }
+          .check-section-critical {
+            border-color: #ef9a9a;
+            background: #fff5f5;
+          }
+          .check-section-critical .check-section-label {
+            color: #b71c1c;
+          }
+          .check-section-warning {
+            border-color: #ffe082;
+            background: #fffde7;
+          }
+          .check-section-warning .check-section-label {
+            color: #f57f17;
           }
           .check-result {
             padding: 4px 0 4px 8px;
@@ -794,6 +896,20 @@ export function generateHTML(report: Report): string {
           }
           .check-failed .check-name {
             font-weight: 600;
+          }
+          .check-severity-critical {
+            border-left-color: #b71c1c;
+            background: #ffebee;
+          }
+          .check-severity-critical .check-icon {
+            color: #b71c1c;
+          }
+          .check-severity-warning {
+            border-left-color: #f9a825;
+            background: #fffde7;
+          }
+          .check-severity-warning .check-icon {
+            color: #f57f17;
           }
           .check-error-msg {
             margin: 4px 0 4px 24px;

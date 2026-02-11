@@ -169,7 +169,10 @@ export class LiveStatusReporter {
 
           // Show check results
           for (const check of test.checkResults) {
-            const checkIcon = this.getStatusIcon(check.status);
+            const sev = (check as any).severity || 'normal';
+            const checkIcon = check.status === 'failed'
+              ? (sev === 'critical' ? `${colors.red}❗${colors.reset}` : sev === 'warning' ? `${colors.yellow}⚠${colors.reset}` : this.getStatusIcon(check.status))
+              : this.getStatusIcon(check.status);
             const checkLine = `      ${checkIcon} ${colors.dim}${check.name}${colors.reset}`;
             
             if (check.status === 'skipped' && check.skipReason) {

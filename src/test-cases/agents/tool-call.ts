@@ -96,12 +96,15 @@ export const toolCallAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAgentSpanAttributes,
     checkChatSpanAttributes,
     checkToolSpanAttributes,
-    checkValidTokenUsage,
     checkAgentHierarchy,
+  ],
+
+  checks: [
+    checkValidTokenUsage,
     checkAvailableTools,
     checkResponseToolCalls([
       { name: "add", arguments: { a: 3, b: 5 } },
@@ -124,9 +127,11 @@ export const toolCallAgentTest: TestDefinition = {
       },
     ]),
     checkInputMessagesSchema,
+  ],
+
+  warningChecks: [
     checkInputTokensCached,
     checkOutputTokensReasoning,
-    // OTel-aligned checks (soft failure if not migrated)
     checkInputMessages,
     checkOutputMessages,
     checkToolDefinitions,

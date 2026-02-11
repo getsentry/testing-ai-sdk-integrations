@@ -73,14 +73,19 @@ export const longInputAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAgentSpanAttributes,
     checkChatSpanAttributes,
+    checkAgentHierarchy,
+  ],
+
+  checks: [
     checkMessageTrimming,
     checkTrimmingMetadata,
-    checkAgentHierarchy,
     checkInputMessagesSchema,
-    // OTel-aligned checks (soft failure if not migrated)
+  ],
+
+  warningChecks: [
     checkInputMessages,
     checkOutputMessages,
   ],

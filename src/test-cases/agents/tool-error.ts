@@ -5,8 +5,7 @@
  * Validates that Sentry captures the error correctly in spans.
  */
 
-import { expect } from "chai";
-import { TestDefinition, CapturedSpan, Check } from "../../types.js";
+import { TestDefinition, CapturedSpan, Check, ErrorLocation } from "../../types.js";
 import {
   checkChatSpanAttributes,
   checkAgentSpanAttributes,
@@ -24,6 +23,7 @@ import {
   checkOutputMessagesToolCalls,
 } from "../otel-checks.js";
 import { extractGenAISpans, findToolSpans } from "../utils.js";
+import { CheckError } from "../../validator.js";
 
 /**
  * Check that a tool error was captured in spans
@@ -32,35 +32,51 @@ const checkToolErrorSpan: Check = {
   name: "checkToolErrorSpan",
   fn: (spans: CapturedSpan[], config, testDef) => {
     const toolSpans = findToolSpans(extractGenAISpans(spans));
-    expect(
-      toolSpans.length,
-      "Should have at least one tool span",
-    ).to.be.greaterThan(0);
+    if (toolSpans.length === 0) {
+      throw new CheckError("Should have at least one tool span but found none");
+    }
 
     // Get expected tool name from test definition
     const expectedToolName = testDef.agent?.tools?.[0]?.name;
-    expect(expectedToolName, "Test should define at least one tool").to.exist;
+    if (!expectedToolName) {
+      throw new CheckError("Test should define at least one tool with a name");
+    }
 
     // Find the span for the expected tool
     const toolSpan = toolSpans.find(
       (s) =>
         s.data?.["gen_ai.tool.name"] === expectedToolName ||
-        s.description?.includes(expectedToolName!),
+        s.description?.includes(expectedToolName),
     );
-    expect(toolSpan, `Should have a span for tool "${expectedToolName}"`).to
-      .exist;
+    if (!toolSpan) {
+      throw new CheckError(
+        `Should have a span for tool "${expectedToolName}"`,
+        toolSpans.map((s) => ({
+          spanId: s.span_id,
+          attribute: "gen_ai.tool.name",
+          message: `Tool span has name="${s.data?.["gen_ai.tool.name"]}" / description="${s.description}", expected "${expectedToolName}"`,
+        })),
+      );
+    }
 
     // Check for error indicators
-    const span = toolSpan!;
     const hasError =
-      span.status === "error" ||
-      span.status === "internal_error" ||
-      span.data?.["error"] !== undefined ||
-      span.data?.["exception"] !== undefined ||
-      span.data?.["gen_ai.tool.error"] !== undefined ||
-      (span.tags && span.tags["error"] === true);
+      toolSpan.status === "error" ||
+      toolSpan.status === "internal_error" ||
+      toolSpan.data?.["error"] !== undefined ||
+      toolSpan.data?.["exception"] !== undefined ||
+      toolSpan.data?.["gen_ai.tool.error"] !== undefined ||
+      (toolSpan.tags && toolSpan.tags["error"] === true);
 
-    expect(hasError, "Tool span should have an error indicator").to.be.true;
+    if (!hasError) {
+      throw new CheckError(
+        "Tool span should have an error indicator (status=error, data.error, data.exception, gen_ai.tool.error, or tags.error)",
+        [{
+          spanId: toolSpan.span_id,
+          message: `Tool span has status="${toolSpan.status}" with no error indicators`,
+        }],
+      );
+    }
   },
 };
 
@@ -106,18 +122,23 @@ export const toolErrorAgentTest: TestDefinition = {
     },
   ],
 
-  checks: [
+  criticalChecks: [
     checkAgentSpanAttributes,
     checkChatSpanAttributes,
     checkToolSpanAttributes,
     checkAgentHierarchy,
+  ],
+
+  checks: [
     checkAvailableTools,
     checkResponseToolCalls([
       { name: "read_file", arguments: { path: "/nonexistent/file.txt" } },
     ]),
     checkInputMessagesSchema,
     checkToolErrorSpan,
-    // OTel-aligned checks (soft failure if not migrated)
+  ],
+
+  warningChecks: [
     checkInputMessages,
     checkOutputMessages,
     checkToolDefinitions,

@@ -1031,8 +1031,11 @@ export class Orchestrator {
               `  ${colors.yellow}⊘${colors.reset} ${colors.dim}${check.name}${colors.reset} ${colors.gray}(${reason})${colors.reset}`,
             );
           } else {
+            const sev = (check as any).severity || "normal";
+            const sevIcon = sev === "critical" ? "❗" : sev === "warning" ? "⚠ " : "✗ ";
+            const sevColor = sev === "critical" ? colors.red : sev === "warning" ? colors.yellow : colors.red;
             console.log(
-              `  ${colors.red}✗${colors.reset} ${colors.bright}${check.name}${colors.reset}`,
+              `  ${sevColor}${sevIcon}${colors.reset} ${colors.bright}${check.name}${colors.reset}`,
             );
             if (check.error) {
               // Print error message with indentation
