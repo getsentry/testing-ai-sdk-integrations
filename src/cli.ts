@@ -100,9 +100,9 @@ function parseCliArgs() {
   }
 
   // Validate platform
-  const platform = values.platform as "node" | "py" | undefined;
-  if (platform && platform !== "node" && platform !== "py") {
-    console.error('Error: --platform must be "node" or "py"');
+  const platform = values.platform as "node" | "py" | "browser" | undefined;
+  if (platform && platform !== "node" && platform !== "py" && platform !== "browser") {
+    console.error('Error: --platform must be "node", "py", or "browser"');
     process.exit(1);
   }
 

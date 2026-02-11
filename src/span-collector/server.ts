@@ -3,6 +3,7 @@
  */
 
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { SpanStore } from './store.js';
 import { CapturedSpan } from '../types.js';
@@ -30,6 +31,16 @@ export class SpanCollector {
    */
   private createApp(): Hono {
     const app = new Hono();
+
+    // Enable CORS for browser tests
+    app.use('/*', cors({
+      origin: '*', // Allow all origins for testing
+      allowHeaders: ['Content-Type', 'Content-Encoding', 'X-Sentry-Auth'],
+      allowMethods: ['POST', 'GET', 'OPTIONS'],
+      exposeHeaders: ['Content-Length'],
+      maxAge: 600,
+      credentials: false,
+    }));
 
     // Health check endpoint
     app.get('/health', (c) => {

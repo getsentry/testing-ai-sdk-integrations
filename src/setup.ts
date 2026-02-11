@@ -11,7 +11,7 @@ import { discoverFrameworks } from "./runner/framework-discovery.js";
 import { getAllTests } from "./test-cases/index.js";
 
 interface SetupOptions {
-  platform?: "node" | "py";
+  platform?: "node" | "py" | "browser";
   framework?: string;
   test?: string;
   sync?: boolean;

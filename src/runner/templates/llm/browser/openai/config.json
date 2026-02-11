@@ -1,0 +1,19 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI Browser SDK (Manual Instrumentation)",
+  "type": "llm-only",
+  "platform": "browser",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "openai",
+      "version": "framework"
+    },
+    {
+      "package": "@sentry/browser",
+      "version": "sentry"
+    }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["latest"]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "google-genai",
+  "displayName": "Google Gen AI Browser SDK (Manual Instrumentation)",
+  "type": "llm-only",
+  "platform": "browser",
+  "streamingMode": "both",
+  "dependencies": [
+    { "package": "@google/genai", "version": "framework" },
+    { "package": "@sentry/browser", "version": "sentry" }
+  ],
+  "versions": ["1.38.0"],
+  "sentryVersions": ["latest"],
+  "modelOverrides": {
+    "request": "gemini-2.0-flash",
+    "response": "gemini-2.0-flash*"
+  }
+}

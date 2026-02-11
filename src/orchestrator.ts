@@ -17,6 +17,13 @@ import { generateHTML, writeHTMLReport } from "./reporters/html-generator.js";
 import { LiveStatusReporter } from "./reporters/live-status.js";
 import { PoolExecutionStrategy, ExecutionStrategy } from "./concurrency.js";
 import {
+  getPlatformIcon,
+  getPlatformDisplayName,
+  needsAsyncFlag,
+  supportsExecutionModes,
+  buildModeParts
+} from "./platform-utils.js";
+import {
   TestDefinition,
   FrameworkConfig,
   TestRun,

@@ -1,0 +1,23 @@
+{
+  "name": "anthropic",
+  "displayName": "Anthropic Browser SDK (Manual Instrumentation)",
+  "type": "llm-only",
+  "platform": "browser",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "@anthropic-ai/sdk",
+      "version": "framework"
+    },
+    {
+      "package": "@sentry/browser",
+      "version": "sentry"
+    }
+  ],
+  "versions": ["0.39.0"],
+  "sentryVersions": ["latest"],
+  "modelOverrides": {
+    "request": "claude-haiku-4-5",
+    "response": "claude-haiku-4-5*"
+  }
+}
