@@ -208,7 +208,7 @@ Framework templates receive:
 ### Creating Framework Templates
 
 1. Determine framework type (LLM or agent)
-2. Choose platform (js or py)
+2. Choose platform (node, py, or browser)
 3. Create framework directory: `{llm,agents}/{js,py}/{framework}/`
 4. Create template file: `template.njk`
 5. Create config file: `config.json`

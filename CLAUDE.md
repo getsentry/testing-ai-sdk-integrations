@@ -45,8 +45,9 @@ testing-ai-sdk-integrations/
 │   │       └── long-input.ts         # Long input agent test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
-│   │   ├── javascript-runner.ts      # JS-specific execution
-│   │   ├── python-runner.ts          # Python-specific execution
+│   │   ├── javascript-runner.ts      # JS (Node) execution
+│   │   ├── python-runner.ts          # Python execution
+│   │   ├── browser-runner.ts         # Browser execution (Playwright)
 │   │   ├── framework-config.ts       # Framework configuration types
 │   │   ├── framework-discovery.ts    # Auto-discovers frameworks
 │   │   ├── template-renderer.ts      # Nunjucks template rendering
@@ -68,22 +69,28 @@ testing-ai-sdk-integrations/
 
 ### Framework Templates Structure
 
-Templates are organized by **category** (llm, agents), then **platform** (js, py, browser), then **framework** name. The framework folder name is the **SDK or framework that Sentry instruments** (e.g. `openai` = OpenAI SDK, `langchain` = LangChain); the fact that a template calls a given provider (e.g. LangChain using OpenAI) is an implementation detail. See `src/runner/templates/README.md` for the full naming convention and options to reduce confusion.
+Templates are organized by **category** (llm, agents), then **platform** (node, py, browser), then **framework** name. The framework folder name is the **SDK or framework that Sentry instruments** (e.g. `openai` = OpenAI SDK, `langchain` = LangChain); the fact that a template calls a given provider (e.g. LangChain using OpenAI) is an implementation detail. See `src/runner/templates/README.md` for the full naming convention and options to reduce confusion.
 
 ```
 src/runner/templates/
-├── base.node.njk                       # Base JavaScript template
+├── base.node.njk                     # Base JavaScript (Node) template
 ├── base.py.njk                       # Base Python template
+├── base.browser.njk                  # Base JavaScript (browser) template
 ├── llm/                              # Low-level LLM frameworks
 │   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
 │   │   ├── google-genai/
 │   │   ├── langchain/
 │   │   └── openai/
-│   └── py/
+│   ├── py/
+│   │   ├── anthropic/
+│   │   ├── langchain/
+│   │   ├── litellm/
+│   │   └── openai/
+│   └── browser/
 │       ├── anthropic/
+│       ├── google-genai/
 │       ├── langchain/
-│       ├── litellm/
 │       └── openai/
 └── agents/                           # Agentic frameworks
     ├── node/
@@ -115,8 +122,9 @@ npm run test run
 # Run tests for a specific framework
 npm run test -- --framework openai
 
-# Run tests for a specific platform
+# Run tests for a specific platform (node, py, or browser)
 npm run test -- --platform py
+npm run test -- --platform browser
 
 # Run with verbose output
 npm run test -- --framework openai --verbose
@@ -148,7 +156,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <js|py>         Filter by platform (js or py)
+  --platform <node|py|browser>  Filter by platform (node, py, or browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -191,15 +199,19 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 
 ### Currently Implemented
 
-| Platform   | SDK             | Category | Type     | Streaming | Execution Modes |
-| ---------- | --------------- | -------- | -------- | --------- | --------------- |
-| JavaScript | `openai`        | llm      | llm-only | both      | -               |
-| JavaScript | `anthropic`     | llm      | llm-only | both      | -               |
-| JavaScript | `google-genai`  | llm      | llm-only | both      | -               |
-| JavaScript | `langchain`     | llm      | llm-only | both      | -               |
-| JavaScript | `vercel`        | agents   | agentic  | -         | -               |
-| JavaScript | `langgraph`     | agents   | agentic  | -         | -               |
-| JavaScript | `mastra`        | agents   | agentic  | -         | -               |
+| Platform        | SDK             | Category | Type     | Streaming | Execution Modes |
+| --------------- | --------------- | -------- | -------- | --------- | --------------- |
+| JavaScript (Node) | `openai`      | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `anthropic`   | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `google-genai`| llm      | llm-only | both      | -               |
+| JavaScript (Node) | `langchain`   | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `vercel`      | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `langgraph`   | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `mastra`      | agents   | agentic  | -         | -               |
+| Browser          | `openai`      | llm      | llm-only | both      | -               |
+| Browser          | `anthropic`   | llm      | llm-only | both      | -               |
+| Browser          | `google-genai`| llm      | llm-only | both      | -               |
+| Browser          | `langchain`   | llm      | llm-only | both      | -               |
 | Python     | `openai`        | llm      | llm-only | both      | sync/async      |
 | Python     | `anthropic`     | llm      | llm-only | both      | sync/async      |
 | Python     | `langchain`     | llm      | llm-only | both      | sync/async      |
@@ -317,7 +329,7 @@ Each framework has a `config.json` file that defines its capabilities:
   "name": "openai",
   "displayName": "OpenAI JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [{ "package": "openai", "version": "framework" }],
   "versions": ["4.96.0"],
@@ -332,7 +344,7 @@ Each framework has a `config.json` file that defines its capabilities:
 | `name`           | Framework identifier                                 |
 | `displayName`    | Human-readable name                                  |
 | `type`           | `"llm-only"` or `"agentic"`                          |
-| `platform`       | `"js"` or `"py"`                                     |
+| `platform`       | `"node"`, `"py"`, or `"browser"`                     |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`             |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`        |
 | `dependencies`   | NPM/pip packages to install                          |
@@ -379,7 +391,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{js|py}/your-framework
+mkdir -p src/runner/templates/{llm|agents}/{node|py|browser}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -389,7 +401,7 @@ mkdir -p src/runner/templates/{llm|agents}/{js|py}/your-framework
   "name": "your-framework",
   "displayName": "Your Framework SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [{ "package": "your-framework", "version": "framework" }],
   "versions": ["1.0.0"],
@@ -399,10 +411,10 @@ mkdir -p src/runner/templates/{llm|agents}/{js|py}/your-framework
 
 ### 3. Create `template.njk`
 
-Templates extend the base template and implement required blocks:
+Templates extend the base template and implement required blocks. Use `base.node.njk` for Node, `base.py.njk` for Python, or `base.browser.njk` for browser.
 
 ```njk
-{% extends "base.js.njk" %}
+{% extends "base.node.njk" %}
 
 {% block setup %}
 let client;
@@ -503,7 +515,7 @@ interface TestDefinition {
 ```typescript
 interface FrameworkConfig {
   name: string;
-  platform: "js" | "py";
+  platform: "node" | "py" | "browser";
   type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;
@@ -601,7 +613,7 @@ A test passes when:
 Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/node`. Key differences:
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
-- Template is standalone (does not extend base.js.njk)
+- Template is standalone (does not extend base.node.njk)
 
 ## References
 
