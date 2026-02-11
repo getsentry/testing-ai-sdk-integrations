@@ -39,11 +39,8 @@
             apiKey: GOOGLE_API_KEY,
           });
 
-          // Wrap client with Sentry instrumentation
-          client = Sentry.instrumentGoogleGenAIClient(genAI, {
-            recordInputs: true,
-            recordOutputs: true,
-          });
+          // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+          client = Sentry.instrumentGoogleGenAIClient(genAI);
 
           log('Google Gen AI client initialized and instrumented');
 {% endblock %}

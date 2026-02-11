@@ -1,6 +1,6 @@
 {
   "name": "langchain",
-  "displayName": "LangChain Browser (Manual Instrumentation)",
+  "displayName": "LangChain Browser (Helper Function Instrumentation)",
   "type": "llm-only",
   "platform": "browser",
   "streamingMode": "both",

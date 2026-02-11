@@ -1,6 +1,6 @@
 {
   "name": "langgraph",
-  "displayName": "LangGraph Browser SDK (Manual Instrumentation)",
+  "displayName": "LangGraph Browser SDK (Helper Function Instrumentation)",
   "type": "agentic",
   "platform": "browser",
   "dependencies": [

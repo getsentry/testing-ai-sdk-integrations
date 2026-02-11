@@ -40,11 +40,8 @@
             dangerouslyAllowBrowser: true
           });
 
-          // Wrap client with Sentry instrumentation
-          client = Sentry.instrumentOpenAiClient(openai, {
-            recordInputs: true,
-            recordOutputs: true,
-          });
+          // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+          client = Sentry.instrumentOpenAiClient(openai);
 
           log('OpenAI client initialized and instrumented');
 {% endblock %}

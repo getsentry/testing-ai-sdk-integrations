@@ -1,6 +1,6 @@
 {
   "name": "anthropic",
-  "displayName": "Anthropic Browser SDK (Manual Instrumentation)",
+  "displayName": "Anthropic Browser SDK (Helper Function Instrumentation)",
   "type": "llm-only",
   "platform": "browser",
   "streamingMode": "both",

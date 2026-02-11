@@ -40,11 +40,8 @@
             dangerouslyAllowBrowser: true
           });
 
-          // Wrap client with Sentry instrumentation
-          client = Sentry.instrumentAnthropicAiClient(anthropic, {
-            recordInputs: true,
-            recordOutputs: true,
-          });
+          // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+          client = Sentry.instrumentAnthropicAiClient(anthropic);
 
           log('Anthropic client initialized and instrumented');
 {% endblock %}

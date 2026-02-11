@@ -40,11 +40,8 @@
             throw new Error('OPENAI_API_KEY not provided');
           }
 
-          // Create LangChain callback handler for Sentry instrumentation
-          callbackHandler = Sentry.createLangChainCallbackHandler({
-            recordInputs: true,
-            recordOutputs: true,
-          });
+          // Create LangChain callback handler for Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+          callbackHandler = Sentry.createLangChainCallbackHandler();
 
           // Create chat model (API key exposed in browser - for testing only!)
           chat = new langchainOpenAI.ChatOpenAI({

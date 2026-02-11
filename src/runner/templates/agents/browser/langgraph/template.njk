@@ -63,11 +63,8 @@
             name: "{{ agent.name | default('my_agent') }}",
           });
 
-          // Manually instrument the graph with Sentry
-          graph = Sentry.instrumentLangGraph(compiledGraph, {
-            recordInputs: true,
-            recordOutputs: true,
-          });
+          // Manually instrument the graph with Sentry (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+          graph = Sentry.instrumentLangGraph(compiledGraph);
 
           log('LangGraph agent initialized and instrumented');
 {% endblock %}
