@@ -128,7 +128,7 @@ export class BrowserRunner {
       type: "module",
       dependencies,
       devDependencies: {
-        "vite": "^6.0.11",
+        vite: "^6.0.11",
         "vite-plugin-singlefile": "^2.0.5",
       },
     };
@@ -145,11 +145,33 @@ export class BrowserRunner {
   }
 
   /**
-   * Create Vite config for bundling
-   * Uses vite-plugin-singlefile to bundle everything into a single HTML file
+   * Bundle all rendered HTML test files in a work directory.
+   * Builds each file sequentially with viteSingleFile (which requires a single input
+   * due to Rollup's inlineDynamicImports constraint). The first build empties dist/,
+   * subsequent builds accumulate into it.
+   * Called once after all templates are rendered, before parallel test execution.
    */
-  private async createViteConfig(workDir: string, htmlFile: string): Promise<void> {
-    const viteConfig = `
+  async bundleAllTests(
+    workDir: string,
+    htmlFiles: string[],
+    verbose: boolean,
+  ): Promise<void> {
+    if (htmlFiles.length === 0) {
+      return;
+    }
+
+    if (verbose) {
+      console.log(
+        `  Bundling ${htmlFiles.length} browser test file(s) with Vite...`,
+      );
+    }
+
+    const viteCmd = path.join(workDir, "node_modules", ".bin", "vite");
+
+    for (let i = 0; i < htmlFiles.length; i++) {
+      const file = htmlFiles[i];
+
+      const viteConfig = `
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
@@ -157,37 +179,27 @@ export default defineConfig({
   plugins: [viteSingleFile()],
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    emptyOutDir: ${i === 0 ? "true" : "false"},
     rollupOptions: {
-      input: '${htmlFile}',
+      input: '${file}',
     },
   },
 });
 `;
-    await fs.writeFile(path.join(workDir, "vite.config.js"), viteConfig);
-  }
+      await fs.writeFile(path.join(workDir, "vite.config.js"), viteConfig);
 
-  /**
-   * Bundle test with Vite
-   */
-  private async bundleWithVite(workDir: string, verbose: boolean): Promise<void> {
-    if (verbose) {
-      console.log("  Bundling with Vite...");
+      try {
+        await execAsync(`"${viteCmd}" build`, {
+          cwd: workDir,
+          env: { ...process.env, NODE_ENV: "production" },
+        });
+      } catch (error: any) {
+        throw new Error(`Vite bundling failed for ${file}: ${error.message}`);
+      }
     }
 
-    try {
-      // Use vite from the test's local node_modules
-      const viteCmd = path.join(workDir, "node_modules", ".bin", "vite");
-      await execAsync(`"${viteCmd}" build`, {
-        cwd: workDir,
-        env: { ...process.env, NODE_ENV: "production" },
-      });
-
-      if (verbose) {
-        console.log("  ✓ Vite bundling completed");
-      }
-    } catch (error: any) {
-      throw new Error(`Vite bundling failed: ${error.message}`);
+    if (verbose) {
+      console.log(`  ✓ Vite bundling completed (${htmlFiles.length} file(s))`);
     }
   }
 
@@ -237,24 +249,19 @@ export default defineConfig({
     }
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = `test-${testCaseId}${modeSuffix}.html`;
-    const testPath = path.join(workDir, testFile);
     const logFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.log`);
 
-    // Verify test file exists
-    try {
-      await fs.access(testPath);
-    } catch {
-      throw new Error(`Test file not found: ${testPath}`);
-    }
-
-    // Create Vite config
-    await this.createViteConfig(workDir, testFile);
-
-    // Bundle with Vite
-    await this.bundleWithVite(workDir, verbose);
-
-    // The bundled output will be in dist/
+    // The bundled output should already exist in dist/ from the pre-build step
     const bundledHtmlPath = path.join(workDir, "dist", testFile);
+
+    // Verify bundled file exists (bundleAllTests should have been called first)
+    try {
+      await fs.access(bundledHtmlPath);
+    } catch {
+      throw new Error(
+        `Bundled test file not found: ${bundledHtmlPath}. Was bundleAllTests() called after rendering?`,
+      );
+    }
 
     let page: Page | null = null;
 
@@ -311,10 +318,9 @@ export default defineConfig({
 
       // Wait for test to complete (window.testComplete = true)
       // Timeout after 60 seconds
-      await page.waitForFunction(
-        'window.testComplete === true',
-        { timeout: 60000 }
-      );
+      await page.waitForFunction("window.testComplete === true", {
+        timeout: 60000,
+      });
 
       if (verbose) {
         console.log("  ✓ Test completed successfully");

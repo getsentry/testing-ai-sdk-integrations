@@ -21,7 +21,7 @@ import {
   getPlatformDisplayName,
   needsAsyncFlag,
   supportsExecutionModes,
-  buildModeParts
+  buildModeParts,
 } from "./platform-utils.js";
 import {
   TestDefinition,
@@ -248,6 +248,7 @@ export class Orchestrator {
       }
 
       // Render all templates for this framework
+      const renderedHtmlFiles: string[] = [];
       for (const testRun of runs) {
         const displayName = this.buildDisplayName(testRun);
         if (this.verbose) {
@@ -272,6 +273,11 @@ export class Orchestrator {
           });
 
           renderedTests.set(testRun.id, testPath);
+
+          // Track HTML files for browser bundling
+          if (firstRun.framework.platform === "browser") {
+            renderedHtmlFiles.push(path.basename(testPath));
+          }
         } catch (renderError) {
           // Mark this specific test as an error
           const errorMessage =
@@ -287,6 +293,39 @@ export class Orchestrator {
           testRun.startTime = Date.now();
           testRun.endTime = Date.now();
           this.testRuns.push(testRun);
+        }
+      }
+
+      // Bundle all browser test files with a single Vite build
+      if (
+        firstRun.framework.platform === "browser" &&
+        renderedHtmlFiles.length > 0
+      ) {
+        try {
+          await this.runner.bundleBrowserTests(
+            workDir,
+            renderedHtmlFiles,
+            this.verbose,
+          );
+        } catch (bundleError) {
+          const errorMessage =
+            bundleError instanceof Error
+              ? bundleError.message
+              : String(bundleError);
+          console.error(
+            `[${frameworkKey}] Vite bundling failed: ${errorMessage}`,
+          );
+
+          // Mark all successfully rendered tests for this framework as errors
+          for (const testRun of runs) {
+            if (testRun.status !== "error") {
+              testRun.status = "error";
+              testRun.error = `Vite bundling failed: ${errorMessage}`;
+              testRun.startTime = Date.now();
+              testRun.endTime = Date.now();
+              this.testRuns.push(testRun);
+            }
+          }
         }
       }
     }
@@ -348,8 +387,49 @@ export class Orchestrator {
     console.log("Setting up test environments...\n");
 
     // Setup each test (environment + template rendering only)
+    // Track rendered browser HTML files per workDir for bundling
+    const browserFilesByWorkDir = new Map<string, string[]>();
     for (const testRun of testMatrix) {
       await this.setupTest(testRun);
+
+      // Track browser HTML files for post-render Vite bundling
+      if (testRun.framework.platform === "browser") {
+        const workDir = this.runner.getWorkDir(testRun.framework);
+        if (!browserFilesByWorkDir.has(workDir)) {
+          browserFilesByWorkDir.set(workDir, []);
+        }
+        const testCaseId = testRun.testDefinition.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        const modeParts: string[] = [];
+        if (testRun.framework.streamingMode) {
+          modeParts.push(
+            testRun.framework.streamingMode === "streaming"
+              ? "streaming"
+              : "blocking",
+          );
+        }
+        const modeSuffix =
+          modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
+        browserFilesByWorkDir
+          .get(workDir)!
+          .push(`test-${testCaseId}${modeSuffix}.html`);
+      }
+    }
+
+    // Bundle browser tests per workDir
+    for (const [workDir, htmlFiles] of browserFilesByWorkDir) {
+      try {
+        console.log(`\nBundling ${htmlFiles.length} browser test file(s)...`);
+        await this.runner.bundleBrowserTests(workDir, htmlFiles, this.verbose);
+        console.log(`  ✓ Browser bundling complete`);
+      } catch (error) {
+        console.error(
+          `  ✗ Browser bundling failed:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
 
     console.log(`\n✓ Setup complete. ${testMatrix.length} test(s) prepared.`);

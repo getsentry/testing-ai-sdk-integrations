@@ -7,7 +7,11 @@ import { TemplateRenderer } from "./template-renderer.js";
 import { PythonRunner } from "./python-runner.js";
 import { JavaScriptRunner } from "./javascript-runner.js";
 import { BrowserRunner } from "./browser-runner.js";
-import { getFileExtension, buildModeSuffix, getFormatterParser } from "../platform-utils.js";
+import {
+  getFileExtension,
+  buildModeSuffix,
+  getFormatterParser,
+} from "../platform-utils.js";
 import * as path from "path";
 import * as fs from "fs/promises";
 import * as prettier from "prettier";
@@ -30,7 +34,9 @@ export class Runner {
   /**
    * Get platform-specific runner
    */
-  private getPlatformRunner(platform: "node" | "py" | "browser"): PythonRunner | JavaScriptRunner | BrowserRunner {
+  private getPlatformRunner(
+    platform: "node" | "py" | "browser",
+  ): PythonRunner | JavaScriptRunner | BrowserRunner {
     if (platform === "py") {
       return this.pythonRunner;
     } else if (platform === "browser") {
@@ -150,6 +156,18 @@ export class Runner {
 
     // Execute test
     await platformRunner.executeTest(context);
+  }
+
+  /**
+   * Bundle all rendered browser test files in a work directory with a single Vite build.
+   * Must be called after all templates for a browser framework are rendered and before execution.
+   */
+  async bundleBrowserTests(
+    workDir: string,
+    htmlFiles: string[],
+    verbose: boolean,
+  ): Promise<void> {
+    await this.browserRunner.bundleAllTests(workDir, htmlFiles, verbose);
   }
 
   /**
