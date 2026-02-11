@@ -68,14 +68,14 @@ testing-ai-sdk-integrations/
 
 ### Framework Templates Structure
 
-Templates are organized by **category** (llm, agents), then **platform** (js, py), then **framework** name:
+Templates are organized by **category** (llm, agents), then **platform** (js, py, browser), then **framework** name. The framework folder name is the **SDK or framework that Sentry instruments** (e.g. `openai` = OpenAI SDK, `langchain` = LangChain); the fact that a template calls a given provider (e.g. LangChain using OpenAI) is an implementation detail. See `src/runner/templates/README.md` for the full naming convention and options to reduce confusion.
 
 ```
 src/runner/templates/
-├── base.js.njk                       # Base JavaScript template
+├── base.node.njk                       # Base JavaScript template
 ├── base.py.njk                       # Base Python template
 ├── llm/                              # Low-level LLM frameworks
-│   ├── js/
+│   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
 │   │   ├── google-genai/
 │   │   ├── langchain/
@@ -86,7 +86,7 @@ src/runner/templates/
 │       ├── litellm/
 │       └── openai/
 └── agents/                           # Agentic frameworks
-    ├── js/
+    ├── node/
     │   ├── langgraph/
     │   ├── mastra/
     │   └── vercel/

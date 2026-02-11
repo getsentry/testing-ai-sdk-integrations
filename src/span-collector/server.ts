@@ -32,15 +32,8 @@ export class SpanCollector {
   private createApp(): Hono {
     const app = new Hono();
 
-    // Enable CORS for browser tests
-    app.use('/*', cors({
-      origin: '*', // Allow all origins for testing
-      allowHeaders: ['Content-Type', 'Content-Encoding', 'X-Sentry-Auth'],
-      allowMethods: ['POST', 'GET', 'OPTIONS'],
-      exposeHeaders: ['Content-Length'],
-      maxAge: 600,
-      credentials: false,
-    }));
+    // Enable CORS for browser tests (Playwright, Vite)
+    app.use('/*', cors());
 
     // Health check endpoint
     app.get('/health', (c) => {
