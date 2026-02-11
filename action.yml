@@ -88,6 +88,12 @@ runs:
         npm install
         npm run build
 
+    - name: Install Playwright browsers
+      if: inputs.platform == '' || inputs.platform == 'browser' || inputs.platform == 'js'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npx playwright install --with-deps chromium
+
     - name: Run tests
       id: run-tests
       shell: bash

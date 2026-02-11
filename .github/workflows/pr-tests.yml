@@ -33,13 +33,21 @@ jobs:
       - name: Install uv (Python package manager)
         uses: astral-sh/setup-uv@v5
 
-      - name: Cache JS test environments
+      - name: Cache Node test environments
         uses: actions/cache@v4
         with:
-          path: runs/js
-          key: js-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          path: runs/node
+          key: node-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            js-envs-main-${{ runner.os }}-
+            node-envs-main-${{ runner.os }}-
+
+      - name: Cache Browser test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/browser
+          key: browser-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
+          restore-keys: |
+            browser-envs-main-${{ runner.os }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
@@ -53,6 +61,9 @@ jobs:
         run: |
           npm install
           npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
       - name: Run tests
         id: run-tests
@@ -91,13 +102,21 @@ jobs:
       - name: Install uv (Python package manager)
         uses: astral-sh/setup-uv@v5
 
-      - name: Cache JS test environments
+      - name: Cache Node test environments
         uses: actions/cache@v4
         with:
-          path: runs/js
-          key: js-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          path: runs/node
+          key: node-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            js-envs-pr-${{ runner.os }}-
+            node-envs-pr-${{ runner.os }}-
+
+      - name: Cache Browser test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/browser
+          key: browser-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
+          restore-keys: |
+            browser-envs-pr-${{ runner.os }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
@@ -111,6 +130,9 @@ jobs:
         run: |
           npm install
           npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
       - name: Run tests
         id: run-tests
