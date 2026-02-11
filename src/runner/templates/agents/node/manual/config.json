@@ -2,7 +2,7 @@
   "name": "manual",
   "displayName": "Manual JavaScript Agent (Reference)",
   "type": "agentic",
-  "platform": "js",
+  "platform": "node",
   "dependencies": [],
   "versions": ["1.0.0"],
   "sentryVersions": ["latest"]

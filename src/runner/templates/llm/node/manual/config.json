@@ -2,7 +2,7 @@
   "name": "manual",
   "displayName": "Manual JavaScript LLM (Reference)",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "blocking",
   "dependencies": [],
   "versions": ["1.0.0"],
