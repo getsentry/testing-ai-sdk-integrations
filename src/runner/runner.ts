@@ -201,7 +201,6 @@ export class Runner {
       testName: testDefinition.name,
       frameworkName: framework.name,
       sentryDsn: context.sentryDsn,
-      sentryVersion: framework.sentryVersion, // Sentry SDK version (for CDN URLs)
       runId: context.runId,
       isAsync: isAsync || false, // Boolean flag for templates
       isStreaming: isStreaming || false, // Boolean flag for streaming mode
