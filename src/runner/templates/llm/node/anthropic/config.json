@@ -2,7 +2,7 @@
   "name": "anthropic",
   "displayName": "Anthropic JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [
     {

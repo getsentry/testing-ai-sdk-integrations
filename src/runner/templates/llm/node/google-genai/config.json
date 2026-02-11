@@ -2,7 +2,7 @@
   "name": "google-genai",
   "displayName": "Google GenAI JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [
     {

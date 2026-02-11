@@ -41,7 +41,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
 
     // Add tags for filtering
     const tags: string[] = [
-      run.framework.platform, // 'py' or 'js'
+      run.framework.platform, // 'node' or 'py'
       run.framework.type, // 'llm-only' or 'agentic'
       run.testDefinition.type, // 'llm' or 'agent'
     ];

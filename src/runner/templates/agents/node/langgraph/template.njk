@@ -1,6 +1,6 @@
-{% extends "base.js.njk" %}
+{% extends "base.node.njk" %}
 
-{# Macro to render message content for LangChain - handles both string and multimodal array #}
+{# Macro to render message content for LangChain/LangGraph - handles both string and multimodal array #}
 {% macro renderLangChainContent(content) %}
 {% if content is string %}
 "{{ content }}"
@@ -18,22 +18,24 @@
 {% endmacro %}
 
 {% block setup %}
-// Classes and client will be initialized after dynamic import
-let ChatOpenAI, HumanMessage, SystemMessage, AIMessage;
-let chat;
+// Classes and agent will be initialized after dynamic import
+let ChatOpenAI, createReactAgent, HumanMessage, SystemMessage;
+let llm, agent;
 {% endblock %}
 
 {% block dynamic_imports %}
-      // Dynamic import of langchain AFTER Sentry.init() to ensure instrumentation
+      // Dynamic import of langgraph AFTER Sentry.init() to ensure instrumentation
       const langchainOpenAI = await import("@langchain/openai");
+      const langgraph = await import("@langchain/langgraph/prebuilt");
       const langchainMessages = await import("@langchain/core/messages");
       ChatOpenAI = langchainOpenAI.ChatOpenAI;
+      createReactAgent = langgraph.createReactAgent;
       HumanMessage = langchainMessages.HumanMessage;
       SystemMessage = langchainMessages.SystemMessage;
-      AIMessage = langchainMessages.AIMessage;
-      chat = new ChatOpenAI({
+      llm = new ChatOpenAI({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
       });
+      agent = createReactAgent({ llm, tools: [] });
 {% endblock %}
 
 {% block test %}
@@ -46,26 +48,14 @@ let chat;
         new SystemMessage("{{ message.content }}"),
 {% elif message.role == 'user' %}
         new HumanMessage({ content: {{ renderLangChainContent(message.content) }} }),
-{% elif message.role == 'assistant' %}
-        new AIMessage("{{ message.content }}"),
 {% endif %}
 {% endfor %}
       ];
 
       try {
-{% if isStreaming %}
-        const stream = await chat.stream(messages{{ loop.index }});
-        const chunks = [];
-        for await (const chunk of stream) {
-          if (chunk.content) {
-            chunks.push(chunk.content);
-          }
-        }
-        console.log("Response:", chunks.join(""));
-{% else %}
-        const response = await chat.invoke(messages{{ loop.index }});
-        console.log("Response:", response.content);
-{% endif %}
+        const result = await agent.invoke({ messages: messages{{ loop.index }} });
+        const lastMessage = result.messages[result.messages.length - 1];
+        console.log("Response:", lastMessage.content);
       } catch (error) {
         Sentry.captureException(error);
         console.error("Error:", error.message);

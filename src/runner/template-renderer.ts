@@ -45,15 +45,15 @@ export class TemplateRenderer {
 
   /**
    * Render a framework template
-   * 
+   *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'js' or 'py'
+   * @param platform - 'node' or 'py'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
     type: 'llm' | 'agents',
-    platform: 'js' | 'py',
+    platform: 'node' | 'py',
     frameworkName: string,
     context: TemplateContext
   ): string {
@@ -64,8 +64,8 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'js' | 'py', context: TemplateContext): string {
-    const templateFile = platform === 'js' ? 'base.js.njk' : 'base.py.njk';
+  renderBase(platform: 'node' | 'py', context: TemplateContext): string {
+    const templateFile = platform === 'py' ? 'base.py.njk' : 'base.node.njk';
     return this.render(templateFile, context);
   }
 
@@ -80,7 +80,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'js' | 'py',
+    platform: 'node' | 'py',
     context: TemplateContext,
     blocks: {
       imports?: string;
@@ -91,8 +91,8 @@ export class TemplateRenderer {
     }
   ): string {
     // Build template that extends base
-    const baseTemplate = platform === 'js' ? 'base.js.njk' : 'base.py.njk';
-    const extension = platform === 'js' ? '.js' : '.py';
+    const baseTemplate = platform === 'py' ? 'base.py.njk' : 'base.node.njk';
+    const extension = platform === 'py' ? '.py' : '.js';
     
     let template = `{% extends "${baseTemplate}" %}\n\n`;
 

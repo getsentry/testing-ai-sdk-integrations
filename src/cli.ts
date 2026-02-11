@@ -27,7 +27,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <js|py>         Filter by platform (js or py)
+  --platform <node|py>      Filter by platform (node or py)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -100,9 +100,9 @@ function parseCliArgs() {
   }
 
   // Validate platform
-  const platform = values.platform as "js" | "py" | undefined;
-  if (platform && platform !== "js" && platform !== "py") {
-    console.error('Error: --platform must be "js" or "py"');
+  const platform = values.platform as "node" | "py" | undefined;
+  if (platform && platform !== "node" && platform !== "py") {
+    console.error('Error: --platform must be "node" or "py"');
     process.exit(1);
   }
 
@@ -231,7 +231,7 @@ async function main() {
         let sentryVersion = df.sentryVersions[0];
         if (df.platform === "py" && options.sentryPythonPath) {
           sentryVersion = "local";
-        } else if (df.platform === "js" && options.sentryJavaScriptPath) {
+        } else if (df.platform === "node" && options.sentryJavaScriptPath) {
           sentryVersion = "local";
         }
 
