@@ -1,0 +1,148 @@
+{% extends "base.js.njk" %}
+
+{% block setup %}
+function estimateTokens(text) {
+  return Math.max(1, Math.floor(String(text).length / 4));
+}
+
+function messagesContentLength(messages) {
+  let total = 0;
+  for (const m of messages) {
+    const c = m.content;
+    if (typeof c === "string") {
+      total += c.length;
+    } else if (Array.isArray(c)) {
+      for (const part of c) {
+        if (part.text) total += part.text.length;
+      }
+    }
+  }
+  return total;
+}
+
+function trimMessages(messages, maxSize = 10000) {
+  const fullJson = JSON.stringify(messages);
+  const originalLength = fullJson.length;
+  if (originalLength <= maxSize) {
+    return { messages, originalLength, trimmed: false };
+  }
+  const trimmed = messages.map((msg) => {
+    const copy = { ...msg };
+    if (typeof copy.content === "string" && copy.content.length > 200) {
+      copy.content = copy.content.slice(0, 200) + "... [trimmed]";
+    }
+    if (Array.isArray(copy.parts)) {
+      copy.parts = copy.parts.map((p) => {
+        if (typeof p.text === "string" && p.text.length > 200) {
+          return { ...p, text: p.text.slice(0, 200) + "... [trimmed]" };
+        }
+        return p;
+      });
+    }
+    return copy;
+  });
+  return { messages: trimmed, originalLength, trimmed: true };
+}
+
+function buildSentryMessages(messages) {
+  const sentryMessages = [];
+  const legacyMessages = [];
+  let systemInstructions = null;
+
+  for (const msg of messages) {
+    const { role, content } = msg;
+
+    if (role === "system") {
+      systemInstructions = typeof content === "string" ? content : JSON.stringify(content);
+    }
+
+    // New OTel format with parts
+    const parts = [];
+    if (typeof content === "string") {
+      parts.push({ type: "text", text: content });
+    } else if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part.type === "text") {
+          parts.push({ type: "text", text: part.text });
+        } else if (part.type === "image") {
+          parts.push({ type: "text", text: "[Blob substitute]" });
+        }
+      }
+    }
+
+    sentryMessages.push({
+      role,
+      content: typeof content === "string" ? content : "[multimodal]",
+      parts,
+    });
+
+    // Legacy format with binary redaction
+    if (Array.isArray(content)) {
+      const redacted = content.map((part) =>
+        part.type === "image" ? { type: "text", text: "[Blob substitute]" } : part
+      );
+      legacyMessages.push({ role, content: redacted });
+    } else {
+      legacyMessages.push({ role, content });
+    }
+  }
+
+  return { sentryMessages, legacyMessages, systemInstructions };
+}
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+      // ── Turn {{ loop.index }} ──
+      const model{{ loop.index }} = "{{ input.model }}";
+      const messages{{ loop.index }} = {{ input.messages | dump }};
+
+      const { sentryMessages: sentry{{ loop.index }}, legacyMessages: legacy{{ loop.index }}, systemInstructions: system{{ loop.index }} } =
+        buildSentryMessages(messages{{ loop.index }});
+
+      const otel{{ loop.index }} = trimMessages(sentry{{ loop.index }});
+      const leg{{ loop.index }} = trimMessages(legacy{{ loop.index }});
+      const otelJson{{ loop.index }} = JSON.stringify(otel{{ loop.index }}.messages);
+      const legacyJson{{ loop.index }} = JSON.stringify(leg{{ loop.index }}.messages);
+
+      const contentLen{{ loop.index }} = messagesContentLength(messages{{ loop.index }});
+      const inputTokens{{ loop.index }} = estimateTokens(contentLen{{ loop.index }}) + {{ loop.index0 * 20 }};
+      const outputTokens{{ loop.index }} = {{ 15 + loop.index0 * 5 }};
+      const totalTokens{{ loop.index }} = inputTokens{{ loop.index }} + outputTokens{{ loop.index }};
+
+      const responseText{{ loop.index }} = "This is a simulated response for turn {{ loop.index }}.";
+      const outputMessages{{ loop.index }} = JSON.stringify([
+        { role: "assistant", parts: [{ type: "text", text: responseText{{ loop.index }} }] },
+      ]);
+
+      const desc{{ loop.index }} = `chat ${model{{ loop.index }}}`;
+      await Sentry.startSpan({ op: "gen_ai.chat", name: desc{{ loop.index }} }, async (span) => {
+        span.setAttribute("span.description", desc{{ loop.index }});
+        span.setAttribute("gen_ai.operation.name", "chat");
+        span.setAttribute("gen_ai.request.model", model{{ loop.index }});
+        span.setAttribute("gen_ai.response.model", model{{ loop.index }});
+        span.setAttribute("gen_ai.response.text", responseText{{ loop.index }});
+        span.setAttribute("gen_ai.usage.input_tokens", inputTokens{{ loop.index }});
+        span.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens{{ loop.index }} / 3)));
+        span.setAttribute("gen_ai.usage.output_tokens", outputTokens{{ loop.index }});
+        span.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens{{ loop.index }} / 4)));
+        span.setAttribute("gen_ai.usage.total_tokens", totalTokens{{ loop.index }});
+
+        span.setAttribute("gen_ai.request.messages", legacyJson{{ loop.index }});
+        if (leg{{ loop.index }}.trimmed) {
+          span.setAttribute("gen_ai.request.messages.original_length", leg{{ loop.index }}.originalLength);
+        }
+
+        span.setAttribute("gen_ai.input.messages", otelJson{{ loop.index }});
+        if (otel{{ loop.index }}.trimmed) {
+          span.setAttribute("gen_ai.input.messages.original_length", otel{{ loop.index }}.originalLength);
+        }
+        span.setAttribute("gen_ai.output.messages", outputMessages{{ loop.index }});
+        if (system{{ loop.index }} !== null) {
+          span.setAttribute("gen_ai.system_instructions", system{{ loop.index }});
+        }
+      });
+
+      console.log(`Turn {{ loop.index }} Response: ${responseText{{ loop.index }}}`);
+{% endfor %}
+{% endblock %}

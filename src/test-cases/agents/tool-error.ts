@@ -102,6 +102,7 @@ export const toolErrorAgentTest: TestDefinition = {
           },
           required: ["path"],
         },
+        arguments: { path: "/nonexistent/file.txt" },
         // This tool will raise an error instead of returning a result
         error:
           "FileNotFoundError: The file '/nonexistent/file.txt' does not exist",

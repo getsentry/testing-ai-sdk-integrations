@@ -57,6 +57,8 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, any>;
+  /** The arguments that will be passed to the tool (simulated LLM output) */
+  arguments?: Record<string, any>;
   result?: any;
   error?: string;
 }

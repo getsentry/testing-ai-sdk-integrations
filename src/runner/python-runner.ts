@@ -72,6 +72,12 @@ export class PythonRunner {
           cwd: workDir,
           env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
         });
+      } else if (framework.sentryVersion === 'latest') {
+        // Install latest Sentry SDK from PyPI (no version pin)
+        await execAsync(`uv pip install sentry-sdk`, { 
+          cwd: workDir,
+          env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
+        });
       } else {
         // Install Sentry SDK from PyPI
         await execAsync(`uv pip install sentry-sdk==${framework.sentryVersion}`, { 
@@ -111,6 +117,8 @@ export class PythonRunner {
           console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
         }
         await execAsync(`${pipPath} install -e "${localSentryPath}"`, { cwd: workDir });
+      } else if (framework.sentryVersion === 'latest') {
+        await execAsync(`${pipPath} install sentry-sdk`, { cwd: workDir });
       } else {
         await execAsync(`${pipPath} install sentry-sdk==${framework.sentryVersion}`, { cwd: workDir });
       }
@@ -157,7 +165,7 @@ export class PythonRunner {
     const dependencies: string[] = [];
     
     // Add framework dependencies from config
-    if (framework.dependencies && framework.dependencies.length > 0) {
+    if (framework.dependencies) {
       for (const dep of framework.dependencies) {
         let version = dep.version;
         

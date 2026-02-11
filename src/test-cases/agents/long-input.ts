@@ -56,6 +56,7 @@ export const longInputAgentTest: TestDefinition = {
           },
           required: ["text"],
         },
+        arguments: { text: "sample text" },
         result: 2400, // Approximate word count for our long message
       },
     ],

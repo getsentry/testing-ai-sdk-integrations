@@ -92,7 +92,7 @@ export class JavaScriptRunner {
     }
 
     // Add framework dependencies from config
-    if (framework.dependencies && framework.dependencies.length > 0) {
+    if (framework.dependencies) {
       for (const dep of framework.dependencies) {
         let version = dep.version;
 
