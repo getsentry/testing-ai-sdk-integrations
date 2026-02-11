@@ -398,22 +398,6 @@ export default defineConfig({
       this.browser = null;
     }
   }
-
-  /**
-   * Get Playwright version
-   */
-  async getPlaywrightVersion(): Promise<string> {
-    try {
-      const fs = await import("fs/promises");
-      const path = await import("path");
-      const pkgPath = path.join(process.cwd(), "node_modules", "playwright", "package.json");
-      const pkgContent = await fs.readFile(pkgPath, "utf-8");
-      const pkg = JSON.parse(pkgContent);
-      return pkg.version || "Unknown";
-    } catch {
-      return "Unknown";
-    }
-  }
 }
 
 // Add type declarations for window properties
