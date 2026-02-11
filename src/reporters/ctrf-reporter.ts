@@ -21,7 +21,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
     const frameworkName = `${run.framework.platform}/${run.framework.name}`;
     // Build mode string with execution mode (Python) and streaming mode
     const modeParts: string[] = [];
-    if (run.framework.platform === "py" && run.framework.executionMode) {
+    if (run.framework.platform === "python" && run.framework.executionMode) {
       modeParts.push(run.framework.executionMode);
     }
     if (run.framework.streamingMode) {
@@ -41,7 +41,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
 
     // Add tags for filtering
     const tags: string[] = [
-      run.framework.platform, // 'node' or 'py'
+      run.framework.platform, // 'node' or 'python'
       run.framework.type, // 'llm-only' or 'agentic'
       run.testDefinition.type, // 'llm' or 'agent'
     ];

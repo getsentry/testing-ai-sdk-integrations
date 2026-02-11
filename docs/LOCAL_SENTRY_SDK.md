@@ -5,10 +5,12 @@ This guide explains how to use local, editable installations of Sentry SDKs inst
 ## Prerequisites
 
 ### Python
+
 - **uv** package manager installed (`pip install uv` or `brew install uv`)
 - Local clone of `sentry-python` repository
 
 ### JavaScript
+
 - Local clone of `sentry-javascript` repository
 - Built packages (run `yarn build` in the repo)
 
@@ -37,7 +39,7 @@ When using local SDK paths:
 1. The CLI sets environment variables (`SENTRY_PYTHON_PATH` or `SENTRY_JAVASCRIPT_PATH`)
 2. The framework's `sentryVersion` is set to `"local"`
 3. Work directories use `sentry-local` instead of version number:
-   - Example: `runs/py/openai-1.57.0-sentry-local/`
+   - Example: `runs/python/openai-1.57.0-sentry-local/`
 4. Python: `uv pip install -e <path>` for editable install
 5. JavaScript: `npm link <path>/packages/node` to link local SDK
 
@@ -59,7 +61,7 @@ Using local Sentry Python SDK: /Users/you/sentry-python
 Testing 1 framework(s) with 1 test(s)
 
 [openai] Running: Basic LLM Test
-  Setting up Python environment in runs/py/openai-1.57.0-sentry-local...
+   Setting up Python environment in runs/python/openai-1.57.0-sentry-local...
   Using uv for dependency management
   ✓ pyproject.toml generated
   ✓ Virtual environment created

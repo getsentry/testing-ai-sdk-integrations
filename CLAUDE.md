@@ -68,29 +68,29 @@ testing-ai-sdk-integrations/
 
 ### Framework Templates Structure
 
-Templates are organized by **category** (llm, agents), then **platform** (js, py), then **framework** name:
+Templates are organized by **category** (llm, agents), then **platform** (node, python), then **framework** name:
 
 ```
 src/runner/templates/
 ├── base.js.njk                       # Base JavaScript template
-├── base.py.njk                       # Base Python template
+├── base.python.njk                    # Base Python template
 ├── llm/                              # Low-level LLM frameworks
-│   ├── js/
+│   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
 │   │   ├── google-genai/
 │   │   ├── langchain/
 │   │   └── openai/
-│   └── py/
+│   └── python/
 │       ├── anthropic/
 │       ├── langchain/
 │       ├── litellm/
 │       └── openai/
 └── agents/                           # Agentic frameworks
-    ├── js/
+    ├── node/
     │   ├── langgraph/
     │   ├── mastra/
     │   └── vercel/
-    └── py/
+    └── python/
         ├── google-genai/
         ├── langgraph/
         ├── openai-agents/
@@ -116,7 +116,7 @@ npm run test run
 npm run test -- --framework openai
 
 # Run tests for a specific platform
-npm run test -- --platform py
+npm run test -- --platform python
 
 # Run with verbose output
 npm run test -- --framework openai --verbose
@@ -125,7 +125,7 @@ npm run test -- --framework openai --verbose
 npm run test -- --streaming
 
 # Run only sync tests (Python)
-npm run test -- --platform py --sync
+npm run test -- --platform python --sync
 
 # Run tests in parallel
 npm run test -- -j=4
@@ -148,7 +148,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <js|py>         Filter by platform (js or py)
+  --platform <node|python>    Filter by platform (node or python)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -284,29 +284,33 @@ Reusable check functions are defined in `src/test-cases/checks.ts`. Each check i
 ```typescript
 interface Check {
   name: string;
-  fn: (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void;
+  fn: (
+    spans: CapturedSpan[],
+    config: FrameworkConfig,
+    testDef: TestDefinition,
+  ) => void;
 }
 ```
 
 ### Available Checks
 
-| Check                         | Description                                             |
-| ----------------------------- | ------------------------------------------------------- |
-| `checkAISpanCount(n)`         | Factory: validate AI span count (exact or min/max)      |
-| `checkChatSpanAttributes`     | Validates chat/completion spans (model, messages)       |
-| `checkAgentSpanAttributes`    | Validates agent invocation spans                        |
-| `checkToolSpanAttributes`     | Validates tool execution spans                          |
-| `checkValidTokenUsage`        | Token counts exist and are valid                        |
-| `checkInputTokensCached`      | Cached tokens ≤ input tokens                            |
-| `checkOutputTokensReasoning`  | Reasoning tokens ≤ output tokens                        |
-| `checkInputMessagesSchema`    | Validates message schema follows Sentry conventions     |
-| `checkAgentHierarchy`         | Agent span hierarchy and name propagation               |
-| `checkAvailableTools`         | Validates gen_ai.request.available_tools                |
-| `checkResponseToolCalls([])`  | Factory: validate tool calls in LLM response            |
-| `checkToolCalls([])`          | Factory: validate tool execution spans                  |
-| `checkMessageTrimming`        | Messages are trimmed below 15KB                         |
-| `checkTrimmingMetadata`       | Original length metadata is present                     |
-| `checkBinaryRedaction`        | Binary content (images) is redacted                     |
+| Check                        | Description                                         |
+| ---------------------------- | --------------------------------------------------- |
+| `checkAISpanCount(n)`        | Factory: validate AI span count (exact or min/max)  |
+| `checkChatSpanAttributes`    | Validates chat/completion spans (model, messages)   |
+| `checkAgentSpanAttributes`   | Validates agent invocation spans                    |
+| `checkToolSpanAttributes`    | Validates tool execution spans                      |
+| `checkValidTokenUsage`       | Token counts exist and are valid                    |
+| `checkInputTokensCached`     | Cached tokens ≤ input tokens                        |
+| `checkOutputTokensReasoning` | Reasoning tokens ≤ output tokens                    |
+| `checkInputMessagesSchema`   | Validates message schema follows Sentry conventions |
+| `checkAgentHierarchy`        | Agent span hierarchy and name propagation           |
+| `checkAvailableTools`        | Validates gen_ai.request.available_tools            |
+| `checkResponseToolCalls([])` | Factory: validate tool calls in LLM response        |
+| `checkToolCalls([])`         | Factory: validate tool execution spans              |
+| `checkMessageTrimming`       | Messages are trimmed below 15KB                     |
+| `checkTrimmingMetadata`      | Original length metadata is present                 |
+| `checkBinaryRedaction`       | Binary content (images) is redacted                 |
 
 ## Framework Configuration
 
@@ -317,7 +321,7 @@ Each framework has a `config.json` file that defines its capabilities:
   "name": "openai",
   "displayName": "OpenAI JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [{ "package": "openai", "version": "framework" }],
   "versions": ["4.96.0"],
@@ -332,7 +336,7 @@ Each framework has a `config.json` file that defines its capabilities:
 | `name`           | Framework identifier                                 |
 | `displayName`    | Human-readable name                                  |
 | `type`           | `"llm-only"` or `"agentic"`                          |
-| `platform`       | `"js"` or `"py"`                                     |
+| `platform`       | `"node"` or `"python"`                               |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`             |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`        |
 | `dependencies`   | NPM/pip packages to install                          |
@@ -379,7 +383,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{js|py}/your-framework
+mkdir -p src/runner/templates/{llm|agents}/{node|python}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -389,7 +393,7 @@ mkdir -p src/runner/templates/{llm|agents}/{js|py}/your-framework
   "name": "your-framework",
   "displayName": "Your Framework SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
   "dependencies": [{ "package": "your-framework", "version": "framework" }],
   "versions": ["1.0.0"],
@@ -452,10 +456,7 @@ export const yourTest: TestDefinition = {
     },
   ],
 
-  checks: [
-    checkAISpanCount({ min: 1 }),
-    checkChatSpanAttributes,
-  ],
+  checks: [checkAISpanCount({ min: 1 }), checkChatSpanAttributes],
 };
 
 export default yourTest;
@@ -503,7 +504,7 @@ interface TestDefinition {
 ```typescript
 interface FrameworkConfig {
   name: string;
-  platform: "js" | "py";
+  platform: "node" | "python";
   type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;
@@ -599,6 +600,7 @@ A test passes when:
 ### Mastra
 
 Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/node`. Key differences:
+
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
 - Template is standalone (does not extend base.js.njk)

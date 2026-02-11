@@ -11,7 +11,7 @@ import { discoverFrameworks } from "./runner/framework-discovery.js";
 import { getAllTests } from "./test-cases/index.js";
 
 interface SetupOptions {
-  platform?: "node" | "py";
+  platform?: "node" | "python";
   framework?: string;
   test?: string;
   sync?: boolean;
@@ -34,8 +34,8 @@ function parseArgs(): SetupOptions {
     switch (arg) {
       case "--platform":
       case "-p":
-        if (value !== "node" && value !== "py") {
-          console.error('Error: --platform must be "node" or "py"');
+        if (value !== "node" && value !== "python") {
+          console.error('Error: --platform must be "node" or "python"');
           process.exit(1);
         }
         options.platform = value;
@@ -97,7 +97,7 @@ Usage:
   npm run setup [options]
 
 Options:
-  -p, --platform <js|py>      Only setup for specific platform
+  -p, --platform <node|python>  Only setup for specific platform
   -f, --framework <name>      Only setup for specific framework
   -t, --test <name>           Only setup for specific test
   --sync                      Only setup sync tests (Python only)
@@ -111,10 +111,10 @@ Options:
 
 Examples:
   npm run setup
-  npm run setup -- --platform py
+  npm run setup -- --platform python
   npm run setup -- --framework openai
   npm run setup -- --test "Basic LLM Test"
-  npm run setup -- --platform py --framework openai --sync --streaming
+  npm run setup -- --platform python --framework openai --sync --streaming
   npm run setup -- --sentry-python ~/sentry-python
 
 Output:
@@ -188,7 +188,7 @@ async function main(): Promise<void> {
   const frameworks: FrameworkConfig[] = discoveredFrameworks.map((df) => {
     // Determine Sentry version based on platform and local SDK paths
     let sentryVersion = df.sentryVersions[0];
-    if (df.platform === "py" && options.sentryPythonPath) {
+    if (df.platform === "python" && options.sentryPythonPath) {
       sentryVersion = "local";
     } else if (df.platform === "node" && options.sentryJavaScriptPath) {
       sentryVersion = "local";

@@ -30,7 +30,7 @@ export interface DiscoveredFramework extends FrameworkConfig {
  * Directory structure:
  *   templates/
  *     {category}/      # llm, agents, etc.
- *       {platform}/    # js, py
+ *       {platform}/    # node, python
  *         {framework}/ # openai, anthropic, etc.
  *           config.json
  *           template.njk
@@ -51,13 +51,13 @@ export function discoverFrameworks(): DiscoveredFramework[] {
   for (const category of categories) {
     const categoryPath = path.join(TEMPLATES_DIR, category);
 
-    // Scan platforms (node, py)
+    // Scan platforms (node, python)
     const platforms = fs
       .readdirSync(categoryPath, { withFileTypes: true })
       .filter(
         (dirent) =>
           dirent.isDirectory() &&
-          (dirent.name === "node" || dirent.name === "py"),
+          (dirent.name === "node" || dirent.name === "python"),
       )
       .map((dirent) => dirent.name);
 
@@ -158,10 +158,10 @@ export function getFrameworksByCategory(
 }
 
 /**
- * Get frameworks by platform (node, py)
+ * Get frameworks by platform (node, python)
  */
 export function getFrameworksByPlatform(
-  platform: "node" | "py",
+  platform: "node" | "python",
 ): DiscoveredFramework[] {
   return discoverFrameworks().filter((f) => f.platform === platform);
 }
@@ -211,7 +211,7 @@ export function listFrameworks(): void {
     console.log(`${category.toUpperCase()}:`);
 
     for (const framework of categoryFrameworks) {
-      const platformIcon = framework.platform === "py" ? "🐍" : "🟢";
+      const platformIcon = framework.platform === "python" ? "🐍" : "🟢";
       const typeIcon = framework.type === "agentic" ? "🤖" : "💬";
 
       console.log(`  ${platformIcon} ${typeIcon} ${framework.name}`);

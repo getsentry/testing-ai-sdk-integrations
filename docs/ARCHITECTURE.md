@@ -29,15 +29,19 @@ Test framework for Sentry AI SDK integrations. Test definitions (TypeScript) com
 ```
 
 ### Orchestrator (`src/orchestrator.ts`)
+
 Entry point. Discovers frameworks, builds test matrix, coordinates execution, generates reports.
 
 ### Span Collector (`src/span-collector/`)
+
 HTTP server that mimics Sentry's envelope endpoint. Creates dynamic DSN endpoints per test run, collects spans.
 
 ### Test Cases (`src/test-cases/`)
+
 TypeScript test definitions shared across all frameworks. Each test has a `type` ("llm" or "agent") that determines which frameworks can run it.
 
 ### Runner (`src/runner/`)
+
 - `runner.ts` - Main runner orchestration
 - `javascript-runner.ts` - Node.js environment setup and execution
 - `python-runner.ts` - Python/uv environment setup and execution
@@ -45,9 +49,11 @@ TypeScript test definitions shared across all frameworks. Each test has a `type`
 - `framework-discovery.ts` - Auto-discovers frameworks from templates directory
 
 ### Validator (`src/validator.ts`)
+
 Runs each check function from the test definition's `checks` array against captured spans.
 
 ### Reporters (`src/reporters/`)
+
 - `ctrf-reporter.ts` - CTRF JSON report generation
 - `live-status.ts` - Real-time terminal status display
 
@@ -130,9 +136,7 @@ export const toolCallAgentTest: TestDefinition = {
   inputs: [
     {
       model: "gpt-4o-mini",
-      messages: [
-        { role: "user", content: "What is 3 + 5? Use the add tool." },
-      ],
+      messages: [{ role: "user", content: "What is 3 + 5? Use the add tool." }],
     },
   ],
 
@@ -148,10 +152,10 @@ export const toolCallAgentTest: TestDefinition = {
 
 ## Framework Classification
 
-| Type | Test Type | Supports | Examples |
-|------|-----------|----------|----------|
-| **llm-only** | `llm` | Simple completions | OpenAI SDK, Anthropic SDK, LangChain |
-| **agentic** | `agent` | Agents with tools | Vercel AI, LangGraph, Mastra, OpenAI Agents |
+| Type         | Test Type | Supports           | Examples                                    |
+| ------------ | --------- | ------------------ | ------------------------------------------- |
+| **llm-only** | `llm`     | Simple completions | OpenAI SDK, Anthropic SDK, LangChain        |
+| **agentic**  | `agent`   | Agents with tools  | Vercel AI, LangGraph, Mastra, OpenAI Agents |
 
 Frameworks with type `agentic` run agent tests. Frameworks with type `llm-only` run LLM tests.
 
@@ -161,27 +165,27 @@ Each framework has a directory with `config.json` and `template.njk`:
 
 ```
 src/runner/templates/
-├── base.js.njk                       # Base JavaScript template
-├── base.py.njk                       # Base Python template
+├── base.node.njk                      # Base JavaScript template
+├── base.python.njk                    # Base Python template
 ├── llm/                              # LLM-only frameworks
-│   ├── js/
+│   ├── node/
 │   │   ├── openai/
 │   │   │   ├── config.json
 │   │   │   └── template.njk
 │   │   ├── anthropic/
 │   │   ├── google-genai/
 │   │   └── langchain/
-│   └── py/
+│   └── python/
 │       ├── openai/
 │       ├── anthropic/
 │       ├── langchain/
 │       └── litellm/
 └── agents/                           # Agentic frameworks
-    ├── js/
+    ├── node/
     │   ├── vercel/
     │   ├── langgraph/
     │   └── mastra/
-    └── py/
+    └── python/
         ├── openai-agents/
         ├── langgraph/
         ├── pydantic-ai/
@@ -195,11 +199,9 @@ src/runner/templates/
   "name": "openai",
   "displayName": "OpenAI JavaScript SDK",
   "type": "llm-only",
-  "platform": "js",
+  "platform": "node",
   "streamingMode": "both",
-  "dependencies": [
-    { "package": "openai", "version": "framework" }
-  ],
+  "dependencies": [{ "package": "openai", "version": "framework" }],
   "versions": ["4.96.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
@@ -217,20 +219,20 @@ src/runner/templates/
 
 ### Configuration Fields
 
-| Field | Description |
-|-------|-------------|
-| `name` | Framework identifier |
-| `displayName` | Human-readable name |
-| `type` | `"llm-only"` or `"agentic"` |
-| `platform` | `"js"` or `"py"` |
-| `streamingMode` | `"streaming"`, `"blocking"`, or `"both"` |
-| `executionMode` | Python only: `"sync"`, `"async"`, or `"both"` |
-| `dependencies` | NPM/pip packages to install |
-| `versions` | Framework versions to test |
-| `sentryVersions` | Sentry SDK versions to test against |
-| `modelOverrides` | Override model names for validation |
-| `skip.tests` | Test names to skip entirely |
-| `skip.checks` | Per-test check names to skip |
+| Field            | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `name`           | Framework identifier                          |
+| `displayName`    | Human-readable name                           |
+| `type`           | `"llm-only"` or `"agentic"`                   |
+| `platform`       | `"node"` or `"python"`                        |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
+| `dependencies`   | NPM/pip packages to install                   |
+| `versions`       | Framework versions to test                    |
+| `sentryVersions` | Sentry SDK versions to test against           |
+| `modelOverrides` | Override model names for validation           |
+| `skip.tests`     | Test names to skip entirely                   |
+| `skip.checks`    | Per-test check names to skip                  |
 
 ## Directory Structure
 
@@ -284,12 +286,12 @@ testing-ai-sdk-integrations/
 │
 ├── dist/                       # Compiled JavaScript
 ├── runs/                       # Generated test environments (gitignored)
-│   ├── js/
+│   ├── node/
 │   │   └── openai-4.96.0-sentry-latest/
 │   │       ├── node_modules/
 │   │       ├── package.json
 │   │       └── test-basic-llm-test.js
-│   └── py/
+│   └── python/
 │       └── openai-1.82.0-sentry-latest/
 │           ├── .venv/
 │           └── test-basic-llm-test-async-streaming.py
@@ -328,13 +330,13 @@ Templates receive this context when rendering:
   inputs: [{ model: "gpt-4o-mini", messages: [...] }],
   agent: { name: "...", tools: [...] },  // For agent tests
   causeAPIError: false,
-  
+
   // From framework config
   frameworkName: "openai",
-  
+
   // From orchestrator
   sentryDsn: "http://public@localhost:9999/123456",
-  
+
   // Execution mode flags
   isAsync: true,      // Python only
   isStreaming: false,
@@ -348,16 +350,22 @@ Checks are reusable validation functions defined in `src/test-cases/checks.ts`:
 ```typescript
 interface Check {
   name: string;
-  fn: (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void;
+  fn: (
+    spans: CapturedSpan[],
+    config: FrameworkConfig,
+    testDef: TestDefinition,
+  ) => void;
 }
 ```
 
 ### Available Checks
 
 **Structure:**
+
 - `checkAISpanCount(n)` - Validate exact or range of AI span count
 
 **Span Attributes:**
+
 - `checkChatSpanAttributes` - Validate chat/completion spans
 - `checkAgentSpanAttributes` - Validate agent invocation spans
 - `checkToolSpanAttributes` - Validate tool execution spans
@@ -366,45 +374,48 @@ interface Check {
 - `checkToolCalls([...])` - Validate tool execution with input/output
 
 **Tokens:**
+
 - `checkValidTokenUsage` - Token counts exist and are valid
 - `checkInputTokensCached` - Cached tokens ≤ input tokens
 - `checkOutputTokensReasoning` - Reasoning tokens ≤ output tokens
 
 **Messages:**
+
 - `checkInputMessagesSchema` - Validate message schema
 - `checkBinaryRedaction` - Binary content is redacted
 - `checkMessageTrimming` - Long messages are trimmed
 - `checkTrimmingMetadata` - Trimming metadata is present
 
 **Hierarchy:**
+
 - `checkAgentHierarchy` - Agent span hierarchy and name propagation
 
 ## Supported Frameworks
 
 ### JavaScript
 
-| Type | Framework | Streaming | Notes |
-|------|-----------|-----------|-------|
-| llm | openai | both | OpenAI SDK |
-| llm | anthropic | both | Anthropic SDK |
-| llm | google-genai | both | Google Generative AI |
-| llm | langchain | both | LangChain |
-| agents | vercel | - | Vercel AI SDK |
-| agents | langgraph | - | LangGraph |
-| agents | mastra | - | Mastra AI Framework (uses @mastra/sentry) |
+| Type   | Framework    | Streaming | Notes                                     |
+| ------ | ------------ | --------- | ----------------------------------------- |
+| llm    | openai       | both      | OpenAI SDK                                |
+| llm    | anthropic    | both      | Anthropic SDK                             |
+| llm    | google-genai | both      | Google Generative AI                      |
+| llm    | langchain    | both      | LangChain                                 |
+| agents | vercel       | -         | Vercel AI SDK                             |
+| agents | langgraph    | -         | LangGraph                                 |
+| agents | mastra       | -         | Mastra AI Framework (uses @mastra/sentry) |
 
 ### Python
 
-| Type | Framework | Streaming | Execution |
-|------|-----------|-----------|-----------|
-| llm | openai | both | sync/async |
-| llm | anthropic | both | sync/async |
-| llm | langchain | both | sync/async |
-| llm | litellm | both | sync/async |
-| agents | openai-agents | - | async |
-| agents | langgraph | - | sync/async |
-| agents | pydantic-ai | - | async |
-| agents | google-genai | - | sync/async |
+| Type   | Framework     | Streaming | Execution  |
+| ------ | ------------- | --------- | ---------- |
+| llm    | openai        | both      | sync/async |
+| llm    | anthropic     | both      | sync/async |
+| llm    | langchain     | both      | sync/async |
+| llm    | litellm       | both      | sync/async |
+| agents | openai-agents | -         | async      |
+| agents | langgraph     | -         | sync/async |
+| agents | pydantic-ai   | -         | async      |
+| agents | google-genai  | -         | sync/async |
 
 ## CLI Commands
 
@@ -417,7 +428,7 @@ npm run test list
 
 # Filter by framework/platform/test
 npm run test -- --framework openai
-npm run test -- --platform py
+npm run test -- --platform python
 npm run test -- --test "Basic LLM Test"
 
 # Execution mode filters
@@ -449,4 +460,4 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
   - `gen_ai.input.messages` instead of `gen_ai.request.messages`
   - `gen_ai.tool.call.arguments` instead of `gen_ai.tool.input`
 - Tool type is `"tool"` instead of `"function"`
-- Template does not extend base.js.njk (standalone implementation)
+- Template does not extend base.node.njk (standalone implementation)

@@ -47,7 +47,9 @@ export class Runner {
 
     // Get platform-specific runner
     const platformRunner =
-      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
+      context.framework.platform === "python"
+        ? this.pythonRunner
+        : this.jsRunner;
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -76,7 +78,9 @@ export class Runner {
 
     // Get platform-specific runner
     const platformRunner =
-      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
+      context.framework.platform === "python"
+        ? this.pythonRunner
+        : this.jsRunner;
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -103,7 +107,9 @@ export class Runner {
 
     // Get platform-specific runner
     const platformRunner =
-      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
+      context.framework.platform === "python"
+        ? this.pythonRunner
+        : this.jsRunner;
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -133,7 +139,9 @@ export class Runner {
   async executeOnly(context: RunnerContext): Promise<void> {
     // Get platform-specific runner
     const platformRunner =
-      context.framework.platform === "py" ? this.pythonRunner : this.jsRunner;
+      context.framework.platform === "python"
+        ? this.pythonRunner
+        : this.jsRunner;
 
     // Execute test
     await platformRunner.executeTest(context);
@@ -167,7 +175,7 @@ export class Runner {
 
     // Build mode suffix for filename
     const modeParts: string[] = [];
-    if (framework.platform === "py") {
+    if (framework.platform === "python") {
       modeParts.push(isAsync ? "async" : "sync");
     }
     if (framework.streamingMode) {
@@ -175,7 +183,7 @@ export class Runner {
     }
 
     // Determine test filename based on platform and modes
-    const extension = framework.platform === "py" ? "py" : "js";
+    const extension = framework.platform === "python" ? "py" : "js";
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
 
@@ -232,10 +240,10 @@ export class Runner {
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "py",
+    platform: "node" | "python",
   ): Promise<void> {
     try {
-      if (platform === "py") {
+      if (platform === "python") {
         // Python formatting requires black CLI (optional)
         const { exec } = await import("child_process");
         const { promisify } = await import("util");

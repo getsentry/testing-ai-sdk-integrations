@@ -36,18 +36,18 @@ jobs:
       - name: Cache JS test environments
         uses: actions/cache@v4
         with:
-          path: runs/js
-          key: js-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          path: runs/node
+          key: node-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            js-envs-main-${{ runner.os }}-
+            node-envs-main-${{ runner.os }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
-          path: runs/py
-          key: py-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          path: runs/python
+          key: python-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
           restore-keys: |
-            py-envs-main-${{ runner.os }}-
+            python-envs-main-${{ runner.os }}-
 
       - name: Install dependencies and build
         run: |
@@ -94,18 +94,18 @@ jobs:
       - name: Cache JS test environments
         uses: actions/cache@v4
         with:
-          path: runs/js
-          key: js-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          path: runs/node
+          key: node-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            js-envs-pr-${{ runner.os }}-
+            node-envs-pr-${{ runner.os }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
-          path: runs/py
-          key: py-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          path: runs/python
+          key: python-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
           restore-keys: |
-            py-envs-pr-${{ runner.os }}-
+            python-envs-pr-${{ runner.os }}-
 
       - name: Install dependencies and build
         run: |

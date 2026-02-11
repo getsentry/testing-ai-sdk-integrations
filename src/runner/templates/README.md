@@ -7,16 +7,16 @@ Base templates and framework-specific templates for generating test files using 
 ```
 templates/
 ├── base.js.njk              # JavaScript base template
-├── base.py.njk              # Python base template
+├── base.python.njk          # Python base template
 ├── llm/                     # LLM-only framework templates
-│   ├── js/
+│   ├── node/
 │   │   ├── openai/
 │   │   │   ├── template.njk
 │   │   │   └── config.json
 │   │   └── anthropic/
 │   │       ├── template.njk
 │   │       └── config.json
-│   └── py/
+│   └── python/
 │       ├── openai/
 │       │   ├── template.njk
 │       │   └── config.json
@@ -24,7 +24,7 @@ templates/
 │           ├── template.njk
 │           └── config.json
 └── agents/                  # Agentic framework templates
-    ├── js/
+    ├── node/
     │   ├── vercel/
     │   │   ├── template.njk
     │   │   └── config.json
@@ -34,7 +34,7 @@ templates/
     │   └── mastra/
     │       ├── template.njk
     │       └── config.json
-    └── py/
+    └── python/
         ├── openai-agents/
         │   ├── template.njk
         │   └── config.json
@@ -61,7 +61,7 @@ Provides a standard structure for JavaScript tests with the following blocks:
 - **`test`** - Main test logic (inside async `main()` function)
 - **`teardown`** - Code to run after the test
 
-### `base.py.njk` - Python Base Template
+### `base.python.njk` - Python Base Template
 
 Provides a standard structure for Python tests with the following blocks:
 
@@ -78,29 +78,33 @@ Provides a standard structure for Python tests with the following blocks:
 ```typescript
 const renderer = new TemplateRenderer();
 
-const code = renderer.renderBase('js', {
-  testName: 'Basic LLM Test',
-  frameworkName: 'openai',
+const code = renderer.renderBase("js", {
+  testName: "Basic LLM Test",
+  frameworkName: "openai",
 });
 ```
 
 ### 2. Extend with Custom Blocks
 
 ```typescript
-const code = renderer.renderWithBlocks('py', {
-  testName: 'OpenAI Chat Test',
-  frameworkName: 'openai',
-}, {
-  imports: 'from openai import OpenAI',
-  setup: 'client = OpenAI()',
-  test: `
+const code = renderer.renderWithBlocks(
+  "python",
+  {
+    testName: "OpenAI Chat Test",
+    frameworkName: "openai",
+  },
+  {
+    imports: "from openai import OpenAI",
+    setup: "client = OpenAI()",
+    test: `
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": "Hello"}]
     )
     print(response.choices[0].message.content)
   `,
-});
+  },
+);
 ```
 
 ## Block Inheritance
@@ -120,15 +124,15 @@ Framework-specific templates extend base templates and implement SDK-specific co
 
 ### Location
 
-- **LLM frameworks:** `llm/{js,py}/{framework}.njk`
-- **Agent frameworks:** `agents/{js,py}/{framework}.njk`
+- **LLM frameworks:** `llm/{node,python}/{framework}.njk`
+- **Agent frameworks:** `agents/{node,python}/{framework}.njk`
 
 ### Example: OpenAI Python LLM Template
 
-**File:** `llm/py/openai/template.njk`
+**File:** `llm/python/openai/template.njk`
 
 ```nunjucks
-{% extends "base.py.njk" %}
+{% extends "base.python.njk" %}
 
 {% block imports %}
 {{ super() }}
@@ -153,10 +157,10 @@ print(response.choices[0].message.content)
 
 ### Example: OpenAI Agents Python Template
 
-**File:** `agents/py/openai-agents/template.njk`
+**File:** `agents/python/openai-agents/template.njk`
 
 ```nunjucks
-{% extends "base.py.njk" %}
+{% extends "base.python.njk" %}
 
 {% block imports %}
 {{ super() }}
@@ -208,8 +212,8 @@ Framework templates receive:
 ### Creating Framework Templates
 
 1. Determine framework type (LLM or agent)
-2. Choose platform (js or py)
-3. Create framework directory: `{llm,agents}/{js,py}/{framework}/`
+2. Choose platform (node or python)
+3. Create framework directory: `{llm,agents}/{node,python}/{framework}/`
 4. Create template file: `template.njk`
 5. Create config file: `config.json`
 6. Extend appropriate base template

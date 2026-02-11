@@ -42,18 +42,18 @@ jobs:
       - name: Cache JS test environments
         uses: actions/cache@v4
         with:
-          path: runs/js
-          key: js-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          path: runs/node
+          key: node-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            js-envs-daily-${{ runner.os }}-
+            node-envs-daily-${{ runner.os }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
-          path: runs/py
-          key: py-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          path: runs/python
+          key: python-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
           restore-keys: |
-            py-envs-daily-${{ runner.os }}-
+            python-envs-daily-${{ runner.os }}-
 
       - name: Install dependencies and build
         run: |

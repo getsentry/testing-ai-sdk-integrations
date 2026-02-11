@@ -2,9 +2,9 @@
  * Template renderer using Nunjucks
  */
 
-import nunjucks from 'nunjucks';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import nunjucks from "nunjucks";
+import * as path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,25 +19,25 @@ export class TemplateRenderer {
   private templatesDir: string;
 
   constructor() {
-    this.templatesDir = path.join(__dirname, 'templates');
-    
+    this.templatesDir = path.join(__dirname, "templates");
+
     // Configure Nunjucks
     this.env = nunjucks.configure(this.templatesDir, {
       autoescape: false, // Don't escape code
       trimBlocks: true,
       lstripBlocks: true,
     });
-    
+
     // Add custom filters
-    this.env.addFilter('tojson', (obj) => {
+    this.env.addFilter("tojson", (obj) => {
       return JSON.stringify(obj, null, 2);
     });
   }
 
   /**
    * Render a template
-   * 
-   * @param templatePath - Path relative to templates dir (e.g., 'llm/py/openai/template.njk')
+   *
+   * @param templatePath - Path relative to templates dir (e.g., 'llm/python/openai/template.njk')
    */
   render(templatePath: string, context: TemplateContext): string {
     return this.env.render(templatePath, context);
@@ -47,15 +47,15 @@ export class TemplateRenderer {
    * Render a framework template
    *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'node' or 'py'
+   * @param platform - 'node' or 'python'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
-    type: 'llm' | 'agents',
-    platform: 'node' | 'py',
+    type: "llm" | "agents",
+    platform: "node" | "python",
     frameworkName: string,
-    context: TemplateContext
+    context: TemplateContext,
   ): string {
     const templatePath = `${type}/${platform}/${frameworkName}/template.njk`;
     return this.render(templatePath, context);
@@ -64,8 +64,9 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'node' | 'py', context: TemplateContext): string {
-    const templateFile = platform === 'py' ? 'base.py.njk' : 'base.node.njk';
+  renderBase(platform: "node" | "python", context: TemplateContext): string {
+    const templateFile =
+      platform === "python" ? "base.python.njk" : "base.node.njk";
     return this.render(templateFile, context);
   }
 
@@ -80,7 +81,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'node' | 'py',
+    platform: "node" | "python",
     context: TemplateContext,
     blocks: {
       imports?: string;
@@ -88,12 +89,13 @@ export class TemplateRenderer {
       setup?: string;
       test?: string;
       teardown?: string;
-    }
+    },
   ): string {
     // Build template that extends base
-    const baseTemplate = platform === 'py' ? 'base.py.njk' : 'base.node.njk';
-    const extension = platform === 'py' ? '.py' : '.js';
-    
+    const baseTemplate =
+      platform === "python" ? "base.python.njk" : "base.node.njk";
+    const extension = platform === "python" ? ".py" : ".js";
+
     let template = `{% extends "${baseTemplate}" %}\n\n`;
 
     if (blocks.imports) {

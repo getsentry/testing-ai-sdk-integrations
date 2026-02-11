@@ -27,7 +27,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|py>      Filter by platform (node or py)
+  --platform <node|python>   Filter by platform (node or python)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -44,9 +44,9 @@ Examples:
   npm run test list
   npm run test run
   npm run test -- --framework openai
-  npm run test -- --platform py --test "Basic LLM"
-  npm run test -- --platform py --sync
-  npm run test -- --platform py --async --verbose
+  npm run test -- --platform python --test "Basic LLM"
+  npm run test -- --platform python --sync
+  npm run test -- --platform python --async --verbose
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
   npm run test -- --framework openai --open
@@ -100,9 +100,9 @@ function parseCliArgs() {
   }
 
   // Validate platform
-  const platform = values.platform as "node" | "py" | undefined;
-  if (platform && platform !== "node" && platform !== "py") {
-    console.error('Error: --platform must be "node" or "py"');
+  const platform = values.platform as "node" | "python" | undefined;
+  if (platform && platform !== "node" && platform !== "python") {
+    console.error('Error: --platform must be "node" or "python"');
     process.exit(1);
   }
 
@@ -229,7 +229,7 @@ async function main() {
       .map((df) => {
         // Determine Sentry version based on platform and local SDK paths
         let sentryVersion = df.sentryVersions[0];
-        if (df.platform === "py" && options.sentryPythonPath) {
+        if (df.platform === "python" && options.sentryPythonPath) {
           sentryVersion = "local";
         } else if (df.platform === "node" && options.sentryJavaScriptPath) {
           sentryVersion = "local";
