@@ -7,6 +7,20 @@ import { FrameworkConfig } from "./types.js";
 
 export type Platform = "node" | "py" | "browser";
 
+/** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
+export const JS_PLATFORMS: readonly Platform[] = ["node", "browser"] as const;
+
+/**
+ * Resolve a CLI platform value to the concrete platform(s) it represents.
+ * "js" is a meta-platform that expands to all JS-based platforms (node, browser, …).
+ */
+export function resolvePlatformFilter(value: string): Platform[] {
+  if (value === "js") {
+    return [...JS_PLATFORMS];
+  }
+  return [value as Platform];
+}
+
 /**
  * Get the file extension for a platform
  */
@@ -61,7 +75,7 @@ export function supportsExecutionModes(platform: Platform): boolean {
  */
 export function supportsExecutionMode(
   platform: Platform,
-  mode: "sync" | "async" | undefined
+  mode: "sync" | "async" | undefined,
 ): boolean {
   if (!supportsExecutionModes(platform)) {
     return mode === undefined;
@@ -128,9 +142,7 @@ export function getFormatterParser(platform: Platform): string | null {
  * Check if framework needs async flag
  */
 export function needsAsyncFlag(framework: FrameworkConfig): boolean {
-  return (
-    framework.platform === "py" && framework.executionMode === "async"
-  );
+  return framework.platform === "py" && framework.executionMode === "async";
 }
 
 /**
@@ -139,7 +151,7 @@ export function needsAsyncFlag(framework: FrameworkConfig): boolean {
 export function determineSentryVersion(
   framework: FrameworkConfig,
   sentryPythonPath?: string,
-  sentryJavaScriptPath?: string
+  sentryJavaScriptPath?: string,
 ): string {
   const defaultVersion = framework.sentryVersion || "latest";
 
@@ -163,7 +175,7 @@ export function determineSentryVersion(
 export function buildModeParts(
   framework: FrameworkConfig,
   isAsync?: boolean,
-  isStreaming?: boolean
+  isStreaming?: boolean,
 ): string[] {
   const parts: string[] = [];
 
@@ -186,7 +198,7 @@ export function buildModeParts(
 export function buildModeSuffix(
   framework: FrameworkConfig,
   isAsync?: boolean,
-  isStreaming?: boolean
+  isStreaming?: boolean,
 ): string {
   const parts = buildModeParts(framework, isAsync, isStreaming);
   return parts.length > 0 ? `-${parts.join("-")}` : "";

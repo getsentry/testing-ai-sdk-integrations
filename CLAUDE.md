@@ -122,9 +122,10 @@ npm run test run
 # Run tests for a specific framework
 npm run test -- --framework openai
 
-# Run tests for a specific platform (node, py, or browser)
+# Run tests for a specific platform (node, py, browser, or js)
 npm run test -- --platform py
 npm run test -- --platform browser
+npm run test -- --platform js                         # all JS platforms (node + browser)
 
 # Run with verbose output
 npm run test -- --framework openai --verbose
@@ -156,7 +157,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|py|browser>  Filter by platform (node, py, or browser)
+  --platform <node|py|browser|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -199,27 +200,27 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 
 ### Currently Implemented
 
-| Platform        | SDK             | Category | Type     | Streaming | Execution Modes |
-| --------------- | --------------- | -------- | -------- | --------- | --------------- |
-| JavaScript (Node) | `openai`      | llm      | llm-only | both      | -               |
-| JavaScript (Node) | `anthropic`   | llm      | llm-only | both      | -               |
-| JavaScript (Node) | `google-genai`| llm      | llm-only | both      | -               |
-| JavaScript (Node) | `langchain`   | llm      | llm-only | both      | -               |
-| JavaScript (Node) | `vercel`      | agents   | agentic  | -         | -               |
-| JavaScript (Node) | `langgraph`   | agents   | agentic  | -         | -               |
-| JavaScript (Node) | `mastra`      | agents   | agentic  | -         | -               |
-| Browser          | `openai`      | llm      | llm-only | both      | -               |
-| Browser          | `anthropic`   | llm      | llm-only | both      | -               |
-| Browser          | `google-genai`| llm      | llm-only | both      | -               |
-| Browser          | `langchain`   | llm      | llm-only | both      | -               |
-| Python     | `openai`        | llm      | llm-only | both      | sync/async      |
-| Python     | `anthropic`     | llm      | llm-only | both      | sync/async      |
-| Python     | `langchain`     | llm      | llm-only | both      | sync/async      |
-| Python     | `litellm`       | llm      | llm-only | both      | sync/async      |
-| Python     | `openai-agents` | agents   | agentic  | -         | async           |
-| Python     | `langgraph`     | agents   | agentic  | -         | sync/async      |
-| Python     | `pydantic-ai`   | agents   | agentic  | -         | async           |
-| Python     | `google-genai`  | agents   | agentic  | -         | sync/async      |
+| Platform          | SDK             | Category | Type     | Streaming | Execution Modes |
+| ----------------- | --------------- | -------- | -------- | --------- | --------------- |
+| JavaScript (Node) | `openai`        | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `anthropic`     | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `google-genai`  | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `langchain`     | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `vercel`        | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `langgraph`     | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `mastra`        | agents   | agentic  | -         | -               |
+| Browser           | `openai`        | llm      | llm-only | both      | -               |
+| Browser           | `anthropic`     | llm      | llm-only | both      | -               |
+| Browser           | `google-genai`  | llm      | llm-only | both      | -               |
+| Browser           | `langchain`     | llm      | llm-only | both      | -               |
+| Python            | `openai`        | llm      | llm-only | both      | sync/async      |
+| Python            | `anthropic`     | llm      | llm-only | both      | sync/async      |
+| Python            | `langchain`     | llm      | llm-only | both      | sync/async      |
+| Python            | `litellm`       | llm      | llm-only | both      | sync/async      |
+| Python            | `openai-agents` | agents   | agentic  | -         | async           |
+| Python            | `langgraph`     | agents   | agentic  | -         | sync/async      |
+| Python            | `pydantic-ai`   | agents   | agentic  | -         | async           |
+| Python            | `google-genai`  | agents   | agentic  | -         | sync/async      |
 
 ## Test Cases
 
@@ -296,29 +297,33 @@ Reusable check functions are defined in `src/test-cases/checks.ts`. Each check i
 ```typescript
 interface Check {
   name: string;
-  fn: (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void;
+  fn: (
+    spans: CapturedSpan[],
+    config: FrameworkConfig,
+    testDef: TestDefinition,
+  ) => void;
 }
 ```
 
 ### Available Checks
 
-| Check                         | Description                                             |
-| ----------------------------- | ------------------------------------------------------- |
-| `checkAISpanCount(n)`         | Factory: validate AI span count (exact or min/max)      |
-| `checkChatSpanAttributes`     | Validates chat/completion spans (model, messages)       |
-| `checkAgentSpanAttributes`    | Validates agent invocation spans                        |
-| `checkToolSpanAttributes`     | Validates tool execution spans                          |
-| `checkValidTokenUsage`        | Token counts exist and are valid                        |
-| `checkInputTokensCached`      | Cached tokens ≤ input tokens                            |
-| `checkOutputTokensReasoning`  | Reasoning tokens ≤ output tokens                        |
-| `checkInputMessagesSchema`    | Validates message schema follows Sentry conventions     |
-| `checkAgentHierarchy`         | Agent span hierarchy and name propagation               |
-| `checkAvailableTools`         | Validates gen_ai.request.available_tools                |
-| `checkResponseToolCalls([])`  | Factory: validate tool calls in LLM response            |
-| `checkToolCalls([])`          | Factory: validate tool execution spans                  |
-| `checkMessageTrimming`        | Messages are trimmed below 15KB                         |
-| `checkTrimmingMetadata`       | Original length metadata is present                     |
-| `checkBinaryRedaction`        | Binary content (images) is redacted                     |
+| Check                        | Description                                         |
+| ---------------------------- | --------------------------------------------------- |
+| `checkAISpanCount(n)`        | Factory: validate AI span count (exact or min/max)  |
+| `checkChatSpanAttributes`    | Validates chat/completion spans (model, messages)   |
+| `checkAgentSpanAttributes`   | Validates agent invocation spans                    |
+| `checkToolSpanAttributes`    | Validates tool execution spans                      |
+| `checkValidTokenUsage`       | Token counts exist and are valid                    |
+| `checkInputTokensCached`     | Cached tokens ≤ input tokens                        |
+| `checkOutputTokensReasoning` | Reasoning tokens ≤ output tokens                    |
+| `checkInputMessagesSchema`   | Validates message schema follows Sentry conventions |
+| `checkAgentHierarchy`        | Agent span hierarchy and name propagation           |
+| `checkAvailableTools`        | Validates gen_ai.request.available_tools            |
+| `checkResponseToolCalls([])` | Factory: validate tool calls in LLM response        |
+| `checkToolCalls([])`         | Factory: validate tool execution spans              |
+| `checkMessageTrimming`       | Messages are trimmed below 15KB                     |
+| `checkTrimmingMetadata`      | Original length metadata is present                 |
+| `checkBinaryRedaction`       | Binary content (images) is redacted                 |
 
 ## Framework Configuration
 
@@ -339,19 +344,19 @@ Each framework has a `config.json` file that defines its capabilities:
 
 ### Configuration Fields
 
-| Field            | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `name`           | Framework identifier                                 |
-| `displayName`    | Human-readable name                                  |
-| `type`           | `"llm-only"` or `"agentic"`                          |
-| `platform`       | `"node"`, `"py"`, or `"browser"`                     |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`             |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`        |
-| `dependencies`   | NPM/pip packages to install                          |
-| `versions`       | Framework versions to test                           |
-| `sentryVersions` | Sentry SDK versions to test against                  |
-| `modelOverrides` | Override model names for request/response validation |
-| `skip`           | Tests or checks to skip for this framework           |
+| Field            | Description                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| `name`           | Framework identifier                                                                           |
+| `displayName`    | Human-readable name                                                                            |
+| `type`           | `"llm-only"` or `"agentic"`                                                                    |
+| `platform`       | `"node"`, `"py"`, or `"browser"` (CLI also accepts `"js"` as meta-platform for node + browser) |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                       |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                  |
+| `dependencies`   | NPM/pip packages to install                                                                    |
+| `versions`       | Framework versions to test                                                                     |
+| `sentryVersions` | Sentry SDK versions to test against                                                            |
+| `modelOverrides` | Override model names for request/response validation                                           |
+| `skip`           | Tests or checks to skip for this framework                                                     |
 
 ## Test Utilities
 
@@ -464,10 +469,7 @@ export const yourTest: TestDefinition = {
     },
   ],
 
-  checks: [
-    checkAISpanCount({ min: 1 }),
-    checkChatSpanAttributes,
-  ],
+  checks: [checkAISpanCount({ min: 1 }), checkChatSpanAttributes],
 };
 
 export default yourTest;
@@ -611,6 +613,7 @@ A test passes when:
 ### Mastra
 
 Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/node`. Key differences:
+
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
 - Template is standalone (does not extend base.node.njk)

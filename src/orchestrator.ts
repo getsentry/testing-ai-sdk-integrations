@@ -668,7 +668,9 @@ export class Orchestrator {
     console.log(`\n${colors.cyan}${colors.bright}Tests to run:${colors.reset}`);
 
     for (const [platform, frameworks] of tree) {
-      const platformIcon = platform === "py" ? "🐍" : "📦";
+      const platformIcon = getPlatformIcon(
+        platform as "node" | "py" | "browser",
+      );
       console.log(
         `${platformIcon} ${colors.bright}${platform.toUpperCase()}${colors.reset}`,
       );
