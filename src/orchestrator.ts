@@ -492,12 +492,12 @@ export class Orchestrator {
     // Filter by sync/async if specified
     if (this.syncFilter && !this.asyncFilter) {
       testMatrix = testMatrix.filter((run) => {
-        if (run.framework.platform === "node") return false;
+        if (run.framework.platform === "node" || run.framework.platform === "nextjs" || run.framework.platform === "browser") return false;
         return run.framework.executionMode === "sync";
       });
     } else if (this.asyncFilter && !this.syncFilter) {
       testMatrix = testMatrix.filter((run) => {
-        if (run.framework.platform === "node") return false;
+        if (run.framework.platform === "node" || run.framework.platform === "nextjs" || run.framework.platform === "browser") return false;
         return run.framework.executionMode === "async";
       });
     }
@@ -748,8 +748,8 @@ export class Orchestrator {
   private getExecutionModes(
     framework: FrameworkConfig,
   ): Array<"sync" | "async" | undefined> {
-    // Node.js doesn't have sync/async distinction at the framework level
-    if (framework.platform === "node") {
+    // JavaScript platforms (Node.js, Next.js, Browser) don't have sync/async distinction at the framework level
+    if (framework.platform === "node" || framework.platform === "nextjs" || framework.platform === "browser") {
       return [undefined];
     }
 

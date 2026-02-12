@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentry AI SDK Next.js Test: {{ testName }}</title>
+</head>
+<body>
+  <h1>{{ testName }}</h1>
+  <p>Framework: {{ frameworkName }}</p>
+  <div id="status">Running test...</div>
+  <pre id="output"></pre>
+
+  <script type="module">
+    /**
+     * Sentry AI SDK Next.js Test: {{ testName }}
+     * Framework: {{ frameworkName }}
+     *
+     * This test verifies that Sentry correctly instruments {{ frameworkName }} SDK calls
+     * in a Next.js environment using helper function instrumentation.
+     *
+     * KNOWN ISSUE: Although Node.js auto-instrumentation should theoretically work for Next.js
+     * (since Next.js uses Node.js server-side), there is currently an issue with import-in-the-middle
+     * and how Next.js bundles modules (even when they are externalized). This prevents automatic
+     * instrumentation from working correctly. Until this is fixed, users must manually instrument
+     * their AI SDK clients using Sentry's helper functions.
+     *
+     * Documentation: https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/
+     *
+     * TODO: When the import-in-the-middle bundling issue is resolved, update these tests to verify auto-instrumentation works.
+     */
+
+    // Import Sentry from local node_modules (bundled by Vite)
+    import * as Sentry from '@sentry/nextjs';
+
+    // Helper to log output to both console and page
+    function log(message, data = null) {
+      const outputEl = document.getElementById('output');
+      const statusEl = document.getElementById('status');
+
+      console.log(message, data || '');
+
+      const logLine = data
+        ? `${message} ${JSON.stringify(data, null, 2)}`
+        : message;
+
+      outputEl.textContent += logLine + '\n\n';
+      statusEl.textContent = message;
+    }
+
+    // Initialize Sentry FIRST, before any other SDK imports
+    Sentry.init({
+      dsn: window.SENTRY_DSN,
+      sendDefaultPii: true,
+      // Capture 100% of traces for testing
+      tracesSampleRate: 1.0,
+    });
+
+    log('Sentry initialized');
+
+{% block setup %}{% endblock %}
+
+    async function main() {
+      await Sentry.startSpan(
+        { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
+        async () => {
+          log('Starting test...');
+
+          // Dynamic imports AFTER Sentry.init()
+{% block dynamic_imports %}{% endblock %}
+
+          // Run test
+{% block test %}{% endblock %}
+
+          log('Test completed successfully');
+        }
+      );
+    }
+
+    // Run the test
+    main()
+      .catch((error) => {
+        log('ERROR:', error);
+        console.error(error);
+        Sentry.captureException(error);
+      })
+      .finally(async () => {
+        log('Flushing Sentry...');
+        await Sentry.flush(5000);
+        log('Test finished');
+
+        // Signal to Playwright that test is complete
+        window.testComplete = true;
+      });
+  </script>
+</body>
+</html>

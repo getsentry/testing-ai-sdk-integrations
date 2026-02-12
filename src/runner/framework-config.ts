@@ -12,8 +12,8 @@ export interface FrameworkConfig {
   /** Framework type: llm-only or agentic */
   type: "llm-only" | "agentic";
 
-  /** Platform: Node.js, Browser, or Python */
-  platform: "node" | "py" | "browser";
+  /** Platform: Node.js, Browser, Next.js, or Python */
+  platform: "node" | "py" | "browser" | "nextjs";
 
   /** Package dependencies to install */
   dependencies: FrameworkDependency[];

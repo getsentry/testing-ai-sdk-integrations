@@ -1,0 +1,27 @@
+{
+  "name": "vercel",
+  "displayName": "Vercel AI SDK (Next.js)",
+  "type": "agentic",
+  "platform": "nextjs",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "ai",
+      "version": "framework"
+    },
+    {
+      "package": "@ai-sdk/openai",
+      "version": "latest"
+    },
+    {
+      "package": "@sentry/nextjs",
+      "version": "sentry"
+    },
+    {
+      "package": "next",
+      "version": "latest"
+    }
+  ],
+  "versions": ["4.3.16"],
+  "sentryVersions": ["latest"]
+}

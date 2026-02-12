@@ -32,16 +32,25 @@ export class Runner {
   }
 
   /**
-   * Get platform-specific runner
+   * Get platform-specific runner based on platform and framework type
    */
   private getPlatformRunner(
-    platform: "node" | "py" | "browser",
+    platform: "node" | "py" | "browser" | "nextjs",
+    frameworkType?: "llm-only" | "agentic"
   ): PythonRunner | JavaScriptRunner | BrowserRunner {
     if (platform === "py") {
       return this.pythonRunner;
     } else if (platform === "browser") {
       return this.browserRunner;
+    } else if (platform === "nextjs") {
+      // Next.js: LLM frameworks use browser (Playwright), agents use Node.js
+      if (frameworkType === "agentic") {
+        return this.jsRunner; // Server-side (Node.js runtime)
+      } else {
+        return this.browserRunner; // Client-side (Browser runtime)
+      }
     } else {
+      // "node" uses the JavaScript runner
       return this.jsRunner;
     }
   }
@@ -69,7 +78,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
+    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -97,7 +106,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
+    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -123,7 +132,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
+    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -152,7 +161,7 @@ export class Runner {
    */
   async executeOnly(context: RunnerContext): Promise<void> {
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
+    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
 
     // Execute test
     await platformRunner.executeTest(context);
@@ -200,7 +209,13 @@ export class Runner {
     const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
 
     // Determine test filename based on platform and modes
-    const extension = getFileExtension(framework.platform);
+    // Next.js: agentic frameworks use .js (Node.js), LLMs use .html (Browser)
+    let extension: string;
+    if (framework.platform === "nextjs" && framework.type === "agentic") {
+      extension = "js";
+    } else {
+      extension = getFileExtension(framework.platform);
+    }
     const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
 
     const testPath = path.join(workDir, testFile);
@@ -245,21 +260,30 @@ export class Runner {
     await fs.writeFile(testPath, rendered);
 
     // Format the rendered file
-    await this.formatFile(testPath, framework.platform);
+    // Use the same extension logic for determining the formatter
+    await this.formatFile(testPath, framework.platform, framework.type);
 
     return testPath;
   }
 
   /**
    * Format a generated test file
-   * Uses Prettier JS API for JavaScript (node), black CLI for Python
+   * Uses Prettier JS API for JavaScript (node/nextjs), black CLI for Python
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "py" | "browser",
+    platform: "node" | "py" | "browser" | "nextjs",
+    frameworkType?: "llm-only" | "agentic"
   ): Promise<void> {
     try {
-      const parser = getFormatterParser(platform);
+      // Determine parser based on platform and framework type
+      // Next.js: agentic frameworks use babel (JS), LLMs use html
+      let parser: string | null;
+      if (platform === "nextjs" && frameworkType === "agentic") {
+        parser = "babel";
+      } else {
+        parser = getFormatterParser(platform);
+      }
 
       if (parser === null) {
         // Python formatting requires black CLI (optional)

@@ -48,13 +48,13 @@ export class TemplateRenderer {
    * Render a framework template
    *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'node', 'py', or 'browser'
+   * @param platform - 'node', 'py', 'browser', or 'nextjs'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
     type: 'llm' | 'agents',
-    platform: 'node' | 'py' | 'browser',
+    platform: 'node' | 'py' | 'browser' | 'nextjs',
     frameworkName: string,
     context: TemplateContext
   ): string {
@@ -65,7 +65,7 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'node' | 'py' | 'browser', context: TemplateContext): string {
+  renderBase(platform: 'node' | 'py' | 'browser' | 'nextjs', context: TemplateContext): string {
     const templateFile = getBaseTemplateName(platform);
     return this.render(templateFile, context);
   }
@@ -81,7 +81,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'node' | 'py' | 'browser',
+    platform: 'node' | 'py' | 'browser' | 'nextjs',
     context: TemplateContext,
     blocks: {
       imports?: string;
