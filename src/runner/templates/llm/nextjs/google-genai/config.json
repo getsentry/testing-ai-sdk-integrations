@@ -6,7 +6,7 @@
   "streamingMode": "both",
   "dependencies": [
     {
-      "package": "@google/generative-ai",
+      "package": "@google/genai",
       "version": "framework"
     },
     {
