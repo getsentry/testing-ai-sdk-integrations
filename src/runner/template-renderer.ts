@@ -5,6 +5,7 @@
 import nunjucks from 'nunjucks';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { getBaseTemplateName, getFileExtension } from '../platform-utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,13 +48,13 @@ export class TemplateRenderer {
    * Render a framework template
    *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'node' or 'py'
+   * @param platform - 'node', 'py', or 'browser'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
     type: 'llm' | 'agents',
-    platform: 'node' | 'py',
+    platform: 'node' | 'py' | 'browser',
     frameworkName: string,
     context: TemplateContext
   ): string {
@@ -64,8 +65,8 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'node' | 'py', context: TemplateContext): string {
-    const templateFile = platform === 'py' ? 'base.py.njk' : 'base.node.njk';
+  renderBase(platform: 'node' | 'py' | 'browser', context: TemplateContext): string {
+    const templateFile = getBaseTemplateName(platform);
     return this.render(templateFile, context);
   }
 
@@ -80,7 +81,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'node' | 'py',
+    platform: 'node' | 'py' | 'browser',
     context: TemplateContext,
     blocks: {
       imports?: string;
@@ -91,9 +92,8 @@ export class TemplateRenderer {
     }
   ): string {
     // Build template that extends base
-    const baseTemplate = platform === 'py' ? 'base.py.njk' : 'base.node.njk';
-    const extension = platform === 'py' ? '.py' : '.js';
-    
+    const baseTemplate = getBaseTemplateName(platform);
+
     let template = `{% extends "${baseTemplate}" %}\n\n`;
 
     if (blocks.imports) {

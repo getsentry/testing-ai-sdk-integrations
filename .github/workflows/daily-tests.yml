@@ -39,13 +39,21 @@ jobs:
       - name: Install uv (Python package manager)
         uses: astral-sh/setup-uv@v5
 
-      - name: Cache JS test environments
+      - name: Cache Node test environments
         uses: actions/cache@v4
         with:
-          path: runs/js
-          key: js-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/js/**/config.json') }}
+          path: runs/node
+          key: node-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            js-envs-daily-${{ runner.os }}-
+            node-envs-daily-${{ runner.os }}-
+
+      - name: Cache Browser test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/browser
+          key: browser-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
+          restore-keys: |
+            browser-envs-daily-${{ runner.os }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
@@ -59,6 +67,9 @@ jobs:
         run: |
           npm install
           npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
       - name: Run tests
         continue-on-error: true

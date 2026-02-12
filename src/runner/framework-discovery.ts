@@ -8,6 +8,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { FrameworkConfig } from "./framework-config.js";
+import { getPlatformIcon } from "../platform-utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,7 +31,7 @@ export interface DiscoveredFramework extends FrameworkConfig {
  * Directory structure:
  *   templates/
  *     {category}/      # llm, agents, etc.
- *       {platform}/    # js, py
+ *       {platform}/    # node, py, browser
  *         {framework}/ # openai, anthropic, etc.
  *           config.json
  *           template.njk
@@ -51,13 +52,15 @@ export function discoverFrameworks(): DiscoveredFramework[] {
   for (const category of categories) {
     const categoryPath = path.join(TEMPLATES_DIR, category);
 
-    // Scan platforms (node, py)
+    // Scan platforms (node, py, browser)
     const platforms = fs
       .readdirSync(categoryPath, { withFileTypes: true })
       .filter(
         (dirent) =>
           dirent.isDirectory() &&
-          (dirent.name === "node" || dirent.name === "py"),
+          (dirent.name === "node" ||
+            dirent.name === "py" ||
+            dirent.name === "browser"),
       )
       .map((dirent) => dirent.name);
 
@@ -158,10 +161,10 @@ export function getFrameworksByCategory(
 }
 
 /**
- * Get frameworks by platform (node, py)
+ * Get frameworks by platform (node, py, browser)
  */
 export function getFrameworksByPlatform(
-  platform: "node" | "py",
+  platform: "node" | "py" | "browser",
 ): DiscoveredFramework[] {
   return discoverFrameworks().filter((f) => f.platform === platform);
 }
@@ -211,7 +214,7 @@ export function listFrameworks(): void {
     console.log(`${category.toUpperCase()}:`);
 
     for (const framework of categoryFrameworks) {
-      const platformIcon = framework.platform === "py" ? "🐍" : "🟢";
+      const platformIcon = getPlatformIcon(framework.platform);
       const typeIcon = framework.type === "agentic" ? "🤖" : "💬";
 
       console.log(`  ${platformIcon} ${typeIcon} ${framework.name}`);

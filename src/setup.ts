@@ -9,9 +9,10 @@ import { Orchestrator } from "./orchestrator.js";
 import { FrameworkConfig } from "./types.js";
 import { discoverFrameworks } from "./runner/framework-discovery.js";
 import { getAllTests } from "./test-cases/index.js";
+import { resolvePlatformFilter } from "./platform-utils.js";
 
 interface SetupOptions {
-  platform?: "node" | "py";
+  platform?: string; // "node" | "py" | "browser" | "js" (meta-platform)
   framework?: string;
   test?: string;
   sync?: boolean;
@@ -33,14 +34,18 @@ function parseArgs(): SetupOptions {
 
     switch (arg) {
       case "--platform":
-      case "-p":
-        if (value !== "node" && value !== "py") {
-          console.error('Error: --platform must be "node" or "py"');
+      case "-p": {
+        const validPlatforms = ["node", "py", "browser", "js"];
+        if (!validPlatforms.includes(value)) {
+          console.error(
+            `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
+          );
           process.exit(1);
         }
         options.platform = value;
         i++;
         break;
+      }
       case "--framework":
       case "-f":
         options.framework = value;
@@ -97,7 +102,7 @@ Usage:
   npm run setup [options]
 
 Options:
-  -p, --platform <js|py>      Only setup for specific platform
+  -p, --platform <node|py|browser|js>  Only setup for specific platform (js = node + browser)
   -f, --framework <name>      Only setup for specific framework
   -t, --test <name>           Only setup for specific test
   --sync                      Only setup sync tests (Python only)
@@ -146,8 +151,9 @@ async function main(): Promise<void> {
 
   // Apply filters
   if (options.platform) {
-    discoveredFrameworks = discoveredFrameworks.filter(
-      (f) => f.platform === options.platform,
+    const platforms = resolvePlatformFilter(options.platform);
+    discoveredFrameworks = discoveredFrameworks.filter((f) =>
+      platforms.includes(f.platform),
     );
   }
   if (options.framework) {
@@ -190,7 +196,10 @@ async function main(): Promise<void> {
     let sentryVersion = df.sentryVersions[0];
     if (df.platform === "py" && options.sentryPythonPath) {
       sentryVersion = "local";
-    } else if (df.platform === "node" && options.sentryJavaScriptPath) {
+    } else if (
+      (df.platform === "node" || df.platform === "browser") &&
+      options.sentryJavaScriptPath
+    ) {
       sentryVersion = "local";
     }
 

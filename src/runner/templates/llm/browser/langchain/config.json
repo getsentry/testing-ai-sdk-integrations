@@ -1,0 +1,15 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain Browser (Helper Function Instrumentation)",
+  "type": "llm-only",
+  "platform": "browser",
+  "streamingMode": "both",
+  "dependencies": [
+    { "package": "@sentry/browser", "version": "sentry" },
+    { "package": "langchain", "version": "framework" },
+    { "package": "@langchain/openai", "version": "0.3.0" },
+    { "package": "@langchain/core", "version": "0.3.49" }
+  ],
+  "versions": ["0.3.24"],
+  "sentryVersions": ["latest"]
+}

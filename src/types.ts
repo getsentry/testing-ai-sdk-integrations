@@ -108,7 +108,7 @@ export interface CapturedSpan {
 
 export interface FrameworkConfig {
   name: string;
-  platform: "node" | "py";
+  platform: "node" | "py" | "browser";
   type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;
