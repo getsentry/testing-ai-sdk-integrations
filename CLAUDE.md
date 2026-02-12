@@ -76,7 +76,7 @@ src/runner/templates/
 ├── base.node.njk                     # Base JavaScript (Node) template
 ├── base.py.njk                       # Base Python template
 ├── base.browser.njk                  # Base JavaScript (browser) template
-├── base.nextjs.njk                   # Base template
+├── base.nextjs.njk                   # Base Next.js template
 ├── llm/                              # Low-level LLM frameworks
 │   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
