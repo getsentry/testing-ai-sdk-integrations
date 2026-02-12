@@ -50,12 +50,15 @@ testing-ai-sdk-integrations/
 │   │       ├── base.node.njk         # Base JavaScript (Node) template
 │   │       ├── base.py.njk           # Base Python template
 │   │       ├── base.browser.njk      # Base JavaScript (Browser) template
+│   │       ├── base.nextjs.njk       # Base Next.js template
 │   │       ├── llm/                  # LLM framework templates
 │   │       │   ├── node/{openai,anthropic,google-genai,langchain}/
 │   │       │   ├── browser/{openai,anthropic,google-genai,langchain}/
+│   │       │   ├── nextjs/{openai,anthropic,google-genai,langchain}/
 │   │       │   └── py/{openai,anthropic,langchain,litellm}/
 │   │       └── agents/               # Agent framework templates
 │   │           ├── node/{langgraph,mastra,vercel}/
+│   │           ├── nextjs/{mastra,vercel}/
 │   │           └── py/{langgraph,openai-agents,pydantic-ai,google-genai}/
 │   ├── span-collector/               # HTTP server to capture Sentry data
 │   │   ├── server.ts                 # Hono HTTP server
@@ -128,6 +131,7 @@ npm run test -- --framework openai
 # Run tests for a specific platform
 npm run test -- --platform py
 npm run test -- --platform browser
+npm run test -- --platform nextjs
 npm run test -- --platform js                         # all JS platforms (node + browser)
 
 # Run a specific test
@@ -164,21 +168,21 @@ npm run test -- --sentry-javascript /path/to/sentry-javascript
 
 ### CLI Options
 
-| Option                               | Description                                  |
-| ------------------------------------ | -------------------------------------------- |
-| `--framework <name>`                 | Filter by framework name                     |
-| `--test <name>`                      | Filter by test name                          |
-| `--platform <node\|py\|browser\|js>` | Filter by platform (`js` = node + browser)   |
-| `--sync`                             | Run only sync tests (Python, default: both)  |
-| `--async`                            | Run only async tests (Python, default: both) |
-| `--streaming`                        | Run only streaming tests (default: both)     |
-| `--blocking`                         | Run only blocking tests (default: both)      |
-| `-j, --parallel <N>`                 | Run up to N tests in parallel                |
-| `-v, --verbose`                      | Show detailed output                         |
-| `--live-status`                      | Enable real-time status display              |
-| `--open`                             | Open HTML report in browser after test run   |
-| `--sentry-python <path>`             | Use local Sentry Python SDK                  |
-| `--sentry-javascript <path>`         | Use local Sentry JavaScript SDK              |
+| Option                                      | Description                                  |
+| ------------------------------------------- | -------------------------------------------- |
+| `--framework <name>`                        | Filter by framework name                     |
+| `--test <name>`                             | Filter by test name                          |
+| `--platform <node\|py\|browser\|nextjs\|js>` | Filter by platform (`js` = node + browser)   |
+| `--sync`                                    | Run only sync tests (Python, default: both)  |
+| `--async`                                   | Run only async tests (Python, default: both) |
+| `--streaming`                               | Run only streaming tests (default: both)     |
+| `--blocking`                                | Run only blocking tests (default: both)      |
+| `-j, --parallel <N>`                        | Run up to N tests in parallel                |
+| `-v, --verbose`                             | Show detailed output                         |
+| `--live-status`                             | Enable real-time status display              |
+| `--open`                                    | Open HTML report in browser after test run   |
+| `--sentry-python <path>`                    | Use local Sentry Python SDK                  |
+| `--sentry-javascript <path>`                | Use local Sentry JavaScript SDK              |
 
 ## Test Matrix Structure
 
@@ -188,12 +192,12 @@ Tests are organized in a hierarchical structure:
 Type / Platform / Framework / Test Case
 ```
 
-| Dimension     | Description                | Examples                                                                                          |
-| ------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Type**      | Category of AI integration | `llm` (low-level LLM SDKs), `agents` (agentic frameworks)                                         |
-| **Platform**  | Runtime environment        | `node` (Node.js), `browser` (Playwright), `py` (Python). CLI also accepts `js` (= node + browser) |
-| **Framework** | AI SDK being tested        | `openai`, `anthropic`, `langchain`, `langgraph`, etc.                                             |
-| **Test Case** | Specific test scenario     | `Basic LLM Test`, `Tool Call Agent Test`, etc.                                                    |
+| Dimension     | Description                | Examples                                                                                                       |
+| ------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Type**      | Category of AI integration | `llm` (low-level LLM SDKs), `agents` (agentic frameworks)                                                      |
+| **Platform**  | Runtime environment        | `node` (Node.js), `browser` (Playwright), `nextjs` (Next.js), `py` (Python). CLI also accepts `js` (= node + browser) |
+| **Framework** | AI SDK being tested        | `openai`, `anthropic`, `langchain`, `langgraph`, etc.                                                          |
+| **Test Case** | Specific test scenario     | `Basic LLM Test`, `Tool Call Agent Test`, etc.                                                                 |
 
 This structure is reflected in the templates directory:
 
@@ -210,6 +214,11 @@ src/runner/templates/
 │   │   ├── anthropic/
 │   │   ├── google-genai/
 │   │   └── langchain/
+│   ├── nextjs/               # Platform: Next.js
+│   │   ├── openai/
+│   │   ├── anthropic/
+│   │   ├── google-genai/
+│   │   └── langchain/
 │   └── py/                   # Platform: Python
 │       ├── openai/
 │       ├── anthropic/
@@ -218,6 +227,9 @@ src/runner/templates/
 └── agents/                   # Type: Agents
     ├── node/
     │   ├── langgraph/
+    │   ├── mastra/
+    │   └── vercel/
+    ├── nextjs/
     │   ├── mastra/
     │   └── vercel/
     └── py/
@@ -244,6 +256,10 @@ When tests run, each **Test Case** is rendered using the framework's template an
 | llm    | Browser  | `anthropic`     | both      | -               |
 | llm    | Browser  | `google-genai`  | both      | -               |
 | llm    | Browser  | `langchain`     | both      | -               |
+| llm    | Next.js  | `openai`        | both      | -               |
+| llm    | Next.js  | `anthropic`     | both      | -               |
+| llm    | Next.js  | `google-genai`  | both      | -               |
+| llm    | Next.js  | `langchain`     | both      | -               |
 | llm    | Python   | `openai`        | both      | sync/async      |
 | llm    | Python   | `anthropic`     | both      | sync/async      |
 | llm    | Python   | `langchain`     | both      | sync/async      |
@@ -251,6 +267,8 @@ When tests run, each **Test Case** is rendered using the framework's template an
 | agents | Node.js  | `vercel`        | -         | -               |
 | agents | Node.js  | `langgraph`     | -         | -               |
 | agents | Node.js  | `mastra`        | -         | -               |
+| agents | Next.js  | `vercel`        | -         | -               |
+| agents | Next.js  | `mastra`        | -         | -               |
 | agents | Python   | `openai-agents` | -         | async           |
 | agents | Python   | `langgraph`     | -         | sync/async      |
 | agents | Python   | `pydantic-ai`   | -         | async           |
@@ -474,7 +492,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{node|py|browser}/your-framework
+mkdir -p src/runner/templates/{llm|agents}/{node|py|browser|nextjs}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -625,7 +643,7 @@ Each framework has a `config.json` with these fields:
 | `name`           | Framework identifier                          |
 | `displayName`    | Human-readable name                           |
 | `type`           | `"llm-only"` or `"agentic"`                   |
-| `platform`       | `"node"`, `"py"`, or `"browser"`              |
+| `platform`       | `"node"`, `"py"`, `"browser"`, or `"nextjs"`  |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
 | `dependencies`   | NPM/pip packages to install                   |
@@ -765,19 +783,19 @@ jobs:
 
 ### Action Inputs
 
-| Input                    | Required | Default       | Description                                                                          |
-| ------------------------ | -------- | ------------- | ------------------------------------------------------------------------------------ |
-| `platform`               | No       | `""`          | Platform to test: `node`, `py`, `browser`, `js` (= node + browser), or empty for all |
-| `framework`              | No       | `""`          | Specific framework to test (e.g., `openai`, `langchain`)                             |
-| `test`                   | No       | `""`          | Specific test to run (e.g., `Basic LLM Test`)                                        |
-| `parallel`               | No       | `4`           | Number of tests to run in parallel                                                   |
-| `sentry-python-path`     | No       | `""`          | Path to local sentry-python for editable install                                     |
-| `sentry-javascript-path` | No       | `""`          | Path to local sentry-javascript for linking                                          |
-| `openai-api-key`         | Yes      | -             | OpenAI API key                                                                       |
-| `anthropic-api-key`      | Yes      | -             | Anthropic API key                                                                    |
-| `google-api-key`         | Yes      | -             | Google API key for GenAI                                                             |
-| `google-vertex-project`  | No       | `""`          | Google Vertex AI project ID                                                          |
-| `google-vertex-location` | No       | `us-central1` | Google Vertex AI location                                                            |
+| Input                    | Required | Default       | Description                                                                                   |
+| ------------------------ | -------- | ------------- | --------------------------------------------------------------------------------------------- |
+| `platform`               | No       | `""`          | Platform to test: `node`, `py`, `browser`, `nextjs`, `js` (= node + browser), or empty for all |
+| `framework`              | No       | `""`          | Specific framework to test (e.g., `openai`, `langchain`)                                      |
+| `test`                   | No       | `""`          | Specific test to run (e.g., `Basic LLM Test`)                                                 |
+| `parallel`               | No       | `4`           | Number of tests to run in parallel                                                            |
+| `sentry-python-path`     | No       | `""`          | Path to local sentry-python for editable install                                              |
+| `sentry-javascript-path` | No       | `""`          | Path to local sentry-javascript for linking                                                   |
+| `openai-api-key`         | Yes      | -             | OpenAI API key                                                                                |
+| `anthropic-api-key`      | Yes      | -             | Anthropic API key                                                                             |
+| `google-api-key`         | Yes      | -             | Google API key for GenAI                                                                      |
+| `google-vertex-project`  | No       | `""`          | Google Vertex AI project ID                                                                   |
+| `google-vertex-location` | No       | `us-central1` | Google Vertex AI location                                                                     |
 
 ### Action Outputs
 

@@ -76,7 +76,7 @@ jobs:
           npm install
           npm run build
 
-      - name: Install Playwright browsers
+      - name: Install Playwright browsers (for browser platform only)
         run: npx playwright install --with-deps chromium
 
       - name: Run tests

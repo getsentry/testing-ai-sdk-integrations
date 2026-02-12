@@ -33,7 +33,7 @@ export function getFileExtension(platform: Platform): string {
     case "node":
       return "js";
     case "nextjs":
-      return "html";
+      return "js"; 
   }
 }
 
@@ -147,7 +147,7 @@ export function getFormatterParser(platform: Platform): string | null {
     case "node":
       return "babel";
     case "nextjs":
-      return "html";
+      return "babel";
   }
 }
 

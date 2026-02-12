@@ -18,32 +18,30 @@
 {% endmacro %}
 
 {% block setup %}
-    // Client will be initialized after dynamic import
-    let client;
+// Client will be initialized after dynamic import
+let client;
 {% endblock %}
 
 {% block dynamic_imports %}
-          // Import Anthropic from local node_modules (bundled by Vite)
-          const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      // Import Anthropic from local node_modules
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
 
-          // Get API key from window (injected by Playwright)
-          const ANTHROPIC_API_KEY = window.ANTHROPIC_API_KEY;
-          if (!ANTHROPIC_API_KEY) {
-            log('ERROR: ANTHROPIC_API_KEY not found in window');
-            throw new Error('ANTHROPIC_API_KEY not provided');
-          }
+      // Get API key from environment
+      const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+      if (!ANTHROPIC_API_KEY) {
+        console.error('ERROR: ANTHROPIC_API_KEY not found in environment');
+        throw new Error('ANTHROPIC_API_KEY not provided');
+      }
 
-          // Create Anthropic client
-          // WARNING: API key is exposed in browser - this is for testing only!
-          const anthropic = new Anthropic({
-            apiKey: ANTHROPIC_API_KEY,
-            dangerouslyAllowBrowser: true
-          });
+      // Create Anthropic client
+      const anthropic = new Anthropic({
+        apiKey: ANTHROPIC_API_KEY,
+      });
 
-          // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-          client = Sentry.instrumentAnthropicAiClient(anthropic);
+      // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+      client = Sentry.instrumentAnthropicAiClient(anthropic);
 
-          log('Anthropic client initialized and instrumented');
+      console.log('Anthropic client initialized and instrumented');
 {% endblock %}
 
 {% block test %}
@@ -52,58 +50,57 @@
 {% for message in input.messages %}
 {% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
 {% endfor %}
-          // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
-          try {
+      try {
 {% if isStreaming %}
-            log('Starting streaming request {{ loop.index }}...');
+        console.log('Starting streaming request {{ loop.index }}...');
 
-            const stream = await client.messages.stream({
-              model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
-              max_tokens: 1024,
+        const stream = await client.messages.stream({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          max_tokens: 1024,
 {% if system_content %}
-              system: "{{ system_content }}",
+          system: "{{ system_content }}",
 {% endif %}
-              messages: [
+          messages: [
 {% for message in input.messages %}
 {% if message.role != 'system' %}
-                { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
+            { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
 {% endif %}
 {% endfor %}
-              ],
-            });
+          ],
+        });
 
-            const chunks = [];
-            for await (const event of stream) {
-              if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-                chunks.push(event.delta.text);
-              }
-            }
-            const response = chunks.join("");
-            log('Response {{ loop.index }}:', response);
-{% else %}
-            log('Starting blocking request {{ loop.index }}...');
-
-            const response = await client.messages.create({
-              model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
-              max_tokens: 1024,
-{% if system_content %}
-              system: "{{ system_content }}",
-{% endif %}
-              messages: [
-{% for message in input.messages %}
-{% if message.role != 'system' %}
-                { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
-{% endif %}
-{% endfor %}
-              ],
-            });
-            log('Response {{ loop.index }}:', response.content[0].text);
-{% endif %}
-          } catch (error) {
-            Sentry.captureException(error);
-            log('Error in request {{ loop.index }}:', error.message);
-            console.error("Error:", error);
+        const chunks = [];
+        for await (const event of stream) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            chunks.push(event.delta.text);
           }
+        }
+        const response = chunks.join("");
+        console.log('Response {{ loop.index }}:', response);
+{% else %}
+        console.log('Starting blocking request {{ loop.index }}...');
+
+        const response = await client.messages.create({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          max_tokens: 1024,
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+{% for message in input.messages %}
+{% if message.role != 'system' %}
+            { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
+{% endif %}
+{% endfor %}
+          ],
+        });
+        console.log('Response {{ loop.index }}:', response.content[0].text);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error('Error in request {{ loop.index }}:', error.message);
+      }
 {% endfor %}
 {% endblock %}

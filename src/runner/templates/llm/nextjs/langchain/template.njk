@@ -18,82 +18,81 @@
 {% endmacro %}
 
 {% block setup %}
-    // Callback handler and chat model will be initialized after dynamic import
-    let callbackHandler;
-    let chat;
-    let HumanMessage, SystemMessage, AIMessage;
+// Callback handler and chat model will be initialized after dynamic import
+let callbackHandler;
+let chat;
+let HumanMessage, SystemMessage, AIMessage;
 {% endblock %}
 
 {% block dynamic_imports %}
-          // Import LangChain from local node_modules (bundled by Vite)
-          const langchainOpenAI = await import("@langchain/openai");
-          const langchainMessages = await import("@langchain/core/messages");
+      // Import LangChain from local node_modules
+      const langchainOpenAI = await import("@langchain/openai");
+      const langchainMessages = await import("@langchain/core/messages");
 
-          HumanMessage = langchainMessages.HumanMessage;
-          SystemMessage = langchainMessages.SystemMessage;
-          AIMessage = langchainMessages.AIMessage;
+      HumanMessage = langchainMessages.HumanMessage;
+      SystemMessage = langchainMessages.SystemMessage;
+      AIMessage = langchainMessages.AIMessage;
 
-          // Get API key from window (injected by Playwright)
-          const OPENAI_API_KEY = window.OPENAI_API_KEY;
-          if (!OPENAI_API_KEY) {
-            log('ERROR: OPENAI_API_KEY not found in window');
-            throw new Error('OPENAI_API_KEY not provided');
-          }
+      // Get API key from environment
+      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+      if (!OPENAI_API_KEY) {
+        console.error('ERROR: OPENAI_API_KEY not found in environment');
+        throw new Error('OPENAI_API_KEY not provided');
+      }
 
-          // Create LangChain callback handler for Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-          callbackHandler = Sentry.createLangChainCallbackHandler();
+      // Create LangChain callback handler for Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
+      callbackHandler = Sentry.createLangChainCallbackHandler();
 
-          // Create chat model (API key exposed in browser - for testing only!)
-          chat = new langchainOpenAI.ChatOpenAI({
-            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-            openAIApiKey: OPENAI_API_KEY,
-          });
+      // Create chat model
+      chat = new langchainOpenAI.ChatOpenAI({
+        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+        openAIApiKey: OPENAI_API_KEY,
+      });
 
-          log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
+      console.log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
 {% endblock %}
 
 {% block test %}
 {% for input in inputs %}
-          // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
-          const messages{{ loop.index }} = [
+      const messages{{ loop.index }} = [
 {% for message in input.messages %}
 {% if message.role == 'system' %}
-            new SystemMessage("{{ message.content }}"),
+        new SystemMessage("{{ message.content }}"),
 {% elif message.role == 'user' %}
-            new HumanMessage({ content: {{ renderLangChainContent(message.content) }} }),
+        new HumanMessage({ content: {{ renderLangChainContent(message.content) }} }),
 {% elif message.role == 'assistant' %}
-            new AIMessage("{{ message.content }}"),
+        new AIMessage("{{ message.content }}"),
 {% endif %}
 {% endfor %}
-          ];
+      ];
 
-          try {
+      try {
 {% if isStreaming %}
-            log('Starting streaming request {{ loop.index }}...');
+        console.log('Starting streaming request {{ loop.index }}...');
 
-            const stream = await chat.stream(messages{{ loop.index }}, {
-              callbacks: [callbackHandler],
-            });
-            const chunks = [];
-            for await (const chunk of stream) {
-              if (chunk.content) {
-                chunks.push(chunk.content);
-              }
-            }
-            log('Response {{ loop.index }}:', chunks.join(""));
-{% else %}
-            log('Starting blocking request {{ loop.index }}...');
-
-            const response = await chat.invoke(messages{{ loop.index }}, {
-              callbacks: [callbackHandler],
-            });
-            log('Response {{ loop.index }}:', response.content);
-{% endif %}
-          } catch (error) {
-            Sentry.captureException(error);
-            log('Error in request {{ loop.index }}:', error.message);
-            console.error("Error:", error);
+        const stream = await chat.stream(messages{{ loop.index }}, {
+          callbacks: [callbackHandler],
+        });
+        const chunks = [];
+        for await (const chunk of stream) {
+          if (chunk.content) {
+            chunks.push(chunk.content);
           }
+        }
+        console.log('Response {{ loop.index }}:', chunks.join(""));
+{% else %}
+        console.log('Starting blocking request {{ loop.index }}...');
+
+        const response = await chat.invoke(messages{{ loop.index }}, {
+          callbacks: [callbackHandler],
+        });
+        console.log('Response {{ loop.index }}:', response.content);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error('Error in request {{ loop.index }}:', error.message);
+      }
 {% endfor %}
 {% endblock %}

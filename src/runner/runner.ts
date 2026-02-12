@@ -32,25 +32,16 @@ export class Runner {
   }
 
   /**
-   * Get platform-specific runner based on platform and framework type
+   * Get platform-specific runner based on platform
    */
   private getPlatformRunner(
-    platform: "node" | "py" | "browser" | "nextjs",
-    frameworkType?: "llm-only" | "agentic"
+    platform: "node" | "py" | "browser" | "nextjs"
   ): PythonRunner | JavaScriptRunner | BrowserRunner {
     if (platform === "py") {
       return this.pythonRunner;
     } else if (platform === "browser") {
       return this.browserRunner;
-    } else if (platform === "nextjs") {
-      // Next.js: LLM frameworks use browser (Playwright), agents use Node.js
-      if (frameworkType === "agentic") {
-        return this.jsRunner; // Server-side (Node.js runtime)
-      } else {
-        return this.browserRunner; // Client-side (Browser runtime)
-      }
     } else {
-      // "node" uses the JavaScript runner
       return this.jsRunner;
     }
   }
@@ -78,7 +69,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -106,7 +97,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -132,7 +123,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -161,7 +152,7 @@ export class Runner {
    */
   async executeOnly(context: RunnerContext): Promise<void> {
     // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform, context.framework.type);
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Execute test
     await platformRunner.executeTest(context);
