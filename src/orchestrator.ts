@@ -748,8 +748,7 @@ export class Orchestrator {
   private getExecutionModes(
     framework: FrameworkConfig,
   ): Array<"sync" | "async" | undefined> {
-    // JavaScript platforms (Node.js, Next.js, Browser) don't have sync/async distinction at the framework level
-    if (framework.platform === "node" || framework.platform === "nextjs" || framework.platform === "browser") {
+    if (!supportsExecutionModes(framework.platform)) {
       return [undefined];
     }
 
