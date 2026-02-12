@@ -22,7 +22,8 @@ export function resolvePlatformFilter(value: string): Platform[] {
 }
 
 /**
- * Get the file extension for a platform
+ * Get the file extension for generated test files.
+ * Next.js tests run in Node.js, so they use .js like node.
  */
 export function getFileExtension(platform: Platform): string {
   switch (platform) {
@@ -31,9 +32,10 @@ export function getFileExtension(platform: Platform): string {
     case "browser":
       return "html";
     case "node":
-      return "js";
     case "nextjs":
-      return "js"; 
+      return "js";
+    default:
+      return "js";
   }
 }
 

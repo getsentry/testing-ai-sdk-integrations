@@ -5,7 +5,7 @@
 import nunjucks from 'nunjucks';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { getBaseTemplateName, getFileExtension } from '../platform-utils.js';
+import { getBaseTemplateName } from '../platform-utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

@@ -200,13 +200,7 @@ export class Runner {
     const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
 
     // Determine test filename based on platform and modes
-    // Next.js: agentic frameworks use .js (Node.js), LLMs use .html (Browser)
-    let extension: string;
-    if (framework.platform === "nextjs" && framework.type === "agentic") {
-      extension = "js";
-    } else {
-      extension = getFileExtension(framework.platform);
-    }
+    const extension = getFileExtension(framework.platform);
     const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
 
     const testPath = path.join(workDir, testFile);
@@ -252,7 +246,7 @@ export class Runner {
 
     // Format the rendered file
     // Use the same extension logic for determining the formatter
-    await this.formatFile(testPath, framework.platform, framework.type);
+    await this.formatFile(testPath, framework.platform);
 
     return testPath;
   }
@@ -263,18 +257,10 @@ export class Runner {
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "py" | "browser" | "nextjs",
-    frameworkType?: "llm-only" | "agentic"
+    platform: "node" | "py" | "browser" | "nextjs"
   ): Promise<void> {
     try {
-      // Determine parser based on platform and framework type
-      // Next.js: agentic frameworks use babel (JS), LLMs use html
-      let parser: string | null;
-      if (platform === "nextjs" && frameworkType === "agentic") {
-        parser = "babel";
-      } else {
-        parser = getFormatterParser(platform);
-      }
+      const parser = getFormatterParser(platform);
 
       if (parser === null) {
         // Python formatting requires black CLI (optional)
