@@ -40,6 +40,10 @@
     "@types/vhtml": "^2.2.9",
     "typescript": "^5.7.3"
   },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "volta": {
     "node": "22.22.0"
   }
