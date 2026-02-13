@@ -55,6 +55,14 @@ jobs:
           restore-keys: |
             browser-envs-daily-${{ runner.os }}-
 
+      - name: Cache Next.js test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/nextjs
+          key: nextjs-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/nextjs/**/config.json') }}
+          restore-keys: |
+            nextjs-envs-daily-${{ runner.os }}-
+
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
@@ -68,7 +76,7 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install Playwright browsers
+      - name: Install Playwright browsers (for browser platform only)
         run: npx playwright install --with-deps chromium
 
       - name: Run tests

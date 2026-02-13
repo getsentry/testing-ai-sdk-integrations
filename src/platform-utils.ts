@@ -5,7 +5,7 @@
 
 import { FrameworkConfig } from "./types.js";
 
-export type Platform = "node" | "py" | "browser";
+export type Platform = "node" | "py" | "browser" | "nextjs";
 
 /** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
 export const JS_PLATFORMS: readonly Platform[] = ["node", "browser"] as const;
@@ -22,7 +22,8 @@ export function resolvePlatformFilter(value: string): Platform[] {
 }
 
 /**
- * Get the file extension for a platform
+ * Get the file extension for generated test files.
+ * Next.js tests run in Node.js, so they use .js like node.
  */
 export function getFileExtension(platform: Platform): string {
   switch (platform) {
@@ -31,6 +32,9 @@ export function getFileExtension(platform: Platform): string {
     case "browser":
       return "html";
     case "node":
+    case "nextjs":
+      return "js";
+    default:
       return "js";
   }
 }
@@ -46,6 +50,8 @@ export function getPlatformIcon(platform: Platform): string {
       return "🌐";
     case "node":
       return "🟢";
+    case "nextjs":
+      return "➡️";
   }
 }
 
@@ -60,6 +66,8 @@ export function getPlatformDisplayName(platform: Platform): string {
       return "BROWSER";
     case "node":
       return "NODE";
+    case "nextjs":
+      return "NEXT.JS";
   }
 }
 
@@ -92,6 +100,7 @@ export function getLocalSentryEnvVar(platform: Platform): string | null {
       return "SENTRY_PYTHON_PATH";
     case "node":
     case "browser":
+    case "nextjs":
       return "SENTRY_JAVASCRIPT_PATH";
   }
 }
@@ -107,6 +116,8 @@ export function getSentryPackageName(platform: Platform): string {
       return "@sentry/browser";
     case "node":
       return "@sentry/node";
+    case "nextjs":
+      return "@sentry/nextjs";
   }
 }
 
@@ -121,6 +132,8 @@ export function getBaseTemplateName(platform: Platform): string {
       return "base.browser.njk";
     case "node":
       return "base.node.njk";
+    case "nextjs":
+      return "base.nextjs.njk";
   }
 }
 
@@ -134,6 +147,8 @@ export function getFormatterParser(platform: Platform): string | null {
     case "browser":
       return "html";
     case "node":
+      return "babel";
+    case "nextjs":
       return "babel";
   }
 }
@@ -160,7 +175,7 @@ export function determineSentryVersion(
   }
 
   if (
-    (framework.platform === "node" || framework.platform === "browser") &&
+    (framework.platform === "node" || framework.platform === "browser" || framework.platform === "nextjs") &&
     sentryJavaScriptPath
   ) {
     return "local";

@@ -76,6 +76,7 @@ src/runner/templates/
 ├── base.node.njk                     # Base JavaScript (Node) template
 ├── base.py.njk                       # Base Python template
 ├── base.browser.njk                  # Base JavaScript (browser) template
+├── base.nextjs.njk                   # Base Next.js template
 ├── llm/                              # Low-level LLM frameworks
 │   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
@@ -87,7 +88,12 @@ src/runner/templates/
 │   │   ├── langchain/
 │   │   ├── litellm/
 │   │   └── openai/
-│   └── browser/
+│   ├── browser/
+│   │   ├── anthropic/
+│   │   ├── google-genai/
+│   │   ├── langchain/
+│   │   └── openai/
+│   └── nextjs/
 │       ├── anthropic/
 │       ├── google-genai/
 │       ├── langchain/
@@ -97,11 +103,14 @@ src/runner/templates/
     │   ├── langgraph/
     │   ├── mastra/
     │   └── vercel/
-    └── py/
-        ├── google-genai/
-        ├── langgraph/
-        ├── openai-agents/
-        └── pydantic-ai/
+    ├── py/
+    │   ├── google-genai/
+    │   ├── langgraph/
+    │   ├── openai-agents/
+    │   └── pydantic-ai/
+    └── nextjs/
+        ├── mastra/
+        └── vercel/
 ```
 
 ## Quick Start
@@ -122,9 +131,10 @@ npm run test run
 # Run tests for a specific framework
 npm run test -- --framework openai
 
-# Run tests for a specific platform (node, py, browser, or js)
+# Run tests for a specific platform (node, py, browser, nextjs, or js)
 npm run test -- --platform py
 npm run test -- --platform browser
+npm run test -- --platform nextjs
 npm run test -- --platform js                         # all JS platforms (node + browser)
 
 # Run with verbose output
@@ -157,7 +167,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|py|browser|js>  Filter by platform (js = node + browser)
+  --platform <node|py|browser|nextjs|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -213,6 +223,12 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Browser           | `anthropic`     | llm      | llm-only | both      | -               |
 | Browser           | `google-genai`  | llm      | llm-only | both      | -               |
 | Browser           | `langchain`     | llm      | llm-only | both      | -               |
+| Next.js           | `openai`        | llm      | llm-only | both      | -               |
+| Next.js           | `anthropic`     | llm      | llm-only | both      | -               |
+| Next.js           | `google-genai`  | llm      | llm-only | both      | -               |
+| Next.js           | `langchain`     | llm      | llm-only | both      | -               |
+| Next.js           | `vercel`        | agents   | agentic  | -         | -               |
+| Next.js           | `mastra`        | agents   | agentic  | -         | -               |
 | Python            | `openai`        | llm      | llm-only | both      | sync/async      |
 | Python            | `anthropic`     | llm      | llm-only | both      | sync/async      |
 | Python            | `langchain`     | llm      | llm-only | both      | sync/async      |
@@ -344,19 +360,19 @@ Each framework has a `config.json` file that defines its capabilities:
 
 ### Configuration Fields
 
-| Field            | Description                                                                                    |
-| ---------------- | ---------------------------------------------------------------------------------------------- |
-| `name`           | Framework identifier                                                                           |
-| `displayName`    | Human-readable name                                                                            |
-| `type`           | `"llm-only"` or `"agentic"`                                                                    |
-| `platform`       | `"node"`, `"py"`, or `"browser"` (CLI also accepts `"js"` as meta-platform for node + browser) |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                       |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                  |
-| `dependencies`   | NPM/pip packages to install                                                                    |
-| `versions`       | Framework versions to test                                                                     |
-| `sentryVersions` | Sentry SDK versions to test against                                                            |
-| `modelOverrides` | Override model names for request/response validation                                           |
-| `skip`           | Tests or checks to skip for this framework                                                     |
+| Field            | Description                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `name`           | Framework identifier                                                                                    |
+| `displayName`    | Human-readable name                                                                                     |
+| `type`           | `"llm-only"` or `"agentic"`                                                                             |
+| `platform`       | `"node"`, `"py"`, `"browser"`, or `"nextjs"` (CLI also accepts `"js"` as meta-platform for node + browser) |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
+| `dependencies`   | NPM/pip packages to install                                                                             |
+| `versions`       | Framework versions to test                                                                              |
+| `sentryVersions` | Sentry SDK versions to test against                                                                     |
+| `modelOverrides` | Override model names for request/response validation                                                    |
+| `skip`           | Tests or checks to skip for this framework                                                              |
 
 ## Test Utilities
 
@@ -396,7 +412,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{node|py|browser}/your-framework
+mkdir -p src/runner/templates/{llm|agents}/{node|py|browser|nextjs}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -416,7 +432,7 @@ mkdir -p src/runner/templates/{llm|agents}/{node|py|browser}/your-framework
 
 ### 3. Create `template.njk`
 
-Templates extend the base template and implement required blocks. Use `base.node.njk` for Node, `base.py.njk` for Python, or `base.browser.njk` for browser.
+Templates extend the base template and implement required blocks. Use `base.node.njk` for Node, `base.py.njk` for Python, `base.browser.njk` for browser, or `base.nextjs.njk` for Next.js.
 
 ```njk
 {% extends "base.node.njk" %}
@@ -517,7 +533,7 @@ interface TestDefinition {
 ```typescript
 interface FrameworkConfig {
   name: string;
-  platform: "node" | "py" | "browser";
+  platform: "node" | "py" | "browser" | "nextjs";
   type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;

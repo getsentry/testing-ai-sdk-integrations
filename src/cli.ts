@@ -104,7 +104,7 @@ function parseCliArgs() {
 
   // Validate platform
   const platformArg = values.platform;
-  const validPlatforms = ["node", "py", "browser", "js"];
+  const validPlatforms = ["node", "py", "browser", "js", "nextjs"];
   if (platformArg && !validPlatforms.includes(platformArg)) {
     console.error(
       `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -239,7 +239,7 @@ async function main() {
         if (df.platform === "py" && options.sentryPythonPath) {
           sentryVersion = "local";
         } else if (
-          (df.platform === "node" || df.platform === "browser") &&
+          (df.platform === "node" || df.platform === "browser" || df.platform === "nextjs") &&
           options.sentryJavaScriptPath
         ) {
           sentryVersion = "local";

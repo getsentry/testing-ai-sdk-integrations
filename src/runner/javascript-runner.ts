@@ -87,8 +87,10 @@ export class JavaScriptRunner {
     const dependencies: Record<string, string> = {};
 
     // Add Sentry SDK (skip if using local version, will be linked separately)
+    // Use platform-specific Sentry package
     if (framework.sentryVersion !== "local") {
-      dependencies["@sentry/node"] = framework.sentryVersion;
+      const sentryPackage = framework.platform === "nextjs" ? "@sentry/nextjs" : "@sentry/node";
+      dependencies[sentryPackage] = framework.sentryVersion;
     }
 
     // Add framework dependencies from config
@@ -99,6 +101,16 @@ export class JavaScriptRunner {
         // Replace "framework" with actual framework version
         if (version === "framework") {
           version = framework.version;
+        }
+
+        // Replace "sentry" with actual sentry version
+        if (version === "sentry") {
+          version = framework.sentryVersion;
+        }
+
+        // Skip Sentry packages if already added (avoid duplication)
+        if (dep.package === "@sentry/node" || dep.package === "@sentry/nextjs") {
+          continue;
         }
 
         dependencies[dep.package] = version;

@@ -32,10 +32,10 @@ export class Runner {
   }
 
   /**
-   * Get platform-specific runner
+   * Get platform-specific runner based on platform
    */
   private getPlatformRunner(
-    platform: "node" | "py" | "browser",
+    platform: "node" | "py" | "browser" | "nextjs"
   ): PythonRunner | JavaScriptRunner | BrowserRunner {
     if (platform === "py") {
       return this.pythonRunner;
@@ -245,6 +245,7 @@ export class Runner {
     await fs.writeFile(testPath, rendered);
 
     // Format the rendered file
+    // Use the same extension logic for determining the formatter
     await this.formatFile(testPath, framework.platform);
 
     return testPath;
@@ -252,11 +253,11 @@ export class Runner {
 
   /**
    * Format a generated test file
-   * Uses Prettier JS API for JavaScript (node), black CLI for Python
+   * Uses Prettier JS API for JavaScript (node/nextjs), black CLI for Python
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "py" | "browser",
+    platform: "node" | "py" | "browser" | "nextjs"
   ): Promise<void> {
     try {
       const parser = getFormatterParser(platform);

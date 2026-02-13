@@ -1,0 +1,23 @@
+{
+  "name": "google-genai",
+  "displayName": "Google GenAI Next.js SDK (Helper Function Instrumentation)",
+  "type": "llm-only",
+  "platform": "nextjs",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "@google/genai",
+      "version": "framework"
+    },
+    {
+      "package": "@sentry/nextjs",
+      "version": "sentry"
+    },
+    {
+      "package": "next",
+      "version": "latest"
+    }
+  ],
+  "versions": ["1.38.0"],
+  "sentryVersions": ["latest"]
+}
