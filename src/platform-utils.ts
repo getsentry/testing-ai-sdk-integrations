@@ -5,7 +5,7 @@
 
 import { FrameworkConfig } from "./types.js";
 
-export type Platform = "node" | "py" | "browser" | "nextjs";
+export type Platform = "node" | "py" | "browser" | "nextjs" | "php";
 
 /** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
 export const JS_PLATFORMS: readonly Platform[] = ["node", "browser"] as const;
@@ -29,6 +29,8 @@ export function getFileExtension(platform: Platform): string {
   switch (platform) {
     case "py":
       return "py";
+    case "php":
+      return "php";
     case "browser":
       return "html";
     case "node":
@@ -46,6 +48,8 @@ export function getPlatformIcon(platform: Platform): string {
   switch (platform) {
     case "py":
       return "🐍";
+    case "php":
+      return "🐘";
     case "browser":
       return "🌐";
     case "node":
@@ -62,6 +66,8 @@ export function getPlatformDisplayName(platform: Platform): string {
   switch (platform) {
     case "py":
       return "PYTHON";
+    case "php":
+      return "PHP";
     case "browser":
       return "BROWSER";
     case "node":
@@ -98,6 +104,8 @@ export function getLocalSentryEnvVar(platform: Platform): string | null {
   switch (platform) {
     case "py":
       return "SENTRY_PYTHON_PATH";
+    case "php":
+      return "SENTRY_LARAVEL_PATH";
     case "node":
     case "browser":
     case "nextjs":
@@ -112,6 +120,8 @@ export function getSentryPackageName(platform: Platform): string {
   switch (platform) {
     case "py":
       return "sentry-sdk";
+    case "php":
+      return "sentry/sentry-laravel";
     case "browser":
       return "@sentry/browser";
     case "node":
@@ -128,6 +138,8 @@ export function getBaseTemplateName(platform: Platform): string {
   switch (platform) {
     case "py":
       return "base.py.njk";
+    case "php":
+      return "base.php.njk";
     case "browser":
       return "base.browser.njk";
     case "node":
@@ -138,12 +150,15 @@ export function getBaseTemplateName(platform: Platform): string {
 }
 
 /**
- * Get the formatter parser name for a platform
+ * Get the formatter parser name for a platform.
+ * Returns a Prettier parser name, "black" for Python CLI formatting, or null to skip formatting.
  */
 export function getFormatterParser(platform: Platform): string | null {
   switch (platform) {
     case "py":
-      return null; // Uses black CLI
+      return "black"; // Uses black CLI
+    case "php":
+      return null; // No formatter for PHP templates
     case "browser":
       return "html";
     case "node":
@@ -174,8 +189,15 @@ export function determineSentryVersion(
     return "local";
   }
 
+  if (framework.platform === "php") {
+    // PHP local SDK is handled via composer path repository in the runner
+    return defaultVersion;
+  }
+
   if (
-    (framework.platform === "node" || framework.platform === "browser" || framework.platform === "nextjs") &&
+    (framework.platform === "node" ||
+      framework.platform === "browser" ||
+      framework.platform === "nextjs") &&
     sentryJavaScriptPath
   ) {
     return "local";

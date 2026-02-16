@@ -5,12 +5,20 @@ This guide explains how to use local, editable installations of Sentry SDKs inst
 ## Prerequisites
 
 ### Python
+
 - **uv** package manager installed (`pip install uv` or `brew install uv`)
 - Local clone of `sentry-python` repository
 
 ### JavaScript
+
 - Local clone of `sentry-javascript` repository
 - Built packages (run `yarn build` in the repo)
+
+### PHP (Laravel)
+
+- **Composer** installed
+- Local clone of `sentry-laravel` repository (for `--sentry-laravel`)
+- Optionally, local clone of `sentry-php` repository (for `--sentry-php`, core SDK)
 
 ## Usage
 
@@ -30,16 +38,28 @@ Run tests with the `--sentry-javascript` flag:
 npm start run -- --framework some-js-framework --sentry-javascript ~/sentry-javascript
 ```
 
+### PHP SDK (sentry-laravel)
+
+Run tests with the `--sentry-laravel` flag:
+
+```bash
+npm start run -- --framework laravel --sentry-laravel ~/sentry-laravel
+```
+
+> **Note:** `--sentry-laravel` points to the `sentry/sentry-laravel` package (the Laravel integration).
+> `--sentry-php` is a separate flag for the core `sentry/sentry-php` SDK (reserved for future use).
+
 ## How It Works
 
 When using local SDK paths:
 
-1. The CLI sets environment variables (`SENTRY_PYTHON_PATH` or `SENTRY_JAVASCRIPT_PATH`)
+1. The CLI sets environment variables (`SENTRY_PYTHON_PATH`, `SENTRY_JAVASCRIPT_PATH`, or `SENTRY_LARAVEL_PATH`)
 2. The framework's `sentryVersion` is set to `"local"`
 3. Work directories use `sentry-local` instead of version number:
    - Example: `runs/py/openai-1.57.0-sentry-local/`
 4. Python: `uv pip install -e <path>` for editable install
 5. JavaScript: `npm link <path>/packages/node` to link local SDK
+6. PHP (Laravel): Composer path repository with symlink to local `sentry-laravel`
 
 ## Benefits
 

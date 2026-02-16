@@ -4,19 +4,21 @@ Templates for frameworks that support agentic workflows with tool calling.
 
 ## Compatible Frameworks
 
-| Platform | Framework | Directory | Status |
-|----------|-----------|-----------|--------|
-| JavaScript | Vercel AI SDK | `js/vercel/` | ✅ Done |
-| JavaScript | LangGraph | `js/langgraph/` | ✅ Done |
-| JavaScript | Mastra | `js/mastra/` | ✅ Done |
-| Python | OpenAI Agents | `py/openai-agents/` | ✅ Done |
-| Python | LangGraph | `py/langgraph/` | ✅ Done |
-| Python | PydanticAI | `py/pydantic-ai/` | ✅ Done |
-| Python | Google GenAI | `py/google-genai/` | ✅ Done |
+| Platform   | Framework     | Directory           | Status  |
+| ---------- | ------------- | ------------------- | ------- |
+| JavaScript | Vercel AI SDK | `js/vercel/`        | ✅ Done |
+| JavaScript | LangGraph     | `js/langgraph/`     | ✅ Done |
+| JavaScript | Mastra        | `js/mastra/`        | ✅ Done |
+| Python     | OpenAI Agents | `py/openai-agents/` | ✅ Done |
+| Python     | LangGraph     | `py/langgraph/`     | ✅ Done |
+| Python     | PydanticAI    | `py/pydantic-ai/`   | ✅ Done |
+| Python     | Google GenAI  | `py/google-genai/`  | ✅ Done |
+| PHP        | Laravel AI    | `php/laravel/`      | ✅ Done |
 
 ## Test Compatibility
 
 Agent templates should implement tests that have:
+
 - `agent` property (agent configuration with tools)
 - `agent.name` property (agent name)
 - `agent.description` property (agent description)
@@ -25,6 +27,7 @@ Agent templates should implement tests that have:
 - `input.prompt` property (user prompt)
 
 Example test from `test-cases/agents/basic.ts`:
+
 ```typescript
 {
   agent: {
@@ -51,11 +54,13 @@ Example test from `test-cases/agents/basic.ts`:
 Each agent template must:
 
 1. **Extend base template**
+
    ```nunjucks
    {% extends "base.{js,py}.njk" %}
    ```
 
 2. **Import SDK**
+
    ```nunjucks
    {% block imports %}
    {{ super() }}
@@ -64,6 +69,7 @@ Each agent template must:
    ```
 
 3. **Define tools**
+
    ```nunjucks
    {% block setup %}
    {% for tool in agent.tools %}
@@ -75,7 +81,7 @@ Each agent template must:
        raise Exception("{{ tool.error }}")
        {% endif %}
    {% endfor %}
-   
+
    agent = Agent(
        name="{{ agent.name }}",
        tools=[{{ agent.tools | map(attribute='name') | join(', ') }}]
@@ -106,6 +112,7 @@ Tools in test definitions have:
 ```
 
 Templates should generate tool implementations that:
+
 - Return `result` if specified
 - Raise error with `error` message if specified
 - Match the parameter schema

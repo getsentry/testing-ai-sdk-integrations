@@ -492,12 +492,24 @@ export class Orchestrator {
     // Filter by sync/async if specified
     if (this.syncFilter && !this.asyncFilter) {
       testMatrix = testMatrix.filter((run) => {
-        if (run.framework.platform === "node" || run.framework.platform === "nextjs" || run.framework.platform === "browser") return false;
+        if (
+          run.framework.platform === "node" ||
+          run.framework.platform === "nextjs" ||
+          run.framework.platform === "browser" ||
+          run.framework.platform === "php"
+        )
+          return false;
         return run.framework.executionMode === "sync";
       });
     } else if (this.asyncFilter && !this.syncFilter) {
       testMatrix = testMatrix.filter((run) => {
-        if (run.framework.platform === "node" || run.framework.platform === "nextjs" || run.framework.platform === "browser") return false;
+        if (
+          run.framework.platform === "node" ||
+          run.framework.platform === "nextjs" ||
+          run.framework.platform === "browser" ||
+          run.framework.platform === "php"
+        )
+          return false;
         return run.framework.executionMode === "async";
       });
     }
@@ -1120,8 +1132,14 @@ export class Orchestrator {
             );
           } else {
             const sev = (check as any).severity || "normal";
-            const sevIcon = sev === "critical" ? "❗" : sev === "warning" ? "⚠ " : "✗ ";
-            const sevColor = sev === "critical" ? colors.red : sev === "warning" ? colors.yellow : colors.red;
+            const sevIcon =
+              sev === "critical" ? "❗" : sev === "warning" ? "⚠ " : "✗ ";
+            const sevColor =
+              sev === "critical"
+                ? colors.red
+                : sev === "warning"
+                  ? colors.yellow
+                  : colors.red;
             console.log(
               `  ${sevColor}${sevIcon}${colors.reset} ${colors.bright}${check.name}${colors.reset}`,
             );

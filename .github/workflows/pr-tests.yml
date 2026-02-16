@@ -65,6 +65,20 @@ jobs:
           restore-keys: |
             py-envs-main-${{ runner.os }}-
 
+      - name: Cache PHP test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/php
+          key: php-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
+          restore-keys: |
+            php-envs-main-${{ runner.os }}-
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
+
       - name: Install dependencies and build
         run: |
           npm ci
@@ -141,6 +155,20 @@ jobs:
           key: py-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
           restore-keys: |
             py-envs-pr-${{ runner.os }}-
+
+      - name: Cache PHP test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/php
+          key: php-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
+          restore-keys: |
+            php-envs-pr-${{ runner.os }}-
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
 
       - name: Install dependencies and build
         run: |

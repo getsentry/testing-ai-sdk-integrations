@@ -12,6 +12,10 @@ This repository contains a comprehensive testing framework for Sentry's AI SDK i
 4. **Clear error messages** - When tests fail, show exactly what's wrong
 5. **Template-based test generation** - Nunjucks templates generate runnable test files for each framework
 
+## IMPORTANT: Never Skip Failing Tests
+
+**Do NOT add check names to `skip.checks` in `config.json` just because they fail.** The entire purpose of this framework is to surface failures. If a check fails, it means the Sentry integration has a real issue that needs to be fixed — that is a valid, expected test result. Skipping it hides the problem and makes this tool useless. Failing tests are the output of this project, not a problem to be worked around.
+
 ## Architecture Overview
 
 This project uses a **template-based test generation approach**. Test definitions (TypeScript) combined with framework templates (Nunjucks) generate runnable test files. A span collector HTTP server captures Sentry data for validation.
@@ -77,6 +81,7 @@ src/runner/templates/
 ├── base.py.njk                       # Base Python template
 ├── base.browser.njk                  # Base JavaScript (browser) template
 ├── base.nextjs.njk                   # Base Next.js template
+├── base.php.njk                      # Base PHP (Laravel) template
 ├── llm/                              # Low-level LLM frameworks
 │   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
@@ -108,9 +113,11 @@ src/runner/templates/
     │   ├── langgraph/
     │   ├── openai-agents/
     │   └── pydantic-ai/
-    └── nextjs/
-        ├── mastra/
-        └── vercel/
+    ├── nextjs/
+    │   ├── mastra/
+    │   └── vercel/
+    └── php/
+        └── laravel/                  # config.json + template.njk + agent.php.njk + tool.php.njk
 ```
 
 ## Quick Start
@@ -131,10 +138,11 @@ npm run test run
 # Run tests for a specific framework
 npm run test -- --framework openai
 
-# Run tests for a specific platform (node, py, browser, nextjs, or js)
+# Run tests for a specific platform (node, py, browser, nextjs, php, or js)
 npm run test -- --platform py
 npm run test -- --platform browser
 npm run test -- --platform nextjs
+npm run test -- --platform php                        # PHP platform (Laravel)
 npm run test -- --platform js                         # all JS platforms (node + browser)
 
 # Run with verbose output
@@ -167,7 +175,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|py|browser|nextjs|js>  Filter by platform (js = node + browser)
+  --platform <node|py|browser|nextjs|php|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -178,6 +186,8 @@ Options:
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
+  --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
+  --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
   --help, -h                 Show this help message
 ```
 
@@ -237,6 +247,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `langgraph`     | agents   | agentic  | -         | sync/async      |
 | Python            | `pydantic-ai`   | agents   | agentic  | -         | async           |
 | Python            | `google-genai`  | agents   | agentic  | -         | sync/async      |
+| PHP (Laravel)     | `laravel`       | agents   | agentic  | -         | -               |
 
 ## Test Cases
 
@@ -360,19 +371,19 @@ Each framework has a `config.json` file that defines its capabilities:
 
 ### Configuration Fields
 
-| Field            | Description                                                                                             |
-| ---------------- | ------------------------------------------------------------------------------------------------------- |
-| `name`           | Framework identifier                                                                                    |
-| `displayName`    | Human-readable name                                                                                     |
-| `type`           | `"llm-only"` or `"agentic"`                                                                             |
-| `platform`       | `"node"`, `"py"`, `"browser"`, or `"nextjs"` (CLI also accepts `"js"` as meta-platform for node + browser) |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
-| `dependencies`   | NPM/pip packages to install                                                                             |
-| `versions`       | Framework versions to test                                                                              |
-| `sentryVersions` | Sentry SDK versions to test against                                                                     |
-| `modelOverrides` | Override model names for request/response validation                                                    |
-| `skip`           | Tests or checks to skip for this framework                                                              |
+| Field            | Description                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `name`           | Framework identifier                                                                                                |
+| `displayName`    | Human-readable name                                                                                                 |
+| `type`           | `"llm-only"` or `"agentic"`                                                                                         |
+| `platform`       | `"node"`, `"py"`, `"browser"`, `"nextjs"`, or `"php"` (CLI also accepts `"js"` as meta-platform for node + browser) |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                            |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                                       |
+| `dependencies`   | NPM/pip packages to install                                                                                         |
+| `versions`       | Framework versions to test                                                                                          |
+| `sentryVersions` | Sentry SDK versions to test against                                                                                 |
+| `modelOverrides` | Override model names for request/response validation                                                                |
+| `skip`           | Tests or checks to skip for this framework                                                                          |
 
 ## Test Utilities
 
@@ -412,7 +423,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{node|py|browser|nextjs}/your-framework
+mkdir -p src/runner/templates/{llm|agents}/{node|py|browser|nextjs|php}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -533,7 +544,7 @@ interface TestDefinition {
 ```typescript
 interface FrameworkConfig {
   name: string;
-  platform: "node" | "py" | "browser" | "nextjs";
+  platform: "node" | "py" | "browser" | "nextjs" | "php";
   type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;
@@ -633,6 +644,17 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
 - Template is standalone (does not extend base.node.njk)
+
+### Laravel
+
+Laravel uses a split-file template setup unique among the platforms:
+
+- Uses `composer create-project laravel/laravel` for environment setup
+- Sentry is integrated via `sentry/sentry-laravel` (Composer package)
+- AI functionality comes from `laravel/ai` package
+- Templates generate multiple PHP files: agent classes (`app/Ai/Agents/`), tool classes (`app/Ai/Tools/`), and artisan commands (`app/Console/Commands/`)
+- Tests are executed via `php artisan test:<test-case-id>` rather than running a script file directly
+- The `PhpRunner` handles Composer project creation, dependency installation, and artisan command execution
 
 ## References
 

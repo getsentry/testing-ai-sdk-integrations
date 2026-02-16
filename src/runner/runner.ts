@@ -3,10 +3,11 @@
  */
 
 import { RunnerContext, FrameworkConfig } from "../types.js";
-import { TemplateRenderer } from "./template-renderer.js";
+import { TemplateRenderer, TemplateContext } from "./template-renderer.js";
 import { PythonRunner } from "./python-runner.js";
 import { JavaScriptRunner } from "./javascript-runner.js";
 import { BrowserRunner } from "./browser-runner.js";
+import { PhpRunner } from "./php-runner.js";
 import {
   getFileExtension,
   buildModeSuffix,
@@ -22,6 +23,7 @@ export class Runner {
   private pythonRunner: PythonRunner;
   private jsRunner: JavaScriptRunner;
   private browserRunner: BrowserRunner;
+  private phpRunner: PhpRunner;
 
   constructor() {
     this.runsDir = path.join(process.cwd(), "runs");
@@ -29,16 +31,19 @@ export class Runner {
     this.pythonRunner = new PythonRunner();
     this.jsRunner = new JavaScriptRunner();
     this.browserRunner = new BrowserRunner();
+    this.phpRunner = new PhpRunner();
   }
 
   /**
    * Get platform-specific runner based on platform
    */
   private getPlatformRunner(
-    platform: "node" | "py" | "browser" | "nextjs"
-  ): PythonRunner | JavaScriptRunner | BrowserRunner {
+    platform: "node" | "py" | "browser" | "nextjs" | "php",
+  ): PythonRunner | JavaScriptRunner | BrowserRunner | PhpRunner {
     if (platform === "py") {
       return this.pythonRunner;
+    } else if (platform === "php") {
+      return this.phpRunner;
     } else if (platform === "browser") {
       return this.browserRunner;
     } else {
@@ -182,6 +187,19 @@ export class Runner {
   }
 
   /**
+   * Convert a kebab-case or space-separated name to PascalCase
+   * e.g., "basic-agent-test" -> "BasicAgentTest"
+   */
+  private toPascalCase(name: string): string {
+    return name
+      .replace(/[^a-zA-Z0-9]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join("");
+  }
+
+  /**
    * Render template and return the test file path
    */
   private async renderTemplate(context: RunnerContext): Promise<string> {
@@ -201,9 +219,20 @@ export class Runner {
 
     // Determine test filename based on platform and modes
     const extension = getFileExtension(framework.platform);
-    const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
+    let testFile: string;
+    let testPath: string;
 
-    const testPath = path.join(workDir, testFile);
+    if (framework.platform === "php") {
+      // PHP/Laravel: command files go in app/Console/Commands/ with the class name
+      const commandClassName = "RunTest" + this.toPascalCase(testCaseId);
+      testFile = `${commandClassName}.php`;
+      const commandsDir = path.join(workDir, "app", "Console", "Commands");
+      await fs.mkdir(commandsDir, { recursive: true });
+      testPath = path.join(commandsDir, testFile);
+    } else {
+      testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
+      testPath = path.join(workDir, testFile);
+    }
 
     // Apply model overrides to inputs if specified in framework config
     let processedInputs = testDefinition.inputs;
@@ -215,7 +244,7 @@ export class Runner {
     }
 
     // Build template context
-    const templateContext = {
+    const templateContext: TemplateContext & Record<string, any> = {
       testName: testDefinition.name,
       frameworkName: framework.name,
       sentryDsn: context.sentryDsn,
@@ -226,6 +255,16 @@ export class Runner {
       ...(testDefinition.agent && { agent: testDefinition.agent }),
       inputs: processedInputs,
     };
+
+    // PHP/Laravel: add computed class names and command signature for templates
+    if (framework.platform === "php") {
+      const commandClassName = "RunTest" + this.toPascalCase(testCaseId);
+      const agentName = testDefinition.agent?.name || "assistant";
+      const agentClassName = this.toPascalCase(agentName);
+      templateContext.commandClassName = commandClassName;
+      templateContext.commandSignature = `test:${testCaseId}`;
+      templateContext.agentClassName = agentClassName;
+    }
 
     // Render framework template if available, otherwise base template
     let rendered: string;
@@ -244,6 +283,15 @@ export class Runner {
 
     await fs.writeFile(testPath, rendered);
 
+    // PHP/Laravel: render additional template files (agents, tools) into Laravel directories
+    if (
+      framework.platform === "php" &&
+      framework.category &&
+      framework.templatePath
+    ) {
+      await this.renderPhpTemplates(framework, templateContext, workDir);
+    }
+
     // Format the rendered file
     // Use the same extension logic for determining the formatter
     await this.formatFile(testPath, framework.platform);
@@ -252,17 +300,95 @@ export class Runner {
   }
 
   /**
+   * Render additional PHP/Laravel template files (agents, tools) into Laravel directories.
+   * Looks for agent.php.njk and tool.php.njk in the framework template directory.
+   */
+  private async renderPhpTemplates(
+    framework: FrameworkConfig,
+    templateContext: TemplateContext,
+    workDir: string,
+  ): Promise<void> {
+    const category = framework.category as "llm" | "agents";
+    const platform = framework.platform;
+    const name = framework.name;
+    const templateDir = `${category}/${platform}/${name}`;
+
+    // Ensure Ai directories exist (even if setup was cached from a previous run)
+    await fs.mkdir(path.join(workDir, "app", "Ai", "Agents"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(workDir, "app", "Ai", "Tools"), {
+      recursive: true,
+    });
+
+    // Render agent template if present
+    try {
+      const agentRendered = this.renderer.render(
+        `${templateDir}/agent.php.njk`,
+        templateContext,
+      );
+      if (agentRendered.trim()) {
+        // Derive agent class name from test definition or agent config
+        const agentName = templateContext.agent?.name || "TestAgent";
+        const pascalName = this.toPascalCase(agentName);
+        const agentPath = path.join(
+          workDir,
+          "app",
+          "Ai",
+          "Agents",
+          `${pascalName}.php`,
+        );
+        await fs.writeFile(agentPath, agentRendered);
+      }
+    } catch {
+      // agent.php.njk does not exist for this framework; skip
+    }
+
+    // Render tool templates if present and agent has tools
+    if (templateContext.agent?.tools?.length > 0) {
+      for (const tool of templateContext.agent.tools) {
+        try {
+          const toolContext: TemplateContext = {
+            ...templateContext,
+            currentTool: tool,
+          };
+          const rendered = this.renderer.render(
+            `${templateDir}/tool.php.njk`,
+            toolContext,
+          );
+          if (rendered.trim()) {
+            const toolPascal = this.toPascalCase(tool.name);
+            const toolPath = path.join(
+              workDir,
+              "app",
+              "Ai",
+              "Tools",
+              `${toolPascal}.php`,
+            );
+            await fs.writeFile(toolPath, rendered);
+          }
+        } catch {
+          // tool.php.njk does not exist for this framework; skip
+        }
+      }
+    }
+  }
+
+  /**
    * Format a generated test file
    * Uses Prettier JS API for JavaScript (node/nextjs), black CLI for Python
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "py" | "browser" | "nextjs"
+    platform: "node" | "py" | "browser" | "nextjs" | "php",
   ): Promise<void> {
     try {
       const parser = getFormatterParser(platform);
 
       if (parser === null) {
+        // No formatter for this platform (e.g., PHP) - skip
+        return;
+      } else if (parser === "black") {
         // Python formatting requires black CLI (optional)
         const { exec } = await import("child_process");
         const { promisify } = await import("util");

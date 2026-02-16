@@ -2,10 +2,10 @@
  * Template renderer using Nunjucks
  */
 
-import nunjucks from 'nunjucks';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import { getBaseTemplateName } from '../platform-utils.js';
+import nunjucks from "nunjucks";
+import * as path from "path";
+import { fileURLToPath } from "url";
+import { getBaseTemplateName } from "../platform-utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,24 +20,37 @@ export class TemplateRenderer {
   private templatesDir: string;
 
   constructor() {
-    this.templatesDir = path.join(__dirname, 'templates');
-    
+    this.templatesDir = path.join(__dirname, "templates");
+
     // Configure Nunjucks
     this.env = nunjucks.configure(this.templatesDir, {
       autoescape: false, // Don't escape code
       trimBlocks: true,
       lstripBlocks: true,
     });
-    
+
     // Add custom filters
-    this.env.addFilter('tojson', (obj) => {
+    this.env.addFilter("tojson", (obj) => {
       return JSON.stringify(obj, null, 2);
+    });
+
+    // PascalCase filter: "get_weather" -> "GetWeather", "math_assistant" -> "MathAssistant"
+    this.env.addFilter("pascalcase", (str: string) => {
+      return str
+        .replace(/[^a-zA-Z0-9]+/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map(
+          (word: string) =>
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+        )
+        .join("");
     });
   }
 
   /**
    * Render a template
-   * 
+   *
    * @param templatePath - Path relative to templates dir (e.g., 'llm/py/openai/template.njk')
    */
   render(templatePath: string, context: TemplateContext): string {
@@ -53,10 +66,10 @@ export class TemplateRenderer {
    * @param context - Template context
    */
   renderFramework(
-    type: 'llm' | 'agents',
-    platform: 'node' | 'py' | 'browser' | 'nextjs',
+    type: "llm" | "agents",
+    platform: "node" | "py" | "browser" | "nextjs" | "php",
     frameworkName: string,
-    context: TemplateContext
+    context: TemplateContext,
   ): string {
     const templatePath = `${type}/${platform}/${frameworkName}/template.njk`;
     return this.render(templatePath, context);
@@ -65,7 +78,10 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'node' | 'py' | 'browser' | 'nextjs', context: TemplateContext): string {
+  renderBase(
+    platform: "node" | "py" | "browser" | "nextjs" | "php",
+    context: TemplateContext,
+  ): string {
     const templateFile = getBaseTemplateName(platform);
     return this.render(templateFile, context);
   }
@@ -81,7 +97,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'node' | 'py' | 'browser' | 'nextjs',
+    platform: "node" | "py" | "browser" | "nextjs" | "php",
     context: TemplateContext,
     blocks: {
       imports?: string;
@@ -89,7 +105,7 @@ export class TemplateRenderer {
       setup?: string;
       test?: string;
       teardown?: string;
-    }
+    },
   ): string {
     // Build template that extends base
     const baseTemplate = getBaseTemplateName(platform);

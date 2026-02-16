@@ -106,7 +106,7 @@ Schema:
   name: string;              // Framework identifier
   displayName: string;       // Human-readable name
   type: 'llm-only' | 'agentic';
-  platform: 'node' | 'py' | 'browser';
+  platform: 'node' | 'py' | 'browser' | 'nextjs' | 'php';
   dependencies: Array<{
     package: string;
     version: string;         // "framework" | "latest" | specific version
@@ -122,7 +122,7 @@ Schema:
 
 ## Adding New Framework Templates
 
-1. Create framework directory: `src/runner/templates/{llm,agents}/{node,py,browser}/{framework}/`
+1. Create framework directory: `src/runner/templates/{llm,agents}/{node,py,browser,nextjs,php}/{framework}/`
 2. Create template file: `template.njk`
 3. Create config file: `config.json`
 4. Rebuild: `npm run build`
