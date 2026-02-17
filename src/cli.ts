@@ -12,6 +12,7 @@ import {
   listFrameworks,
 } from "./runner/framework-discovery.js";
 import { getAllTests } from "./test-cases/index.js";
+import { resolvePlatformFilter } from "./platform-utils.js";
 
 const HELP_TEXT = `
 Sentry AI SDK Integration Tests
@@ -27,7 +28,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|python>   Filter by platform (node or python)
+  --platform <node|python|browser|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -47,6 +48,8 @@ Examples:
   npm run test -- --platform python --test "Basic LLM"
   npm run test -- --platform python --sync
   npm run test -- --platform python --async --verbose
+  npm run test -- --platform browser --framework openai
+  npm run test -- --platform js                         # all JS platforms (node + browser)
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
   npm run test -- --framework openai --open
@@ -100,9 +103,12 @@ function parseCliArgs() {
   }
 
   // Validate platform
-  const platform = values.platform as "node" | "python" | undefined;
-  if (platform && platform !== "node" && platform !== "python") {
-    console.error('Error: --platform must be "node" or "python"');
+  const platformArg = values.platform;
+  const validPlatforms = ["node", "python", "browser", "js", "nextjs"];
+  if (platformArg && !validPlatforms.includes(platformArg)) {
+    console.error(
+      `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
+    );
     process.exit(1);
   }
 
@@ -110,7 +116,7 @@ function parseCliArgs() {
     command,
     framework: values.framework,
     test: values.test,
-    platform,
+    platform: platformArg,
     sync: values.sync,
     async: values.async,
     streaming: values.streaming,
@@ -166,8 +172,9 @@ async function main() {
 
     // Apply filters
     if (options.platform) {
-      discoveredFrameworks = discoveredFrameworks.filter(
-        (f) => f.platform === options.platform,
+      const platforms = resolvePlatformFilter(options.platform);
+      discoveredFrameworks = discoveredFrameworks.filter((f) =>
+        platforms.includes(f.platform),
       );
     }
     if (options.framework) {
@@ -231,7 +238,10 @@ async function main() {
         let sentryVersion = df.sentryVersions[0];
         if (df.platform === "python" && options.sentryPythonPath) {
           sentryVersion = "local";
-        } else if (df.platform === "node" && options.sentryJavaScriptPath) {
+        } else if (
+          (df.platform === "node" || df.platform === "browser" || df.platform === "nextjs") &&
+          options.sentryJavaScriptPath
+        ) {
           sentryVersion = "local";
         }
 

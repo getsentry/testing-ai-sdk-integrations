@@ -45,8 +45,9 @@ testing-ai-sdk-integrations/
 │   │       └── long-input.ts         # Long input agent test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
-│   │   ├── javascript-runner.ts      # JS-specific execution
-│   │   ├── python-runner.ts          # Python-specific execution
+│   │   ├── javascript-runner.ts      # JS (Node) execution
+│   │   ├── python-runner.ts          # Python execution
+│   │   ├── browser-runner.ts         # Browser execution (Playwright)
 │   │   ├── framework-config.ts       # Framework configuration types
 │   │   ├── framework-discovery.ts    # Auto-discovers frameworks
 │   │   ├── template-renderer.ts      # Nunjucks template rendering
@@ -68,12 +69,14 @@ testing-ai-sdk-integrations/
 
 ### Framework Templates Structure
 
-Templates are organized by **category** (llm, agents), then **platform** (node, python), then **framework** name:
+Templates are organized by **category** (llm, agents), then **platform** (node, py, browser), then **framework** name. The framework folder name is the **SDK or framework that Sentry instruments** (e.g. `openai` = OpenAI SDK, `langchain` = LangChain); the fact that a template calls a given provider (e.g. LangChain using OpenAI) is an implementation detail. See `src/runner/templates/README.md` for the full naming convention and options to reduce confusion.
 
 ```
 src/runner/templates/
-├── base.js.njk                       # Base JavaScript template
-├── base.python.njk                    # Base Python template
+├── base.node.njk                     # Base JavaScript (Node) template
+├── base.python.njk                       # Base Python template
+├── base.browser.njk                  # Base JavaScript (browser) template
+├── base.nextjs.njk                   # Base Next.js template
 ├── llm/                              # Low-level LLM frameworks
 │   ├── node/
 │   │   ├── anthropic/                # config.json + template.njk
@@ -81,9 +84,19 @@ src/runner/templates/
 │   │   ├── langchain/
 │   │   └── openai/
 │   └── python/
+│   │   ├── anthropic/
+│   │   ├── langchain/
+│   │   ├── litellm/
+│   │   └── openai/
+│   ├── browser/
+│   │   ├── anthropic/
+│   │   ├── google-genai/
+│   │   ├── langchain/
+│   │   └── openai/
+│   └── nextjs/
 │       ├── anthropic/
+│       ├── google-genai/
 │       ├── langchain/
-│       ├── litellm/
 │       └── openai/
 └── agents/                           # Agentic frameworks
     ├── node/
@@ -91,10 +104,13 @@ src/runner/templates/
     │   ├── mastra/
     │   └── vercel/
     └── python/
-        ├── google-genai/
-        ├── langgraph/
-        ├── openai-agents/
-        └── pydantic-ai/
+    │   ├── google-genai/
+    │   ├── langgraph/
+    │   ├── openai-agents/
+    │   └── pydantic-ai/
+    └── nextjs/
+        ├── mastra/
+        └── vercel/
 ```
 
 ## Quick Start
@@ -115,8 +131,11 @@ npm run test run
 # Run tests for a specific framework
 npm run test -- --framework openai
 
-# Run tests for a specific platform
+# Run tests for a specific platform (node, python, browser, nextjs, or js)
 npm run test -- --platform python
+npm run test -- --platform browser
+npm run test -- --platform nextjs
+npm run test -- --platform js                         # all JS platforms (node + browser)
 
 # Run with verbose output
 npm run test -- --framework openai --verbose
@@ -148,7 +167,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|python>    Filter by platform (node or python)
+  --platform <node|python|browser|nextjs|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -191,23 +210,33 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 
 ### Currently Implemented
 
-| Platform   | SDK             | Category | Type     | Streaming | Execution Modes |
-| ---------- | --------------- | -------- | -------- | --------- | --------------- |
-| JavaScript | `openai`        | llm      | llm-only | both      | -               |
-| JavaScript | `anthropic`     | llm      | llm-only | both      | -               |
-| JavaScript | `google-genai`  | llm      | llm-only | both      | -               |
-| JavaScript | `langchain`     | llm      | llm-only | both      | -               |
-| JavaScript | `vercel`        | agents   | agentic  | -         | -               |
-| JavaScript | `langgraph`     | agents   | agentic  | -         | -               |
-| JavaScript | `mastra`        | agents   | agentic  | -         | -               |
-| Python     | `openai`        | llm      | llm-only | both      | sync/async      |
-| Python     | `anthropic`     | llm      | llm-only | both      | sync/async      |
-| Python     | `langchain`     | llm      | llm-only | both      | sync/async      |
-| Python     | `litellm`       | llm      | llm-only | both      | sync/async      |
-| Python     | `openai-agents` | agents   | agentic  | -         | async           |
-| Python     | `langgraph`     | agents   | agentic  | -         | sync/async      |
-| Python     | `pydantic-ai`   | agents   | agentic  | -         | async           |
-| Python     | `google-genai`  | agents   | agentic  | -         | sync/async      |
+| Platform          | SDK             | Category | Type     | Streaming | Execution Modes |
+| ----------------- | --------------- | -------- | -------- | --------- | --------------- |
+| JavaScript (Node) | `openai`        | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `anthropic`     | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `google-genai`  | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `langchain`     | llm      | llm-only | both      | -               |
+| JavaScript (Node) | `vercel`        | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `langgraph`     | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `mastra`        | agents   | agentic  | -         | -               |
+| Browser           | `openai`        | llm      | llm-only | both      | -               |
+| Browser           | `anthropic`     | llm      | llm-only | both      | -               |
+| Browser           | `google-genai`  | llm      | llm-only | both      | -               |
+| Browser           | `langchain`     | llm      | llm-only | both      | -               |
+| Next.js           | `openai`        | llm      | llm-only | both      | -               |
+| Next.js           | `anthropic`     | llm      | llm-only | both      | -               |
+| Next.js           | `google-genai`  | llm      | llm-only | both      | -               |
+| Next.js           | `langchain`     | llm      | llm-only | both      | -               |
+| Next.js           | `vercel`        | agents   | agentic  | -         | -               |
+| Next.js           | `mastra`        | agents   | agentic  | -         | -               |
+| Python            | `openai`        | llm      | llm-only | both      | sync/async      |
+| Python            | `anthropic`     | llm      | llm-only | both      | sync/async      |
+| Python            | `langchain`     | llm      | llm-only | both      | sync/async      |
+| Python            | `litellm`       | llm      | llm-only | both      | sync/async      |
+| Python            | `openai-agents` | agents   | agentic  | -         | async           |
+| Python            | `langgraph`     | agents   | agentic  | -         | sync/async      |
+| Python            | `pydantic-ai`   | agents   | agentic  | -         | async           |
+| Python            | `google-genai`  | agents   | agentic  | -         | sync/async      |
 
 ## Test Cases
 
@@ -331,19 +360,19 @@ Each framework has a `config.json` file that defines its capabilities:
 
 ### Configuration Fields
 
-| Field            | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `name`           | Framework identifier                                 |
-| `displayName`    | Human-readable name                                  |
-| `type`           | `"llm-only"` or `"agentic"`                          |
-| `platform`       | `"node"` or `"python"`                               |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`             |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`        |
-| `dependencies`   | NPM/pip packages to install                          |
-| `versions`       | Framework versions to test                           |
-| `sentryVersions` | Sentry SDK versions to test against                  |
-| `modelOverrides` | Override model names for request/response validation |
-| `skip`           | Tests or checks to skip for this framework           |
+| Field            | Description                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `name`           | Framework identifier                                                                                    |
+| `displayName`    | Human-readable name                                                                                     |
+| `type`           | `"llm-only"` or `"agentic"`                                                                             |
+| `platform`       | `"node"`, `"python"`, `"browser"`, or `"nextjs"` (CLI also accepts `"js"` as meta-platform for node + browser) |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
+| `dependencies`   | NPM/pip packages to install                                                                             |
+| `versions`       | Framework versions to test                                                                              |
+| `sentryVersions` | Sentry SDK versions to test against                                                                     |
+| `modelOverrides` | Override model names for request/response validation                                                    |
+| `skip`           | Tests or checks to skip for this framework                                                              |
 
 ## Test Utilities
 
@@ -383,7 +412,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{node|python}/your-framework
+mkdir -p src/runner/templates/{llm|agents}/{node|python|browser|nextjs}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -403,10 +432,10 @@ mkdir -p src/runner/templates/{llm|agents}/{node|python}/your-framework
 
 ### 3. Create `template.njk`
 
-Templates extend the base template and implement required blocks:
+Templates extend the base template and implement required blocks. Use `base.node.njk` for Node, `base.py.njk` for Python, `base.browser.njk` for browser, or `base.nextjs.njk` for Next.js.
 
 ```njk
-{% extends "base.js.njk" %}
+{% extends "base.node.njk" %}
 
 {% block setup %}
 let client;
@@ -504,7 +533,7 @@ interface TestDefinition {
 ```typescript
 interface FrameworkConfig {
   name: string;
-  platform: "node" | "python";
+  platform: "node" | "python" | "browser" | "nextjs";
   type: "llm-only" | "agentic";
   version: string;
   sentryVersion: string;
@@ -603,7 +632,7 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
 
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
-- Template is standalone (does not extend base.js.njk)
+- Template is standalone (does not extend base.node.njk)
 
 ## References
 

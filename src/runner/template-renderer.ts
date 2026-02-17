@@ -2,9 +2,10 @@
  * Template renderer using Nunjucks
  */
 
-import nunjucks from "nunjucks";
-import * as path from "path";
-import { fileURLToPath } from "url";
+import nunjucks from 'nunjucks';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { getBaseTemplateName } from '../platform-utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,13 +48,13 @@ export class TemplateRenderer {
    * Render a framework template
    *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'node' or 'python'
+   * @param platform - 'node', 'python', 'browser', or 'nextjs'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
-    type: "llm" | "agents",
-    platform: "node" | "python",
+    type: 'llm' | 'agents',
+    platform: 'node' | 'python' | 'browser' | 'nextjs',
     frameworkName: string,
     context: TemplateContext,
   ): string {
@@ -64,9 +65,8 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: "node" | "python", context: TemplateContext): string {
-    const templateFile =
-      platform === "python" ? "base.python.njk" : "base.node.njk";
+  renderBase(platform: 'node' | 'python' | 'browser' | 'nextjs', context: TemplateContext): string {
+    const templateFile = getBaseTemplateName(platform);
     return this.render(templateFile, context);
   }
 
@@ -81,7 +81,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: "node" | "python",
+    platform: 'node' | 'python' | 'browser' | 'nextjs',
     context: TemplateContext,
     blocks: {
       imports?: string;
@@ -92,9 +92,7 @@ export class TemplateRenderer {
     },
   ): string {
     // Build template that extends base
-    const baseTemplate =
-      platform === "python" ? "base.python.njk" : "base.node.njk";
-    const extension = platform === "python" ? ".py" : ".js";
+    const baseTemplate = getBaseTemplateName(platform);
 
     let template = `{% extends "${baseTemplate}" %}\n\n`;
 

@@ -44,6 +44,7 @@ TypeScript test definitions shared across all frameworks. Each test has a `type`
 
 - `runner.ts` - Main runner orchestration
 - `javascript-runner.ts` - Node.js environment setup and execution
+- `browser-runner.ts` - Browser environment setup, Vite bundling, and Playwright execution
 - `python-runner.ts` - Python/uv environment setup and execution
 - `template-renderer.ts` - Nunjucks template rendering
 - `framework-discovery.ts` - Auto-discovers frameworks from templates directory
@@ -165,13 +166,20 @@ Each framework has a directory with `config.json` and `template.njk`:
 
 ```
 src/runner/templates/
-├── base.node.njk                      # Base JavaScript template
-├── base.python.njk                    # Base Python template
+
+├── base.node.njk                     # Base JavaScript (Node) template
+├── base.python.njk                   # Base Python template
+├── base.browser.njk                  # Base JavaScript (Browser) template
 ├── llm/                              # LLM-only frameworks
 │   ├── node/
 │   │   ├── openai/
 │   │   │   ├── config.json
 │   │   │   └── template.njk
+│   │   ├── anthropic/
+│   │   ├── google-genai/
+│   │   └── langchain/
+│   ├── browser/
+│   │   ├── openai/
 │   │   ├── anthropic/
 │   │   ├── google-genai/
 │   │   └── langchain/
@@ -224,7 +232,7 @@ src/runner/templates/
 | `name`           | Framework identifier                          |
 | `displayName`    | Human-readable name                           |
 | `type`           | `"llm-only"` or `"agentic"`                   |
-| `platform`       | `"node"` or `"python"`                        |
+| `platform`       | `"node"`, `"python"`, or `"browser"`          |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
 | `dependencies`   | NPM/pip packages to install                   |
@@ -291,6 +299,11 @@ testing-ai-sdk-integrations/
 │   │       ├── node_modules/
 │   │       ├── package.json
 │   │       └── test-basic-llm-test.js
+│   ├── browser/
+│   │   └── openai-4.96.0-sentry-latest/
+│   │       ├── node_modules/
+│   │       ├── dist/             # Vite-bundled HTML files
+│   │       └── test-basic-llm-test-streaming.html
 │   └── python/
 │       └── openai-1.82.0-sentry-latest/
 │           ├── .venv/
@@ -392,7 +405,19 @@ interface Check {
 
 ## Supported Frameworks
 
-### JavaScript
+### Node.js
+
+| Type   | Framework    | Streaming | Notes                                     |
+| ------ | ------------ | --------- | ----------------------------------------- |
+| llm    | openai       | both      | OpenAI SDK                                |
+| llm    | anthropic    | both      | Anthropic SDK                             |
+| llm    | google-genai | both      | Google Generative AI                      |
+| llm    | langchain    | both      | LangChain                                 |
+| agents | vercel       | -         | Vercel AI SDK                             |
+| agents | langgraph    | -         | LangGraph                                 |
+| agents | mastra       | -         | Mastra AI Framework (uses @mastra/sentry) |
+
+### Browser
 
 | Type   | Framework    | Streaming | Notes                                     |
 | ------ | ------------ | --------- | ----------------------------------------- |

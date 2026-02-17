@@ -148,6 +148,7 @@ export const checkChatSpanAttributes: Check = {
       config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
     const responseModel =
       config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
+      
 
     assertAttributes(chatSpans, {
       "span.description": (span) =>

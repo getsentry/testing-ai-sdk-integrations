@@ -6,6 +6,12 @@ import { RunnerContext, FrameworkConfig } from "../types.js";
 import { TemplateRenderer } from "./template-renderer.js";
 import { PythonRunner } from "./python-runner.js";
 import { JavaScriptRunner } from "./javascript-runner.js";
+import { BrowserRunner } from "./browser-runner.js";
+import {
+  getFileExtension,
+  buildModeSuffix,
+  getFormatterParser,
+} from "../platform-utils.js";
 import * as path from "path";
 import * as fs from "fs/promises";
 import * as prettier from "prettier";
@@ -15,12 +21,29 @@ export class Runner {
   private renderer: TemplateRenderer;
   private pythonRunner: PythonRunner;
   private jsRunner: JavaScriptRunner;
+  private browserRunner: BrowserRunner;
 
   constructor() {
     this.runsDir = path.join(process.cwd(), "runs");
     this.renderer = new TemplateRenderer();
     this.pythonRunner = new PythonRunner();
     this.jsRunner = new JavaScriptRunner();
+    this.browserRunner = new BrowserRunner();
+  }
+
+  /**
+   * Get platform-specific runner based on platform
+   */
+  private getPlatformRunner(
+    platform: "node" | "py" | "browser" | "nextjs"
+  ): PythonRunner | JavaScriptRunner | BrowserRunner {
+    if (platform === "py") {
+      return this.pythonRunner;
+    } else if (platform === "browser") {
+      return this.browserRunner;
+    } else {
+      return this.jsRunner;
+    }
   }
 
   /**
@@ -46,10 +69,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner =
-      context.framework.platform === "python"
-        ? this.pythonRunner
-        : this.jsRunner;
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -77,10 +97,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner =
-      context.framework.platform === "python"
-        ? this.pythonRunner
-        : this.jsRunner;
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -106,10 +123,7 @@ export class Runner {
     await fs.mkdir(workDir, { recursive: true });
 
     // Get platform-specific runner
-    const platformRunner =
-      context.framework.platform === "python"
-        ? this.pythonRunner
-        : this.jsRunner;
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Check if environment needs setup
     const needsSetup = await platformRunner.needsSetup(workDir);
@@ -138,13 +152,22 @@ export class Runner {
    */
   async executeOnly(context: RunnerContext): Promise<void> {
     // Get platform-specific runner
-    const platformRunner =
-      context.framework.platform === "python"
-        ? this.pythonRunner
-        : this.jsRunner;
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Execute test
     await platformRunner.executeTest(context);
+  }
+
+  /**
+   * Bundle all rendered browser test files in a work directory with a single Vite build.
+   * Must be called after all templates for a browser framework are rendered and before execution.
+   */
+  async bundleBrowserTests(
+    workDir: string,
+    htmlFiles: string[],
+    verbose: boolean,
+  ): Promise<void> {
+    await this.browserRunner.bundleAllTests(workDir, htmlFiles, verbose);
   }
 
   /**
@@ -174,17 +197,10 @@ export class Runner {
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix for filename
-    const modeParts: string[] = [];
-    if (framework.platform === "python") {
-      modeParts.push(isAsync ? "async" : "sync");
-    }
-    if (framework.streamingMode) {
-      modeParts.push(isStreaming ? "streaming" : "blocking");
-    }
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
 
     // Determine test filename based on platform and modes
-    const extension = framework.platform === "python" ? "py" : "js";
-    const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
+    const extension = getFileExtension(framework.platform);
     const testFile = `test-${testCaseId}${modeSuffix}.${extension}`;
 
     const testPath = path.join(workDir, testFile);
@@ -229,6 +245,7 @@ export class Runner {
     await fs.writeFile(testPath, rendered);
 
     // Format the rendered file
+    // Use the same extension logic for determining the formatter
     await this.formatFile(testPath, framework.platform);
 
     return testPath;
@@ -236,25 +253,27 @@ export class Runner {
 
   /**
    * Format a generated test file
-   * Uses Prettier JS API for JavaScript (node), black CLI for Python
+   * Uses Prettier JS API for JavaScript (node/nextjs), black CLI for Python
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "python",
+    platform: "node" | "python" | "browser" | "nextjs"
   ): Promise<void> {
     try {
-      if (platform === "python") {
+      const parser = getFormatterParser(platform);
+
+      if (parser === null) {
         // Python formatting requires black CLI (optional)
         const { exec } = await import("child_process");
         const { promisify } = await import("util");
         const execAsync = promisify(exec);
         await execAsync(`black --quiet "${filePath}"`, { timeout: 10000 });
       } else {
-        // Use Prettier JS API for JavaScript
+        // Use Prettier JS API for HTML or JavaScript
         const source = await fs.readFile(filePath, "utf-8");
         const formatted = await prettier.format(source, {
           filepath: filePath,
-          parser: "babel",
+          parser,
         });
         await fs.writeFile(filePath, formatted);
       }

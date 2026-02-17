@@ -1,0 +1,59 @@
+{
+  "name": "mastra",
+  "displayName": "Mastra AI Framework (Next.js)",
+  "type": "agentic",
+  "platform": "nextjs",
+  "dependencies": [
+    {
+      "package": "@mastra/core",
+      "version": "framework"
+    },
+    {
+      "package": "@mastra/sentry",
+      "version": "beta"
+    },
+    {
+      "package": "@mastra/observability",
+      "version": "latest"
+    },
+    {
+      "package": "next",
+      "version": "latest"
+    }
+  ],
+  "versions": ["1.2.0"],
+  "sentryVersions": ["latest"],
+  "skip": {
+    "tests": ["Long Input Agent Test"],
+    "checks": {
+      "Basic Agent Test": [
+        "checkAgentSpanAttributes",
+        "checkChatSpanAttributes",
+        "checkAgentHierarchy"
+      ],
+      "Tool Call Agent Test": [
+        "checkAgentSpanAttributes",
+        "checkChatSpanAttributes",
+        "checkAgentHierarchy",
+        "checkToolSpanAttributes",
+        "checkAvailableTools",
+        "checkResponseToolCalls(add, multiply)",
+        "checkToolCalls(add, multiply)"
+      ],
+      "Tool Error Agent Test": [
+        "checkAgentSpanAttributes",
+        "checkChatSpanAttributes",
+        "checkAgentHierarchy",
+        "checkToolSpanAttributes",
+        "checkAvailableTools",
+        "checkResponseToolCalls(read_file)"
+      ],
+      "Vision Agent Test": [
+        "checkAgentSpanAttributes",
+        "checkChatSpanAttributes",
+        "checkAgentHierarchy",
+        "checkBinaryRedaction"
+      ]
+    }
+  }
+}

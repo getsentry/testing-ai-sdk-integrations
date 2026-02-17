@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentry AI SDK Browser Test: {{ testName }}</title>
+</head>
+<body>
+  <h1>{{ testName }}</h1>
+  <p>Framework: {{ frameworkName }}</p>
+  <div id="status">Running test...</div>
+  <pre id="output"></pre>
+
+  <script type="module">
+    /**
+     * Sentry's Helper Function Test: {{ testName }}
+     * Framework: {{ frameworkName }}
+     *
+     * This test verifies that Sentry correctly instruments {{ frameworkName }} SDK calls
+     * in a browser environment using helper function instrumentation.
+     */
+
+    // Import Sentry from local node_modules (bundled by Vite)
+    import * as Sentry from '@sentry/browser';
+
+    // Helper to log output to both console and page
+    function log(message, data = null) {
+      const outputEl = document.getElementById('output');
+      const statusEl = document.getElementById('status');
+
+      console.log(message, data || '');
+
+      const logLine = data
+        ? `${message} ${JSON.stringify(data, null, 2)}`
+        : message;
+
+      outputEl.textContent += logLine + '\n\n';
+      statusEl.textContent = message;
+    }
+
+    // Initialize Sentry FIRST, before any other SDK imports
+    Sentry.init({
+      dsn: window.SENTRY_DSN,
+      sendDefaultPii: true,
+      // Capture 100% of traces for testing
+      tracesSampleRate: 1.0,
+    });
+
+    log('Sentry initialized');
+
+{% block setup %}{% endblock %}
+
+    async function main() {
+      await Sentry.startSpan(
+        { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
+        async () => {
+          log('Starting test...');
+
+          // Dynamic imports AFTER Sentry.init()
+{% block dynamic_imports %}{% endblock %}
+
+          // Run test
+{% block test %}{% endblock %}
+
+          log('Test completed successfully');
+        }
+      );
+    }
+
+    // Run the test
+    main()
+      .catch((error) => {
+        log('ERROR:', error);
+        console.error(error);
+        Sentry.captureException(error);
+      })
+      .finally(async () => {
+        log('Flushing Sentry...');
+        await Sentry.flush(5000);
+        log('Test finished');
+
+        // Signal to Playwright that test is complete
+        window.testComplete = true;
+      });
+  </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { FrameworkConfig } from "./framework-config.js";
+import { getPlatformIcon } from "../platform-utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,7 +31,7 @@ export interface DiscoveredFramework extends FrameworkConfig {
  * Directory structure:
  *   templates/
  *     {category}/      # llm, agents, etc.
- *       {platform}/    # node, python
+ *       {platform}/    # node, python, browser, nextjs
  *         {framework}/ # openai, anthropic, etc.
  *           config.json
  *           template.njk
@@ -51,13 +52,16 @@ export function discoverFrameworks(): DiscoveredFramework[] {
   for (const category of categories) {
     const categoryPath = path.join(TEMPLATES_DIR, category);
 
-    // Scan platforms (node, python)
+    // Scan platforms (node, python, browser)
     const platforms = fs
       .readdirSync(categoryPath, { withFileTypes: true })
       .filter(
         (dirent) =>
           dirent.isDirectory() &&
-          (dirent.name === "node" || dirent.name === "python"),
+          (dirent.name === "node" ||
+            dirent.name === "python" ||
+            dirent.name === "browser" ||
+            dirent.name === "nextjs"),
       )
       .map((dirent) => dirent.name);
 
@@ -158,10 +162,10 @@ export function getFrameworksByCategory(
 }
 
 /**
- * Get frameworks by platform (node, python)
+ * Get frameworks by platform (node, py, browser)
  */
 export function getFrameworksByPlatform(
-  platform: "node" | "python",
+  platform: "node" | "python" | "browser",
 ): DiscoveredFramework[] {
   return discoverFrameworks().filter((f) => f.platform === platform);
 }
@@ -211,7 +215,7 @@ export function listFrameworks(): void {
     console.log(`${category.toUpperCase()}:`);
 
     for (const framework of categoryFrameworks) {
-      const platformIcon = framework.platform === "python" ? "🐍" : "🟢";
+      const platformIcon = getPlatformIcon(framework.platform);
       const typeIcon = framework.type === "agentic" ? "🤖" : "💬";
 
       console.log(`  ${platformIcon} ${typeIcon} ${framework.name}`);

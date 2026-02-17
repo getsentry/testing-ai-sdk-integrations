@@ -1,0 +1,134 @@
+{% extends "base.nextjs.njk" %}
+
+{# Macro to render user content for Vercel AI SDK #}
+{% macro renderVercelContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            { type: "text", text: "{{ part.text }}" },
+{% elif part.type == 'image' %}
+            { type: "image", image: "data:{{ part.mediaType }};base64,{{ part.base64 }}" },
+{% endif %}
+{% endfor %}
+          ]
+{%- endif %}
+{% endmacro %}
+
+{% block setup %}
+// Functions will be initialized after dynamic import
+let generateText, streamText, openai;
+{% endblock %}
+
+{% block dynamic_imports %}
+      // Dynamic import of Vercel AI SDK AFTER Sentry.init() to ensure instrumentation
+      const ai = await import("ai");
+      const aiSdkOpenai = await import("@ai-sdk/openai");
+      generateText = ai.generateText;
+      streamText = ai.streamText;
+      openai = aiSdkOpenai.openai;
+
+      console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+{% set system_content = "" %}
+{% set user_content = null %}
+{% for message in input.messages %}
+{% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
+{% if message.role == 'user' %}{% set user_content = message.content %}{% endif %}
+{% endfor %}
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+
+      try {
+{% if isStreaming %}
+        console.log('Starting streaming request {{ loop.index }}...');
+
+{% if user_content is iterable and user_content is not string %}
+        // Multimodal content - use messages array
+        const { textStream } = streamText({
+          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        });
+{% else %}
+        // Simple text prompt
+        const { textStream } = streamText({
+          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          prompt: "{{ user_content }}",
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        });
+{% endif %}
+
+        const chunks = [];
+        for await (const chunk of textStream) {
+          chunks.push(chunk);
+        }
+        console.log("Response {{ loop.index }}:", chunks.join(""));
+{% else %}
+        console.log('Starting blocking request {{ loop.index }}...');
+
+{% if user_content is iterable and user_content is not string %}
+        // Multimodal content - use messages array
+        const { text } = await generateText({
+          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        });
+{% else %}
+        // Simple text prompt
+        const { text } = await generateText({
+          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          prompt: "{{ user_content }}",
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        });
+{% endif %}
+        console.log("Response {{ loop.index }}:", text);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error in request {{ loop.index }}:", error.message);
+      }
+{% endfor %}
+{% endblock %}

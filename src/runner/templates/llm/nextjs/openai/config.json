@@ -1,0 +1,23 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI Next.js SDK (Helper Function Instrumentation)",
+  "type": "llm-only",
+  "platform": "nextjs",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "openai",
+      "version": "framework"
+    },
+    {
+      "package": "@sentry/nextjs",
+      "version": "sentry"
+    },
+    {
+      "package": "next",
+      "version": "latest"
+    }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["latest"]
+}

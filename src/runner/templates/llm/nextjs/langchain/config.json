@@ -1,0 +1,27 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain Next.js (Helper Function Instrumentation)",
+  "type": "llm-only",
+  "platform": "nextjs",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "@langchain/core",
+      "version": "latest"
+    },
+    {
+      "package": "@langchain/openai",
+      "version": "latest"
+    },
+    {
+      "package": "@sentry/nextjs",
+      "version": "sentry"
+    },
+    {
+      "package": "next",
+      "version": "latest"
+    }
+  ],
+  "versions": ["latest"],
+  "sentryVersions": ["latest"]
+}
