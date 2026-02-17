@@ -1,0 +1,140 @@
+{% extends "base.python.njk" %}
+
+{% block imports %}
+{{ super() }}
+import json
+{% endblock %}
+
+{% block setup %}
+def estimate_tokens(text):
+    """Rough estimate: 1 token per 4 characters."""
+    return max(1, len(str(text)) // 4)
+
+
+def messages_content_length(messages):
+    """Total character length of all message content."""
+    total = 0
+    for m in messages:
+        c = m.get("content", "")
+        if isinstance(c, str):
+            total += len(c)
+        elif isinstance(c, list):
+            for part in c:
+                if isinstance(part, dict):
+                    total += len(part.get("text", ""))
+    return total
+
+
+def trim_messages(messages, max_size=10000):
+    """Trim message content to keep total JSON size under max_size.
+    Returns (trimmed_messages, original_length, was_trimmed)."""
+    full_json = json.dumps(messages)
+    original_length = len(full_json)
+    if original_length <= max_size:
+        return messages, original_length, False
+    trimmed = [dict(msg) for msg in messages]
+    for msg in trimmed:
+        if isinstance(msg.get("content"), str) and len(msg["content"]) > 200:
+            msg["content"] = msg["content"][:200] + "... [trimmed]"
+        if isinstance(msg.get("parts"), list):
+            for part in msg["parts"]:
+                if isinstance(part, dict) and isinstance(part.get("text"), str) and len(part["text"]) > 200:
+                    part["text"] = part["text"][:200] + "... [trimmed]"
+    return trimmed, original_length, True
+
+
+def build_sentry_messages(messages):
+    """Build gen_ai.input.messages and gen_ai.request.messages from raw messages."""
+    sentry_messages = []
+    legacy_messages = []
+    system_instructions = None
+
+    for msg in messages:
+        role = msg["role"]
+        content = msg.get("content", "")
+
+        if role == "system":
+            system_instructions = content if isinstance(content, str) else json.dumps(content)
+
+        # New OTel format with parts
+        parts = []
+        if isinstance(content, str):
+            parts.append({"type": "text", "text": content})
+        elif isinstance(content, list):
+            for part in content:
+                if part.get("type") == "text":
+                    parts.append({"type": "text", "text": part["text"]})
+                elif part.get("type") == "image":
+                    parts.append({"type": "text", "text": "[Blob substitute]"})
+
+        sentry_messages.append({
+            "role": role,
+            "content": content if isinstance(content, str) else "[multimodal]",
+            "parts": parts,
+        })
+
+        # Legacy format with binary redaction
+        if isinstance(content, list):
+            redacted = []
+            for part in content:
+                if part.get("type") == "text":
+                    redacted.append(part)
+                elif part.get("type") == "image":
+                    redacted.append({"type": "text", "text": "[Blob substitute]"})
+            legacy_messages.append({"role": role, "content": redacted})
+        else:
+            legacy_messages.append({"role": role, "content": content})
+
+    return sentry_messages, legacy_messages, system_instructions
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # ── Turn {{ loop.index }} ──
+    model = "{{ input.model }}"
+    messages = {{ input.messages | dump }}
+
+    sentry_msgs, legacy_msgs, system_instructions = build_sentry_messages(messages)
+
+    sentry_msgs, otel_original_len, otel_trimmed = trim_messages(sentry_msgs)
+    legacy_msgs, legacy_original_len, legacy_trimmed = trim_messages(legacy_msgs)
+    otel_messages_json = json.dumps(sentry_msgs)
+    legacy_messages_json = json.dumps(legacy_msgs)
+
+    content_len = messages_content_length(messages)
+    input_tokens = estimate_tokens(content_len) + {{ loop.index0 * 20 }}
+    output_tokens = {{ 15 + loop.index0 * 5 }}
+    total_tokens = input_tokens + output_tokens
+
+    response_text = "This is a simulated response for turn {{ loop.index }}."
+    output_messages = json.dumps([
+        {"role": "assistant", "parts": [{"type": "text", "text": response_text}]}
+    ])
+
+    description = f"chat {model}"
+    with sentry_sdk.start_span(op="gen_ai.chat", name=description) as span:
+        span.set_data("span.description", description)
+        span.set_data("gen_ai.operation.name", "chat")
+        span.set_data("gen_ai.request.model", model)
+        span.set_data("gen_ai.response.model", model)
+        span.set_data("gen_ai.response.text", response_text)
+        span.set_data("gen_ai.usage.input_tokens", input_tokens)
+        span.set_data("gen_ai.usage.input_tokens.cached", max(0, input_tokens // 3))
+        span.set_data("gen_ai.usage.output_tokens", output_tokens)
+        span.set_data("gen_ai.usage.output_tokens.reasoning", max(0, output_tokens // 4))
+        span.set_data("gen_ai.usage.total_tokens", total_tokens)
+
+        span.set_data("gen_ai.request.messages", legacy_messages_json)
+        if legacy_trimmed:
+            span.set_data("gen_ai.request.messages.original_length", legacy_original_len)
+
+        span.set_data("gen_ai.input.messages", otel_messages_json)
+        if otel_trimmed:
+            span.set_data("gen_ai.input.messages.original_length", otel_original_len)
+        span.set_data("gen_ai.output.messages", output_messages)
+        if system_instructions is not None:
+            span.set_data("gen_ai.system_instructions", system_instructions)
+
+    print(f"Turn {{ loop.index }} Response: {response_text}")
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.python.njk" %}
+
+{# Macro to convert content to LangChain format (uses OpenAI-style for images) #}
+{% macro convertLangChainContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+            {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+            {"type": "image_url", "image_url": {"url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+        ]
+{%- endif %}
+{% endmacro %}
+
+{% block imports %}
+{{ super() }}
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+{% if causeAPIError %}
+import respx
+import httpx
+{% endif %}
+{% endblock %}
+
+{% block inject_api_error %}
+{% if causeAPIError %}
+respx.route(host="api.openai.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.mock.start()
+{% endif %}
+{% endblock %}
+
+{% block setup %}
+{% set input = inputs[0] %}
+chat = ChatOpenAI(model="{{ input.model }}")
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
+    messages = [
+{% for message in input.messages %}
+    {% if message.role == 'system' %}
+        SystemMessage(content="{{ message.content }}"),
+    {% elif message.role == 'user' %}
+        HumanMessage(content={{ convertLangChainContent(message.content) }}),
+    {% elif message.role == 'assistant' %}
+        AIMessage(content="{{ message.content }}"),
+    {% endif %}
+{% endfor %}
+    ]
+{% if isStreaming %}
+{% if isAsync %}
+    chunks = []
+    async for chunk in chat.astream(messages):
+        chunks.append(chunk.content)
+    response_content = "".join(chunks)
+{% else %}
+    chunks = []
+    for chunk in chat.stream(messages):
+        chunks.append(chunk.content)
+    response_content = "".join(chunks)
+{% endif %}
+    print(f"Turn {{ loop.index }} Response: {response_content}")
+{% else %}
+{% if isAsync %}
+    response = await chat.ainvoke(messages)
+{% else %}
+    response = chat.invoke(messages)
+{% endif %}
+    print(f"Turn {{ loop.index }} Response: {response.content}")
+{% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endblock %}

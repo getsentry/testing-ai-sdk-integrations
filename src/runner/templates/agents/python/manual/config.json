@@ -1,0 +1,10 @@
+{
+  "name": "manual",
+  "displayName": "Manual Python Agent (Reference)",
+  "type": "agentic",
+  "platform": "python",
+  "executionMode": "both",
+  "dependencies": [],
+  "versions": ["1.0.0"],
+  "sentryVersions": ["latest"]
+}

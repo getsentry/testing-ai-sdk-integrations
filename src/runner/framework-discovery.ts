@@ -31,7 +31,7 @@ export interface DiscoveredFramework extends FrameworkConfig {
  * Directory structure:
  *   templates/
  *     {category}/      # llm, agents, etc.
- *       {platform}/    # node, py, browser, nextjs
+ *       {platform}/    # node, python, browser, nextjs
  *         {framework}/ # openai, anthropic, etc.
  *           config.json
  *           template.njk
@@ -52,14 +52,14 @@ export function discoverFrameworks(): DiscoveredFramework[] {
   for (const category of categories) {
     const categoryPath = path.join(TEMPLATES_DIR, category);
 
-    // Scan platforms (node, py, browser)
+    // Scan platforms (node, python, browser)
     const platforms = fs
       .readdirSync(categoryPath, { withFileTypes: true })
       .filter(
         (dirent) =>
           dirent.isDirectory() &&
           (dirent.name === "node" ||
-            dirent.name === "py" ||
+            dirent.name === "python" ||
             dirent.name === "browser" ||
             dirent.name === "nextjs"),
       )
@@ -165,7 +165,7 @@ export function getFrameworksByCategory(
  * Get frameworks by platform (node, py, browser)
  */
 export function getFrameworksByPlatform(
-  platform: "node" | "py" | "browser",
+  platform: "node" | "python" | "browser",
 ): DiscoveredFramework[] {
   return discoverFrameworks().filter((f) => f.platform === platform);
 }

@@ -20,25 +20,25 @@ export class TemplateRenderer {
   private templatesDir: string;
 
   constructor() {
-    this.templatesDir = path.join(__dirname, 'templates');
-    
+    this.templatesDir = path.join(__dirname, "templates");
+
     // Configure Nunjucks
     this.env = nunjucks.configure(this.templatesDir, {
       autoescape: false, // Don't escape code
       trimBlocks: true,
       lstripBlocks: true,
     });
-    
+
     // Add custom filters
-    this.env.addFilter('tojson', (obj) => {
+    this.env.addFilter("tojson", (obj) => {
       return JSON.stringify(obj, null, 2);
     });
   }
 
   /**
    * Render a template
-   * 
-   * @param templatePath - Path relative to templates dir (e.g., 'llm/py/openai/template.njk')
+   *
+   * @param templatePath - Path relative to templates dir (e.g., 'llm/python/openai/template.njk')
    */
   render(templatePath: string, context: TemplateContext): string {
     return this.env.render(templatePath, context);
@@ -48,15 +48,15 @@ export class TemplateRenderer {
    * Render a framework template
    *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'node', 'py', 'browser', or 'nextjs'
+   * @param platform - 'node', 'python', 'browser', or 'nextjs'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
     type: 'llm' | 'agents',
-    platform: 'node' | 'py' | 'browser' | 'nextjs',
+    platform: 'node' | 'python' | 'browser' | 'nextjs',
     frameworkName: string,
-    context: TemplateContext
+    context: TemplateContext,
   ): string {
     const templatePath = `${type}/${platform}/${frameworkName}/template.njk`;
     return this.render(templatePath, context);
@@ -65,7 +65,7 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'node' | 'py' | 'browser' | 'nextjs', context: TemplateContext): string {
+  renderBase(platform: 'node' | 'python' | 'browser' | 'nextjs', context: TemplateContext): string {
     const templateFile = getBaseTemplateName(platform);
     return this.render(templateFile, context);
   }
@@ -81,7 +81,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'node' | 'py' | 'browser' | 'nextjs',
+    platform: 'node' | 'python' | 'browser' | 'nextjs',
     context: TemplateContext,
     blocks: {
       imports?: string;
@@ -89,7 +89,7 @@ export class TemplateRenderer {
       setup?: string;
       test?: string;
       teardown?: string;
-    }
+    },
   ): string {
     // Build template that extends base
     const baseTemplate = getBaseTemplateName(platform);

@@ -12,7 +12,7 @@ import { getAllTests } from "./test-cases/index.js";
 import { resolvePlatformFilter } from "./platform-utils.js";
 
 interface SetupOptions {
-  platform?: string; // "node" | "py" | "browser" | "js" (meta-platform)
+  platform?: string; // "node" | "python" | "browser" | "js" (meta-platform)
   framework?: string;
   test?: string;
   sync?: boolean;
@@ -35,7 +35,7 @@ function parseArgs(): SetupOptions {
     switch (arg) {
       case "--platform":
       case "-p": {
-        const validPlatforms = ["node", "py", "browser", "js"];
+        const validPlatforms = ["node", "python", "browser", "js"];
         if (!validPlatforms.includes(value)) {
           console.error(
             `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -102,7 +102,7 @@ Usage:
   npm run setup [options]
 
 Options:
-  -p, --platform <node|py|browser|js>  Only setup for specific platform (js = node + browser)
+  -p, --platform <node|python|browser|js>  Only setup for specific platform (js = node + browser)
   -f, --framework <name>      Only setup for specific framework
   -t, --test <name>           Only setup for specific test
   --sync                      Only setup sync tests (Python only)
@@ -116,10 +116,10 @@ Options:
 
 Examples:
   npm run setup
-  npm run setup -- --platform py
+  npm run setup -- --platform python
   npm run setup -- --framework openai
   npm run setup -- --test "Basic LLM Test"
-  npm run setup -- --platform py --framework openai --sync --streaming
+  npm run setup -- --platform python --framework openai --sync --streaming
   npm run setup -- --sentry-python ~/sentry-python
 
 Output:
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   const frameworks: FrameworkConfig[] = discoveredFrameworks.map((df) => {
     // Determine Sentry version based on platform and local SDK paths
     let sentryVersion = df.sentryVersions[0];
-    if (df.platform === "py" && options.sentryPythonPath) {
+    if (df.platform === "python" && options.sentryPythonPath) {
       sentryVersion = "local";
     } else if (
       (df.platform === "node" || df.platform === "browser" || df.platform === 'nextjs') &&

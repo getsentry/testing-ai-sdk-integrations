@@ -156,7 +156,7 @@ export class LiveStatusReporter {
 
     for (const [platform, frameworks] of byPlatform) {
       const platformIcon =
-        platform === "py" ? "🐍" : platform === "browser" ? "🌐" : "📦";
+        platform === "python" ? "🐍" : platform === "browser" ? "🌐" : "📦";
       lines.push(
         `${platformIcon} ${colors.bright}${platform.toUpperCase()}${colors.reset}`,
       );
@@ -188,10 +188,15 @@ export class LiveStatusReporter {
 
           // Show check results
           for (const check of test.checkResults) {
-            const sev = (check as any).severity || 'normal';
-            const checkIcon = check.status === 'failed'
-              ? (sev === 'critical' ? `${colors.red}❗${colors.reset}` : sev === 'warning' ? `${colors.yellow}⚠${colors.reset}` : this.getStatusIcon(check.status))
-              : this.getStatusIcon(check.status);
+            const sev = (check as any).severity || "normal";
+            const checkIcon =
+              check.status === "failed"
+                ? sev === "critical"
+                  ? `${colors.red}❗${colors.reset}`
+                  : sev === "warning"
+                    ? `${colors.yellow}⚠${colors.reset}`
+                    : this.getStatusIcon(check.status)
+                : this.getStatusIcon(check.status);
             const checkLine = `      ${checkIcon} ${colors.dim}${check.name}${colors.reset}`;
 
             if (check.status === "skipped" && check.skipReason) {

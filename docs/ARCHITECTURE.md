@@ -166,8 +166,9 @@ Each framework has a directory with `config.json` and `template.njk`:
 
 ```
 src/runner/templates/
+
 ├── base.node.njk                     # Base JavaScript (Node) template
-├── base.py.njk                       # Base Python template
+├── base.python.njk                   # Base Python template
 ├── base.browser.njk                  # Base JavaScript (Browser) template
 ├── llm/                              # LLM-only frameworks
 │   ├── node/
@@ -182,7 +183,7 @@ src/runner/templates/
 │   │   ├── anthropic/
 │   │   ├── google-genai/
 │   │   └── langchain/
-│   └── py/
+│   └── python/
 │       ├── openai/
 │       ├── anthropic/
 │       ├── langchain/
@@ -192,7 +193,7 @@ src/runner/templates/
     │   ├── vercel/
     │   ├── langgraph/
     │   └── mastra/
-    └── py/
+    └── python/
         ├── openai-agents/
         ├── langgraph/
         ├── pydantic-ai/
@@ -231,7 +232,7 @@ src/runner/templates/
 | `name`           | Framework identifier                          |
 | `displayName`    | Human-readable name                           |
 | `type`           | `"llm-only"` or `"agentic"`                   |
-| `platform`       | `"node"`, `"py"`, or `"browser"`              |
+| `platform`       | `"node"`, `"python"`, or `"browser"`          |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
 | `dependencies`   | NPM/pip packages to install                   |
@@ -303,7 +304,7 @@ testing-ai-sdk-integrations/
 │   │       ├── node_modules/
 │   │       ├── dist/             # Vite-bundled HTML files
 │   │       └── test-basic-llm-test-streaming.html
-│   └── py/
+│   └── python/
 │       └── openai-1.82.0-sentry-latest/
 │           ├── .venv/
 │           └── test-basic-llm-test-async-streaming.py
@@ -418,12 +419,15 @@ interface Check {
 
 ### Browser
 
-| Type | Framework    | Streaming | Notes                            |
-| ---- | ------------ | --------- | -------------------------------- |
-| llm  | openai       | both      | OpenAI SDK (via @sentry/browser) |
-| llm  | anthropic    | both      | Anthropic SDK                    |
-| llm  | google-genai | both      | Google Generative AI             |
-| llm  | langchain    | both      | LangChain                        |
+| Type   | Framework    | Streaming | Notes                                     |
+| ------ | ------------ | --------- | ----------------------------------------- |
+| llm    | openai       | both      | OpenAI SDK                                |
+| llm    | anthropic    | both      | Anthropic SDK                             |
+| llm    | google-genai | both      | Google Generative AI                      |
+| llm    | langchain    | both      | LangChain                                 |
+| agents | vercel       | -         | Vercel AI SDK                             |
+| agents | langgraph    | -         | LangGraph                                 |
+| agents | mastra       | -         | Mastra AI Framework (uses @mastra/sentry) |
 
 ### Python
 
@@ -449,7 +453,7 @@ npm run test list
 
 # Filter by framework/platform/test
 npm run test -- --framework openai
-npm run test -- --platform py
+npm run test -- --platform python
 npm run test -- --test "Basic LLM Test"
 
 # Execution mode filters
@@ -481,4 +485,4 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
   - `gen_ai.input.messages` instead of `gen_ai.request.messages`
   - `gen_ai.tool.call.arguments` instead of `gen_ai.tool.input`
 - Tool type is `"tool"` instead of `"function"`
-- Template does not extend base.js.njk (standalone implementation)
+- Template does not extend base.node.njk (standalone implementation)

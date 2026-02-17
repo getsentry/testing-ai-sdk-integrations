@@ -28,7 +28,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|py|browser|js>  Filter by platform (js = node + browser)
+  --platform <node|python|browser|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -45,11 +45,11 @@ Examples:
   npm run test list
   npm run test run
   npm run test -- --framework openai
-  npm run test -- --platform py --test "Basic LLM"
+  npm run test -- --platform python --test "Basic LLM"
+  npm run test -- --platform python --sync
+  npm run test -- --platform python --async --verbose
   npm run test -- --platform browser --framework openai
   npm run test -- --platform js                         # all JS platforms (node + browser)
-  npm run test -- --platform py --sync
-  npm run test -- --platform py --async --verbose
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
   npm run test -- --framework openai --open
@@ -104,7 +104,7 @@ function parseCliArgs() {
 
   // Validate platform
   const platformArg = values.platform;
-  const validPlatforms = ["node", "py", "browser", "js", "nextjs"];
+  const validPlatforms = ["node", "python", "browser", "js", "nextjs"];
   if (platformArg && !validPlatforms.includes(platformArg)) {
     console.error(
       `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -236,7 +236,7 @@ async function main() {
       .map((df) => {
         // Determine Sentry version based on platform and local SDK paths
         let sentryVersion = df.sentryVersions[0];
-        if (df.platform === "py" && options.sentryPythonPath) {
+        if (df.platform === "python" && options.sentryPythonPath) {
           sentryVersion = "local";
         } else if (
           (df.platform === "node" || df.platform === "browser" || df.platform === "nextjs") &&

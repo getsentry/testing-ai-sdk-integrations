@@ -13,7 +13,7 @@ export interface FrameworkConfig {
   type: "llm-only" | "agentic";
 
   /** Platform: Node.js, Browser, Next.js, or Python */
-  platform: "node" | "py" | "browser" | "nextjs";
+  platform: "node" | "python" | "browser" | "nextjs";
 
   /** Package dependencies to install */
   dependencies: FrameworkDependency[];
@@ -103,11 +103,12 @@ export function loadFrameworkConfig(configPath: string): FrameworkConfig {
     // Validate platform field
     if (
       config.platform !== "node" &&
-      config.platform !== "py" &&
-      config.platform !== "browser"
+      config.platform !== "python" &&
+      config.platform !== "browser" &&
+      config.platform !== "nextjs"
     ) {
       throw new Error(
-        `Invalid platform: ${config.platform}. Must be 'node', 'py', or 'browser'`,
+        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', or 'nextjs'`,
       );
     }
 
