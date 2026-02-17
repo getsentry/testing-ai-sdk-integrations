@@ -19,6 +19,7 @@ import * as fs from "fs/promises";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { RunnerContext } from "../types.js";
+import { buildModeSuffix } from "../platform-utils.js";
 
 const execAsync = promisify(exec);
 
@@ -252,7 +253,15 @@ return [
    * Execute PHP/Laravel test via artisan command
    */
   async executeTest(context: RunnerContext): Promise<void> {
-    const { workDir, sentryDsn, runId, testDefinition, framework } = context;
+    const {
+      workDir,
+      sentryDsn,
+      runId,
+      testDefinition,
+      framework,
+      isAsync,
+      isStreaming,
+    } = context;
     const verbose = context.verbose === true;
 
     if (verbose) {
@@ -261,9 +270,12 @@ return [
 
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
-    // Build the artisan command name from the test case ID
-    const commandName = `test:${testCaseId}`;
-    const logFile = path.join(workDir, `test-${testCaseId}.log`);
+    // Build mode suffix to match the generated command signature
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
+
+    // Build the artisan command name from the test case ID + mode suffix
+    const commandName = `test:${testCaseId}${modeSuffix}`;
+    const logFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.log`);
 
     const env = {
       ...process.env,

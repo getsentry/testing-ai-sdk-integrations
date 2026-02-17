@@ -3,6 +3,7 @@
   "displayName": "Laravel AI Framework",
   "type": "agentic",
   "platform": "php",
+  "streamingMode": "both",
   "dependencies": [
     {
       "package": "laravel/ai",

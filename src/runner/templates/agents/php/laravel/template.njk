@@ -40,8 +40,17 @@ class {{ commandClassName }} extends Command
 {% endif %}
 {% endfor %}
             $agent = new {{ agentClassName }}();
+{% if isStreaming %}
+            $stream = $agent->stream("{{ user_content }}");
+            $chunks = [];
+            foreach ($stream as $event) {
+                $chunks[] = (string) $event;
+            }
+            $this->info("Turn {{ loop.index }} Response: " . implode('', $chunks));
+{% else %}
             $response = $agent->prompt("{{ user_content }}");
             $this->info("Turn {{ loop.index }} Response: " . $response->text);
+{% endif %}
 {% if not loop.last %}
             $this->info("");
 {% endif %}

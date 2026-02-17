@@ -224,7 +224,9 @@ export class Runner {
 
     if (framework.platform === "php") {
       // PHP/Laravel: command files go in app/Console/Commands/ with the class name
-      const commandClassName = "RunTest" + this.toPascalCase(testCaseId);
+      // Include mode suffix to distinguish streaming/blocking variants
+      const commandClassName =
+        "RunTest" + this.toPascalCase(testCaseId + modeSuffix);
       testFile = `${commandClassName}.php`;
       const commandsDir = path.join(workDir, "app", "Console", "Commands");
       await fs.mkdir(commandsDir, { recursive: true });
@@ -258,11 +260,12 @@ export class Runner {
 
     // PHP/Laravel: add computed class names and command signature for templates
     if (framework.platform === "php") {
-      const commandClassName = "RunTest" + this.toPascalCase(testCaseId);
+      const commandClassName =
+        "RunTest" + this.toPascalCase(testCaseId + modeSuffix);
       const agentName = testDefinition.agent?.name || "assistant";
       const agentClassName = this.toPascalCase(agentName);
       templateContext.commandClassName = commandClassName;
-      templateContext.commandSignature = `test:${testCaseId}`;
+      templateContext.commandSignature = `test:${testCaseId}${modeSuffix}`;
       templateContext.agentClassName = agentClassName;
     }
 
