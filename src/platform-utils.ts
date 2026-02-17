@@ -5,7 +5,7 @@
 
 import { FrameworkConfig } from "./types.js";
 
-export type Platform = "node" | "py" | "browser" | "nextjs";
+export type Platform = "node" | "python" | "browser" | "nextjs";
 
 /** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
 export const JS_PLATFORMS: readonly Platform[] = ["node", "browser"] as const;
@@ -27,7 +27,7 @@ export function resolvePlatformFilter(value: string): Platform[] {
  */
 export function getFileExtension(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "py";
     case "browser":
       return "html";
@@ -44,7 +44,7 @@ export function getFileExtension(platform: Platform): string {
  */
 export function getPlatformIcon(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "🐍";
     case "browser":
       return "🌐";
@@ -60,7 +60,7 @@ export function getPlatformIcon(platform: Platform): string {
  */
 export function getPlatformDisplayName(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "PYTHON";
     case "browser":
       return "BROWSER";
@@ -75,7 +75,7 @@ export function getPlatformDisplayName(platform: Platform): string {
  * Check if platform supports execution modes (sync/async)
  */
 export function supportsExecutionModes(platform: Platform): boolean {
-  return platform === "py";
+  return platform === "python";
 }
 
 /**
@@ -96,7 +96,7 @@ export function supportsExecutionMode(
  */
 export function getLocalSentryEnvVar(platform: Platform): string | null {
   switch (platform) {
-    case "py":
+    case "python":
       return "SENTRY_PYTHON_PATH";
     case "node":
     case "browser":
@@ -110,7 +110,7 @@ export function getLocalSentryEnvVar(platform: Platform): string | null {
  */
 export function getSentryPackageName(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "sentry-sdk";
     case "browser":
       return "@sentry/browser";
@@ -126,8 +126,8 @@ export function getSentryPackageName(platform: Platform): string {
  */
 export function getBaseTemplateName(platform: Platform): string {
   switch (platform) {
-    case "py":
-      return "base.py.njk";
+    case "python":
+      return "base.python.njk";
     case "browser":
       return "base.browser.njk";
     case "node":
@@ -142,7 +142,7 @@ export function getBaseTemplateName(platform: Platform): string {
  */
 export function getFormatterParser(platform: Platform): string | null {
   switch (platform) {
-    case "py":
+    case "python":
       return null; // Uses black CLI
     case "browser":
       return "html";
@@ -157,7 +157,7 @@ export function getFormatterParser(platform: Platform): string | null {
  * Check if framework needs async flag
  */
 export function needsAsyncFlag(framework: FrameworkConfig): boolean {
-  return framework.platform === "py" && framework.executionMode === "async";
+  return framework.platform === "python" && framework.executionMode === "async";
 }
 
 /**
@@ -170,12 +170,14 @@ export function determineSentryVersion(
 ): string {
   const defaultVersion = framework.sentryVersion || "latest";
 
-  if (framework.platform === "py" && sentryPythonPath) {
+  if (framework.platform === "python" && sentryPythonPath) {
     return "local";
   }
 
   if (
-    (framework.platform === "node" || framework.platform === "browser" || framework.platform === "nextjs") &&
+    (framework.platform === "node" ||
+      framework.platform === "browser" ||
+      framework.platform === "nextjs") &&
     sentryJavaScriptPath
   ) {
     return "local";
@@ -195,7 +197,7 @@ export function buildModeParts(
   const parts: string[] = [];
 
   // Add execution mode for Python
-  if (framework.platform === "py") {
+  if (framework.platform === "python") {
     parts.push(isAsync ? "async" : "sync");
   }
 

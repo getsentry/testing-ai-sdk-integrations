@@ -104,10 +104,11 @@ export function loadFrameworkConfig(configPath: string): FrameworkConfig {
     if (
       config.platform !== "node" &&
       config.platform !== "python" &&
-      config.platform !== "browser"
+      config.platform !== "browser" &&
+      config.platform !== "nextjs"
     ) {
       throw new Error(
-        `Invalid platform: ${config.platform}. Must be 'node', 'py', or 'browser'`,
+        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', or 'nextjs'`,
       );
     }
 
