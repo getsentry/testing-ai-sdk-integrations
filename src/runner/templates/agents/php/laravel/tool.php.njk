@@ -1,0 +1,41 @@
+<?php
+/**
+ * Generated tool: {{ currentTool.name }}
+ * Framework: Laravel AI ({{ frameworkName }})
+ */
+
+namespace App\Ai\Tools;
+
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Contracts\Tool;
+use Laravel\Ai\Tools\Request;
+
+class {{ currentTool.name | pascalcase }} implements Tool
+{
+    public function description(): string
+    {
+        return '{{ currentTool.description }}';
+    }
+
+    public function handle(Request $request): string
+    {
+{% if currentTool.error is defined %}
+        throw new \Exception('{{ currentTool.error }}');
+{% elif currentTool.result is defined %}
+        return json_encode({{ currentTool.result | tojson }});
+{% else %}
+        return '';
+{% endif %}
+    }
+
+    public function schema(JsonSchema $schema): array
+    {
+        return [
+{% if currentTool.parameters and currentTool.parameters.properties %}
+{% for paramName, paramDef in currentTool.parameters.properties %}
+            '{{ paramName }}' => $schema->{{ paramDef.type or 'string' }}()->description('{{ paramDef.description or paramName }}'),
+{% endfor %}
+{% endif %}
+        ];
+    }
+}

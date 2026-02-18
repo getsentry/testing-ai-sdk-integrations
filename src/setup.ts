@@ -21,6 +21,8 @@ interface SetupOptions {
   blocking?: boolean;
   sentryPythonPath?: string;
   sentryJavaScriptPath?: string;
+  sentryPhpPath?: string;
+  sentryLaravelPath?: string;
   verbose?: boolean;
 }
 
@@ -35,7 +37,7 @@ function parseArgs(): SetupOptions {
     switch (arg) {
       case "--platform":
       case "-p": {
-        const validPlatforms = ["node", "python", "browser", "js"];
+        const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php"];
         if (!validPlatforms.includes(value)) {
           console.error(
             `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -76,6 +78,14 @@ function parseArgs(): SetupOptions {
         options.sentryJavaScriptPath = value;
         i++;
         break;
+      case "--sentry-php":
+        options.sentryPhpPath = value;
+        i++;
+        break;
+      case "--sentry-laravel":
+        options.sentryLaravelPath = value;
+        i++;
+        break;
       case "--verbose":
       case "-v":
         options.verbose = true;
@@ -102,7 +112,7 @@ Usage:
   npm run setup [options]
 
 Options:
-  -p, --platform <node|python|browser|js>  Only setup for specific platform (js = node + browser)
+  -p, --platform <node|python|browser|php|js>  Only setup for specific platform (js = node + browser)
   -f, --framework <name>      Only setup for specific framework
   -t, --test <name>           Only setup for specific test
   --sync                      Only setup sync tests (Python only)
@@ -111,6 +121,8 @@ Options:
   --blocking                  Only setup blocking (non-streaming) tests
   --sentry-python <path>      Use local Sentry Python SDK (editable install)
   --sentry-javascript <path>  Use local Sentry JavaScript SDK (link)
+  --sentry-php <path>         Use local Sentry PHP SDK (core sentry/sentry-php)
+  --sentry-laravel <path>     Use local Sentry Laravel SDK (composer path repository)
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -189,6 +201,16 @@ async function main(): Promise<void> {
       `Using local Sentry JavaScript SDK: ${options.sentryJavaScriptPath}\n`,
     );
   }
+  if (options.sentryPhpPath) {
+    process.env.SENTRY_PHP_PATH = options.sentryPhpPath;
+    console.log(`Using local Sentry PHP SDK: ${options.sentryPhpPath}\n`);
+  }
+  if (options.sentryLaravelPath) {
+    process.env.SENTRY_LARAVEL_PATH = options.sentryLaravelPath;
+    console.log(
+      `Using local Sentry Laravel SDK: ${options.sentryLaravelPath}\n`,
+    );
+  }
 
   // Convert discovered frameworks to test matrix
   const frameworks: FrameworkConfig[] = discoveredFrameworks.map((df) => {
@@ -197,9 +219,13 @@ async function main(): Promise<void> {
     if (df.platform === "python" && options.sentryPythonPath) {
       sentryVersion = "local";
     } else if (
-      (df.platform === "node" || df.platform === "browser" || df.platform === 'nextjs') &&
+      (df.platform === "node" ||
+        df.platform === "browser" ||
+        df.platform === "nextjs") &&
       options.sentryJavaScriptPath
     ) {
+      sentryVersion = "local";
+    } else if (df.platform === "php" && options.sentryLaravelPath) {
       sentryVersion = "local";
     }
 

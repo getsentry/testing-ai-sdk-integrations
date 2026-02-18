@@ -1,0 +1,19 @@
+{
+  "name": "laravel",
+  "displayName": "Laravel AI Framework",
+  "type": "agentic",
+  "platform": "php",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "laravel/ai",
+      "version": "framework"
+    }
+  ],
+  "versions": ["0.1.0"],
+  "sentryVersions": ["latest"],
+  "modelOverrides": {
+    "request": "gpt-5.2",
+    "response": "gpt-5.2*"
+  }
+}

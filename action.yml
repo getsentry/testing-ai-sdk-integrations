@@ -8,7 +8,7 @@ branding:
 
 inputs:
   platform:
-    description: "Platform to test. One of: node, python, or leave empty for both"
+    description: "Platform to test. One of: node, python, php, or leave empty for both"
     required: false
     default: ""
   framework:
@@ -29,6 +29,14 @@ inputs:
     default: ""
   sentry-javascript-path:
     description: "Path to local sentry-javascript repository for linking"
+    required: false
+    default: ""
+  sentry-php-path:
+    description: "Path to local sentry-php repository (core PHP SDK)"
+    required: false
+    default: ""
+  sentry-laravel-path:
+    description: "Path to local sentry-laravel repository for composer path repository"
     required: false
     default: ""
   openai-api-key:
@@ -132,6 +140,14 @@ runs:
 
         if [ -n "${{ inputs.sentry-javascript-path }}" ]; then
           ARGS="$ARGS --sentry-javascript ${{ inputs.sentry-javascript-path }}"
+        fi
+
+        if [ -n "${{ inputs.sentry-php-path }}" ]; then
+          ARGS="$ARGS --sentry-php ${{ inputs.sentry-php-path }}"
+        fi
+
+        if [ -n "${{ inputs.sentry-laravel-path }}" ]; then
+          ARGS="$ARGS --sentry-laravel ${{ inputs.sentry-laravel-path }}"
         fi
 
         # Run tests

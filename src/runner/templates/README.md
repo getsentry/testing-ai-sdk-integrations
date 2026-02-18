@@ -34,19 +34,25 @@ templates/
     │   └── mastra/
     │       ├── template.njk
     │       └── config.json
-    └── python/
-        ├── openai-agents/
-        │   ├── template.njk
-        │   └── config.json
-        ├── langgraph/
-        │   ├── template.njk
-        │   └── config.json
-        ├── pydantic-ai/
-        │   ├── template.njk
-        │   └── config.json
-        └── google-genai/
-            ├── template.njk
-            └── config.json
+    ├── python/
+    │   ├── openai-agents/
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   ├── langgraph/
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   ├── pydantic-ai/
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   └── google-genai/
+    │       ├── template.njk
+    │       └── config.json
+    └── php/
+        └── laravel/
+            ├── config.json
+            ├── template.njk       # Artisan command
+            ├── agent.php.njk      # Agent class
+            └── tool.php.njk       # Tool class
 ```
 
 ## Base Templates
@@ -212,8 +218,8 @@ Framework templates receive:
 ### Creating Framework Templates
 
 1. Determine framework type (LLM or agent)
-2. Choose platform (node, python, or browser)
-3. Create framework directory: `{llm,agents}/{js,py}/{framework}/`
+2. Choose platform (node, python, browser, nextjs, or php)
+3. Create framework directory: `{llm,agents}/{node,python,browser,nextjs,php}/{framework}/`
 4. Create template file: `template.njk`
 5. Create config file: `config.json`
 6. Extend appropriate base template

@@ -1,0 +1,52 @@
+<?php
+/**
+ * Generated artisan command for {{ testName }}
+ * Framework: {{ frameworkName }}
+ *
+ * This command is the entry point for running the test.
+ * It initializes Sentry, runs the agent, and flushes spans.
+ */
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Sentry\State\Scope;
+use Sentry\Tracing\TransactionContext;
+
+{% block imports %}
+{% endblock %}
+
+class {{ commandClassName }} extends Command
+{
+    protected $signature = '{{ commandSignature }}';
+    protected $description = 'Test: {{ testName }}';
+
+    public function handle(): int
+    {
+        // Start a Sentry transaction (artisan commands don't auto-create one)
+        $context = new TransactionContext();
+        $context->setName('{{ commandSignature }}');
+        $context->setOp('console.command');
+
+        $transaction = \Sentry\startTransaction($context);
+        \Sentry\configureScope(function (Scope $scope) use ($transaction): void {
+            $scope->setSpan($transaction);
+        });
+
+        try {
+{% block setup %}
+{% endblock %}
+
+{% block test %}
+            $this->info('Test complete.');
+{% endblock %}
+        } finally {
+            $transaction->finish();
+        }
+
+        // Flush Sentry data
+        \Sentry\Laravel\Integration::flushEvents();
+
+        return Command::SUCCESS;
+    }
+}

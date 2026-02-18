@@ -28,7 +28,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --platform <node|python|browser|js>  Filter by platform (js = node + browser)
+  --platform <node|python|browser|php|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -39,6 +39,8 @@ Options:
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
+  --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
+  --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
   --help, -h                 Show this help message
 
 Examples:
@@ -49,11 +51,13 @@ Examples:
   npm run test -- --platform python --sync
   npm run test -- --platform python --async --verbose
   npm run test -- --platform browser --framework openai
+  npm run test -- --platform php                         # PHP platform (Laravel)
   npm run test -- --platform js                         # all JS platforms (node + browser)
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
   npm run test -- --framework openai --open
   npm run test -- --framework openai --sentry-python ~/sentry-python
+  npm run test -- --framework laravel --sentry-laravel ~/sentry-laravel
   npm run test setup -- --framework openai --sync --streaming
 `;
 
@@ -74,6 +78,8 @@ function parseCliArgs() {
       open: { type: "boolean", default: false },
       "sentry-python": { type: "string" },
       "sentry-javascript": { type: "string" },
+      "sentry-php": { type: "string" },
+      "sentry-laravel": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -104,7 +110,7 @@ function parseCliArgs() {
 
   // Validate platform
   const platformArg = values.platform;
-  const validPlatforms = ["node", "python", "browser", "js", "nextjs"];
+  const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php"];
   if (platformArg && !validPlatforms.includes(platformArg)) {
     console.error(
       `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -127,6 +133,8 @@ function parseCliArgs() {
     open: values.open,
     sentryPythonPath: values["sentry-python"],
     sentryJavaScriptPath: values["sentry-javascript"],
+    sentryPhpPath: values["sentry-php"],
+    sentryLaravelPath: values["sentry-laravel"],
     help: values.help,
   };
 }
@@ -214,6 +222,16 @@ async function main() {
         `Using local Sentry JavaScript SDK: ${options.sentryJavaScriptPath}\n`,
       );
     }
+    if (options.sentryPhpPath) {
+      process.env.SENTRY_PHP_PATH = options.sentryPhpPath;
+      console.log(`Using local Sentry PHP SDK: ${options.sentryPhpPath}\n`);
+    }
+    if (options.sentryLaravelPath) {
+      process.env.SENTRY_LARAVEL_PATH = options.sentryLaravelPath;
+      console.log(
+        `Using local Sentry Laravel SDK: ${options.sentryLaravelPath}\n`,
+      );
+    }
 
     // Convert discovered frameworks to test matrix
     const frameworks: FrameworkConfig[] = discoveredFrameworks
@@ -239,9 +257,13 @@ async function main() {
         if (df.platform === "python" && options.sentryPythonPath) {
           sentryVersion = "local";
         } else if (
-          (df.platform === "node" || df.platform === "browser" || df.platform === "nextjs") &&
+          (df.platform === "node" ||
+            df.platform === "browser" ||
+            df.platform === "nextjs") &&
           options.sentryJavaScriptPath
         ) {
+          sentryVersion = "local";
+        } else if (df.platform === "php" && options.sentryLaravelPath) {
           sentryVersion = "local";
         }
 

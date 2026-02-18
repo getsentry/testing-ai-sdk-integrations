@@ -13,6 +13,7 @@ Templates for frameworks that support agentic workflows with tool calling.
 | Python     | LangGraph     | `python/langgraph/`     | ✅ Done |
 | Python     | PydanticAI    | `python/pydantic-ai/`   | ✅ Done |
 | Python     | Google GenAI  | `python/google-genai/`  | ✅ Done |
+| PHP        | Laravel AI    | `php/laravel/`          | ✅ Done |
 
 ## Test Compatibility
 

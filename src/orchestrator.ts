@@ -492,12 +492,24 @@ export class Orchestrator {
     // Filter by sync/async if specified
     if (this.syncFilter && !this.asyncFilter) {
       testMatrix = testMatrix.filter((run) => {
-        if (run.framework.platform === "node" || run.framework.platform === "nextjs" || run.framework.platform === "browser") return false;
+        if (
+          run.framework.platform === "node" ||
+          run.framework.platform === "nextjs" ||
+          run.framework.platform === "browser" ||
+          run.framework.platform === "php"
+        )
+          return false;
         return run.framework.executionMode === "sync";
       });
     } else if (this.asyncFilter && !this.syncFilter) {
       testMatrix = testMatrix.filter((run) => {
-        if (run.framework.platform === "node" || run.framework.platform === "nextjs" || run.framework.platform === "browser") return false;
+        if (
+          run.framework.platform === "node" ||
+          run.framework.platform === "nextjs" ||
+          run.framework.platform === "browser" ||
+          run.framework.platform === "php"
+        )
+          return false;
         return run.framework.executionMode === "async";
       });
     }

@@ -156,7 +156,13 @@ export class LiveStatusReporter {
 
     for (const [platform, frameworks] of byPlatform) {
       const platformIcon =
-        platform === "python" ? "🐍" : platform === "browser" ? "🌐" : "📦";
+        platform === "python"
+          ? "🐍"
+          : platform === "php"
+            ? "🐘"
+            : platform === "browser"
+              ? "🌐"
+              : "📦";
       lines.push(
         `${platformIcon} ${colors.bright}${platform.toUpperCase()}${colors.reset}`,
       );

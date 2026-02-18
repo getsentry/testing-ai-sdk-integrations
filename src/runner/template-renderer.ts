@@ -2,10 +2,10 @@
  * Template renderer using Nunjucks
  */
 
-import nunjucks from 'nunjucks';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import { getBaseTemplateName } from '../platform-utils.js';
+import nunjucks from "nunjucks";
+import * as path from "path";
+import { fileURLToPath } from "url";
+import { getBaseTemplateName } from "../platform-utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,6 +33,19 @@ export class TemplateRenderer {
     this.env.addFilter("tojson", (obj) => {
       return JSON.stringify(obj, null, 2);
     });
+
+    // PascalCase filter: "get_weather" -> "GetWeather", "math_assistant" -> "MathAssistant"
+    this.env.addFilter("pascalcase", (str: string) => {
+      return str
+        .replace(/[^a-zA-Z0-9]+/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map(
+          (word: string) =>
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+        )
+        .join("");
+    });
   }
 
   /**
@@ -53,8 +66,8 @@ export class TemplateRenderer {
    * @param context - Template context
    */
   renderFramework(
-    type: 'llm' | 'agents',
-    platform: 'node' | 'python' | 'browser' | 'nextjs',
+    type: "llm" | "agents",
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
     frameworkName: string,
     context: TemplateContext,
   ): string {
@@ -65,7 +78,10 @@ export class TemplateRenderer {
   /**
    * Render base template for a platform
    */
-  renderBase(platform: 'node' | 'python' | 'browser' | 'nextjs', context: TemplateContext): string {
+  renderBase(
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
+    context: TemplateContext,
+  ): string {
     const templateFile = getBaseTemplateName(platform);
     return this.render(templateFile, context);
   }
@@ -81,7 +97,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: 'node' | 'python' | 'browser' | 'nextjs',
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
     context: TemplateContext,
     blocks: {
       imports?: string;

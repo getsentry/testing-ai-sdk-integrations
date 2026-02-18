@@ -46,6 +46,7 @@ TypeScript test definitions shared across all frameworks. Each test has a `type`
 - `javascript-runner.ts` - Node.js environment setup and execution
 - `browser-runner.ts` - Browser environment setup, Vite bundling, and Playwright execution
 - `python-runner.ts` - Python/uv environment setup and execution
+- `php-runner.ts` - PHP/Laravel environment setup and execution
 - `template-renderer.ts` - Nunjucks template rendering
 - `framework-discovery.ts` - Auto-discovers frameworks from templates directory
 
@@ -170,6 +171,7 @@ src/runner/templates/
 ├── base.node.njk                     # Base JavaScript (Node) template
 ├── base.python.njk                   # Base Python template
 ├── base.browser.njk                  # Base JavaScript (Browser) template
+├── base.php.njk                      # Base PHP (Laravel) template
 ├── llm/                              # LLM-only frameworks
 │   ├── node/
 │   │   ├── openai/
@@ -193,11 +195,13 @@ src/runner/templates/
     │   ├── vercel/
     │   ├── langgraph/
     │   └── mastra/
-    └── python/
-        ├── openai-agents/
-        ├── langgraph/
-        ├── pydantic-ai/
-        └── google-genai/
+    ├── python/
+    │   ├── openai-agents/
+    │   ├── langgraph/
+    │   ├── pydantic-ai/
+    │   └── google-genai/
+    └── php/
+        └── laravel/
 ```
 
 ### Framework Configuration (`config.json`)
@@ -227,20 +231,20 @@ src/runner/templates/
 
 ### Configuration Fields
 
-| Field            | Description                                   |
-| ---------------- | --------------------------------------------- |
-| `name`           | Framework identifier                          |
-| `displayName`    | Human-readable name                           |
-| `type`           | `"llm-only"` or `"agentic"`                   |
-| `platform`       | `"node"`, `"python"`, or `"browser"`          |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
-| `dependencies`   | NPM/pip packages to install                   |
-| `versions`       | Framework versions to test                    |
-| `sentryVersions` | Sentry SDK versions to test against           |
-| `modelOverrides` | Override model names for validation           |
-| `skip.tests`     | Test names to skip entirely                   |
-| `skip.checks`    | Per-test check names to skip                  |
+| Field            | Description                                           |
+| ---------------- | ----------------------------------------------------- |
+| `name`           | Framework identifier                                  |
+| `displayName`    | Human-readable name                                   |
+| `type`           | `"llm-only"` or `"agentic"`                           |
+| `platform`       | `"node"`, `"python"`, `"browser"`, `"nextjs"`, or `"php"` |
+| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`              |
+| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`         |
+| `dependencies`   | NPM/pip packages to install                           |
+| `versions`       | Framework versions to test                            |
+| `sentryVersions` | Sentry SDK versions to test against                   |
+| `modelOverrides` | Override model names for validation                   |
+| `skip.tests`     | Test names to skip entirely                           |
+| `skip.checks`    | Per-test check names to skip                          |
 
 ## Directory Structure
 
@@ -304,10 +308,17 @@ testing-ai-sdk-integrations/
 │   │       ├── node_modules/
 │   │       ├── dist/             # Vite-bundled HTML files
 │   │       └── test-basic-llm-test-streaming.html
-│   └── python/
-│       └── openai-1.82.0-sentry-latest/
-│           ├── .venv/
-│           └── test-basic-llm-test-async-streaming.py
+│   ├── python/
+│   │   └── openai-1.82.0-sentry-latest/
+│   │       ├── .venv/
+│   │       └── test-basic-llm-test-async-streaming.py
+│   └── php/
+│       └── laravel-0.1.0-sentry-latest/
+│           ├── vendor/
+│           ├── app/Ai/Agents/
+│           ├── app/Ai/Tools/
+│           ├── app/Console/Commands/
+│           └── test-basic-agent-test.php
 │
 ├── test-results/               # Generated reports
 │   ├── ctrf-report-*.json
@@ -441,6 +452,12 @@ interface Check {
 | agents | langgraph     | -         | sync/async |
 | agents | pydantic-ai   | -         | async      |
 | agents | google-genai  | -         | sync/async |
+
+### PHP (Laravel)
+
+| Type   | Framework | Streaming | Notes                         |
+| ------ | --------- | --------- | ----------------------------- |
+| agents | laravel   | -         | Laravel AI via sentry-laravel |
 
 ## CLI Commands
 

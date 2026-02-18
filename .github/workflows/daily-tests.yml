@@ -71,6 +71,20 @@ jobs:
           restore-keys: |
             python-envs-daily-${{ runner.os }}-
 
+      - name: Cache PHP test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/php
+          key: php-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
+          restore-keys: |
+            php-envs-daily-${{ runner.os }}-
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
+
       - name: Install dependencies and build
         run: |
           npm ci
