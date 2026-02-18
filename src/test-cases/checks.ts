@@ -151,7 +151,7 @@ export const checkChatSpanAttributes: Check = {
       
 
     assertAttributes(chatSpans, {
-      "span.description": (span) =>
+      "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": AI_CLIENT_OPERATION_NAME_PATTERN,
       "gen_ai.request.model": requestModel,
