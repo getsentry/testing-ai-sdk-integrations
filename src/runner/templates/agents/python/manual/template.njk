@@ -154,7 +154,7 @@ TOOLS = {{ agent.tools | dump }}
     # Agent span (parent)
     agent_desc = f"invoke_agent {model}"
     with sentry_sdk.start_span(op="gen_ai.invoke_agent", name=agent_desc) as agent_span:
-        agent_span.set_data("span.description", agent_desc)
+        agent_span.set_data("description", agent_desc)
         agent_span.set_data("gen_ai.operation.name", "invoke_agent")
         agent_span.set_data("gen_ai.agent.name", AGENT_NAME)
         agent_span.set_data("gen_ai.request.model", model)
@@ -167,7 +167,7 @@ TOOLS = {{ agent.tools | dump }}
         # Chat span (child of agent)
         chat_desc = f"chat {model}"
         with sentry_sdk.start_span(op="gen_ai.chat", name=chat_desc) as chat_span:
-            chat_span.set_data("span.description", chat_desc)
+            chat_span.set_data("description", chat_desc)
             chat_span.set_data("gen_ai.operation.name", "chat")
             chat_span.set_data("gen_ai.agent.name", AGENT_NAME)
             chat_span.set_data("gen_ai.request.model", model)
@@ -201,7 +201,7 @@ TOOLS = {{ agent.tools | dump }}
 {% if tool.result is defined or tool.error is defined %}
         tool_desc = "execute_tool {{ tool.name }}"
         with sentry_sdk.start_span(op="gen_ai.execute_tool", name=tool_desc) as tool_span:
-            tool_span.set_data("span.description", tool_desc)
+            tool_span.set_data("description", tool_desc)
             tool_span.set_data("gen_ai.operation.name", "execute_tool")
             tool_span.set_data("gen_ai.agent.name", AGENT_NAME)
             tool_span.set_data("gen_ai.tool.name", "{{ tool.name }}")

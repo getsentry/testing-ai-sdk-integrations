@@ -150,7 +150,7 @@ const TOOLS = {{ agent.tools | dump }};
       // Agent span (parent)
       const agentDesc = `invoke_agent ${model}`;
       await Sentry.startSpan({ op: "gen_ai.invoke_agent", name: agentDesc }, async (agentSpan) => {
-        agentSpan.setAttribute("span.description", agentDesc);
+        agentSpan.setAttribute("description", agentDesc);
         agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
         agentSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
         agentSpan.setAttribute("gen_ai.request.model", model);
@@ -163,7 +163,7 @@ const TOOLS = {{ agent.tools | dump }};
         // Chat span (child of agent)
         const chatDesc = `chat ${model}`;
         await Sentry.startSpan({ op: "gen_ai.chat", name: chatDesc }, async (chatSpan) => {
-          chatSpan.setAttribute("span.description", chatDesc);
+          chatSpan.setAttribute("description", chatDesc);
           chatSpan.setAttribute("gen_ai.operation.name", "chat");
           chatSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
           chatSpan.setAttribute("gen_ai.request.model", model);
@@ -203,7 +203,7 @@ const TOOLS = {{ agent.tools | dump }};
 {% if tool.result is defined or tool.error is defined %}
         const toolDesc{{ loop.index }} = "execute_tool {{ tool.name }}";
         await Sentry.startSpan({ op: "gen_ai.execute_tool", name: toolDesc{{ loop.index }} }, async (toolSpan) => {
-          toolSpan.setAttribute("span.description", toolDesc{{ loop.index }});
+          toolSpan.setAttribute("description", toolDesc{{ loop.index }});
           toolSpan.setAttribute("gen_ai.operation.name", "execute_tool");
           toolSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
           toolSpan.setAttribute("gen_ai.tool.name", "{{ tool.name }}");

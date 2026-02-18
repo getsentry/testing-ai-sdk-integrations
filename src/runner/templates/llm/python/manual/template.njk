@@ -113,7 +113,7 @@ def build_sentry_messages(messages):
 
     description = f"chat {model}"
     with sentry_sdk.start_span(op="gen_ai.chat", name=description) as span:
-        span.set_data("span.description", description)
+        span.set_data("description", description)
         span.set_data("gen_ai.operation.name", "chat")
         span.set_data("gen_ai.request.model", model)
         span.set_data("gen_ai.response.model", model)
