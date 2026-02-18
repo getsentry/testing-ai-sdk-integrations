@@ -51,7 +51,7 @@ export class TemplateRenderer {
   /**
    * Render a template
    *
-   * @param templatePath - Path relative to templates dir (e.g., 'llm/py/openai/template.njk')
+   * @param templatePath - Path relative to templates dir (e.g., 'llm/python/openai/template.njk')
    */
   render(templatePath: string, context: TemplateContext): string {
     return this.env.render(templatePath, context);
@@ -61,13 +61,13 @@ export class TemplateRenderer {
    * Render a framework template
    *
    * @param type - 'llm' or 'agents'
-   * @param platform - 'node', 'py', 'browser', or 'nextjs'
+   * @param platform - 'node', 'python', 'browser', or 'nextjs'
    * @param frameworkName - Framework name (e.g., 'openai')
    * @param context - Template context
    */
   renderFramework(
     type: "llm" | "agents",
-    platform: "node" | "py" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
     frameworkName: string,
     context: TemplateContext,
   ): string {
@@ -79,7 +79,7 @@ export class TemplateRenderer {
    * Render base template for a platform
    */
   renderBase(
-    platform: "node" | "py" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
     context: TemplateContext,
   ): string {
     const templateFile = getBaseTemplateName(platform);
@@ -97,7 +97,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: "node" | "py" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
     context: TemplateContext,
     blocks: {
       imports?: string;

@@ -37,7 +37,7 @@ import { TemplateRenderer } from "./dist/runner/template-renderer.js";
 const renderer = new TemplateRenderer();
 
 // Render a template directly
-const code = renderer.render("llm/py/openai/template.njk", {
+const code = renderer.render("llm/python/openai/template.njk", {
   testName: "My Test",
   frameworkName: "openai",
   system: "You are a helpful assistant.",
@@ -48,7 +48,7 @@ const code = renderer.render("llm/py/openai/template.njk", {
 });
 
 // Or use the helper method
-const code2 = renderer.renderFramework("llm", "py", "openai", {
+const code2 = renderer.renderFramework("llm", "python", "openai", {
   testName: "My Test",
   frameworkName: "openai",
   system: "You are a helpful assistant.",
@@ -96,8 +96,8 @@ Each framework has its own directory with two files:
 
 Example:
 
-- `src/runner/templates/llm/py/openai/template.njk`
-- `src/runner/templates/llm/py/openai/config.json`
+- `src/runner/templates/llm/python/openai/template.njk`
+- `src/runner/templates/llm/python/openai/config.json`
 
 Schema:
 
@@ -106,7 +106,7 @@ Schema:
   name: string;              // Framework identifier
   displayName: string;       // Human-readable name
   type: 'llm-only' | 'agentic';
-  platform: 'node' | 'py' | 'browser' | 'nextjs' | 'php';
+  platform: 'node' | 'python' | 'browser' | 'nextjs' | 'php';
   dependencies: Array<{
     package: string;
     version: string;         // "framework" | "latest" | specific version
@@ -122,7 +122,7 @@ Schema:
 
 ## Adding New Framework Templates
 
-1. Create framework directory: `src/runner/templates/{llm,agents}/{node,py,browser,nextjs,php}/{framework}/`
+1. Create framework directory: `src/runner/templates/{llm,agents}/{node,python,browser,nextjs,php}/{framework}/`
 2. Create template file: `template.njk`
 3. Create config file: `config.json`
 4. Rebuild: `npm run build`
@@ -131,9 +131,9 @@ Schema:
 Example for a new framework called "my-sdk":
 
 ```bash
-mkdir -p src/runner/templates/llm/py/my-sdk
-touch src/runner/templates/llm/py/my-sdk/template.njk
-touch src/runner/templates/llm/py/my-sdk/config.json
+mkdir -p src/runner/templates/llm/python/my-sdk
+touch src/runner/templates/llm/python/my-sdk/template.njk
+touch src/runner/templates/llm/python/my-sdk/config.json
 ```
 
 See template documentation in `src/runner/templates/README.md`.

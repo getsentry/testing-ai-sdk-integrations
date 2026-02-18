@@ -38,9 +38,9 @@ export class Runner {
    * Get platform-specific runner based on platform
    */
   private getPlatformRunner(
-    platform: "node" | "py" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
   ): PythonRunner | JavaScriptRunner | BrowserRunner | PhpRunner {
-    if (platform === "py") {
+    if (platform === "python") {
       return this.pythonRunner;
     } else if (platform === "php") {
       return this.phpRunner;
@@ -383,7 +383,7 @@ export class Runner {
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "py" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php",
   ): Promise<void> {
     try {
       const parser = getFormatterParser(platform);

@@ -60,10 +60,10 @@ jobs:
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
-          path: runs/py
-          key: py-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          path: runs/python
+          key: python-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
           restore-keys: |
-            py-envs-main-${{ runner.os }}-
+            python-envs-main-${{ runner.os }}-
 
       - name: Cache PHP test environments
         uses: actions/cache@v4
@@ -151,10 +151,10 @@ jobs:
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
-          path: runs/py
-          key: py-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/py/**/config.json') }}
+          path: runs/python
+          key: python-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
           restore-keys: |
-            py-envs-pr-${{ runner.os }}-
+            python-envs-pr-${{ runner.os }}-
 
       - name: Cache PHP test environments
         uses: actions/cache@v4

@@ -1,0 +1,24 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain Python SDK",
+  "type": "llm-only",
+  "platform": "python",
+  "executionMode": "both",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "langchain",
+      "version": "framework"
+    },
+    {
+      "package": "langchain-openai",
+      "version": "latest"
+    },
+    {
+      "package": "respx",
+      "version": "latest"
+    }
+  ],
+  "versions": ["1.2.8"],
+  "sentryVersions": ["2.51.0", "latest"]
+}

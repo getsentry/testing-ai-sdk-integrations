@@ -214,7 +214,7 @@ export class Orchestrator {
       }
 
       const isAsync =
-        firstRun.framework.platform === "py" &&
+        firstRun.framework.platform === "python" &&
         firstRun.framework.executionMode === "async";
       const isStreaming = firstRun.framework.streamingMode === "streaming";
 
@@ -256,7 +256,7 @@ export class Orchestrator {
         }
 
         const testIsAsync =
-          testRun.framework.platform === "py" &&
+          testRun.framework.platform === "python" &&
           testRun.framework.executionMode === "async";
         const testIsStreaming = testRun.framework.streamingMode === "streaming";
 
@@ -460,7 +460,7 @@ export class Orchestrator {
     try {
       // Determine isAsync and isStreaming flags
       const isAsync =
-        testRun.framework.platform === "py" &&
+        testRun.framework.platform === "python" &&
         testRun.framework.executionMode === "async";
       const isStreaming = testRun.framework.streamingMode === "streaming";
 
@@ -681,7 +681,7 @@ export class Orchestrator {
 
     for (const [platform, frameworks] of tree) {
       const platformIcon = getPlatformIcon(
-        platform as "node" | "py" | "browser",
+        platform as "node" | "python" | "browser",
       );
       console.log(
         `${platformIcon} ${colors.bright}${platform.toUpperCase()}${colors.reset}`,
@@ -817,7 +817,7 @@ export class Orchestrator {
 
       // Determine isAsync flag for Python frameworks
       const isAsync =
-        testRun.framework.platform === "py" &&
+        testRun.framework.platform === "python" &&
         testRun.framework.executionMode === "async";
 
       // Determine isStreaming flag
@@ -971,7 +971,7 @@ export class Orchestrator {
 
     // Add execution mode for Python
     if (
-      testRun.framework.platform === "py" &&
+      testRun.framework.platform === "python" &&
       testRun.framework.executionMode
     ) {
       modeParts.push(testRun.framework.executionMode);
@@ -1096,7 +1096,7 @@ export class Orchestrator {
     for (const run of report.runs) {
       // Build mode string with execution mode (Python) and streaming mode
       const modeParts: string[] = [];
-      if (run.framework.platform === "py" && run.framework.executionMode) {
+      if (run.framework.platform === "python" && run.framework.executionMode) {
         modeParts.push(run.framework.executionMode);
       }
       if (run.framework.streamingMode) {

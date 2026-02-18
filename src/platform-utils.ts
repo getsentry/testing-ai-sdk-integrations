@@ -5,7 +5,7 @@
 
 import { FrameworkConfig } from "./types.js";
 
-export type Platform = "node" | "py" | "browser" | "nextjs" | "php";
+export type Platform = "node" | "python" | "browser" | "nextjs" | "php";
 
 /** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
 export const JS_PLATFORMS: readonly Platform[] = ["node", "browser"] as const;
@@ -27,7 +27,7 @@ export function resolvePlatformFilter(value: string): Platform[] {
  */
 export function getFileExtension(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "py";
     case "php":
       return "php";
@@ -46,7 +46,7 @@ export function getFileExtension(platform: Platform): string {
  */
 export function getPlatformIcon(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "🐍";
     case "php":
       return "🐘";
@@ -64,7 +64,7 @@ export function getPlatformIcon(platform: Platform): string {
  */
 export function getPlatformDisplayName(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "PYTHON";
     case "php":
       return "PHP";
@@ -81,7 +81,7 @@ export function getPlatformDisplayName(platform: Platform): string {
  * Check if platform supports execution modes (sync/async)
  */
 export function supportsExecutionModes(platform: Platform): boolean {
-  return platform === "py";
+  return platform === "python";
 }
 
 /**
@@ -102,7 +102,7 @@ export function supportsExecutionMode(
  */
 export function getLocalSentryEnvVar(platform: Platform): string | null {
   switch (platform) {
-    case "py":
+    case "python":
       return "SENTRY_PYTHON_PATH";
     case "php":
       return "SENTRY_LARAVEL_PATH";
@@ -118,7 +118,7 @@ export function getLocalSentryEnvVar(platform: Platform): string | null {
  */
 export function getSentryPackageName(platform: Platform): string {
   switch (platform) {
-    case "py":
+    case "python":
       return "sentry-sdk";
     case "php":
       return "sentry/sentry-laravel";
@@ -136,10 +136,10 @@ export function getSentryPackageName(platform: Platform): string {
  */
 export function getBaseTemplateName(platform: Platform): string {
   switch (platform) {
-    case "py":
-      return "base.py.njk";
     case "php":
       return "base.php.njk";
+    case "python":
+      return "base.python.njk";
     case "browser":
       return "base.browser.njk";
     case "node":
@@ -155,7 +155,7 @@ export function getBaseTemplateName(platform: Platform): string {
  */
 export function getFormatterParser(platform: Platform): string | null {
   switch (platform) {
-    case "py":
+    case "python":
       return "black"; // Uses black CLI
     case "php":
       return null; // No formatter for PHP templates
@@ -172,7 +172,7 @@ export function getFormatterParser(platform: Platform): string | null {
  * Check if framework needs async flag
  */
 export function needsAsyncFlag(framework: FrameworkConfig): boolean {
-  return framework.platform === "py" && framework.executionMode === "async";
+  return framework.platform === "python" && framework.executionMode === "async";
 }
 
 /**
@@ -185,7 +185,7 @@ export function determineSentryVersion(
 ): string {
   const defaultVersion = framework.sentryVersion || "latest";
 
-  if (framework.platform === "py" && sentryPythonPath) {
+  if (framework.platform === "python" && sentryPythonPath) {
     return "local";
   }
 
@@ -217,7 +217,7 @@ export function buildModeParts(
   const parts: string[] = [];
 
   // Add execution mode for Python
-  if (framework.platform === "py") {
+  if (framework.platform === "python") {
     parts.push(isAsync ? "async" : "sync");
   }
 

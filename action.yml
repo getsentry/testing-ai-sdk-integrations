@@ -8,7 +8,7 @@ branding:
 
 inputs:
   platform:
-    description: "Platform to test. One of: js, py, php, or leave empty for all"
+    description: "Platform to test. One of: node, python, php, or leave empty for both"
     required: false
     default: ""
   framework:
@@ -80,13 +80,13 @@ runs:
         node-version: "20"
 
     - name: Setup Python
-      if: inputs.platform == 'py' || inputs.platform == ''
+      if: inputs.platform == 'python' || inputs.platform == ''
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
     - name: Install uv (Python package manager)
-      if: inputs.platform == 'py' || inputs.platform == ''
+      if: inputs.platform == 'python' || inputs.platform == ''
       uses: astral-sh/setup-uv@v5
 
     - name: Install dependencies and build

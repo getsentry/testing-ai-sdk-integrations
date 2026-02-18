@@ -156,7 +156,7 @@ export class LiveStatusReporter {
 
     for (const [platform, frameworks] of byPlatform) {
       const platformIcon =
-        platform === "py"
+        platform === "python"
           ? "🐍"
           : platform === "php"
             ? "🐘"

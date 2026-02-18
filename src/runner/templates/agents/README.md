@@ -4,16 +4,16 @@ Templates for frameworks that support agentic workflows with tool calling.
 
 ## Compatible Frameworks
 
-| Platform   | Framework     | Directory           | Status  |
-| ---------- | ------------- | ------------------- | ------- |
-| JavaScript | Vercel AI SDK | `js/vercel/`        | ✅ Done |
-| JavaScript | LangGraph     | `js/langgraph/`     | ✅ Done |
-| JavaScript | Mastra        | `js/mastra/`        | ✅ Done |
-| Python     | OpenAI Agents | `py/openai-agents/` | ✅ Done |
-| Python     | LangGraph     | `py/langgraph/`     | ✅ Done |
-| Python     | PydanticAI    | `py/pydantic-ai/`   | ✅ Done |
-| Python     | Google GenAI  | `py/google-genai/`  | ✅ Done |
-| PHP        | Laravel AI    | `php/laravel/`      | ✅ Done |
+| Platform   | Framework     | Directory               | Status  |
+| ---------- | ------------- | ----------------------- | ------- |
+| JavaScript | Vercel AI SDK | `node/vercel/`          | ✅ Done |
+| JavaScript | LangGraph     | `node/langgraph/`       | ✅ Done |
+| JavaScript | Mastra        | `node/mastra/`          | ✅ Done |
+| Python     | OpenAI Agents | `python/openai-agents/` | ✅ Done |
+| Python     | LangGraph     | `python/langgraph/`     | ✅ Done |
+| Python     | PydanticAI    | `python/pydantic-ai/`   | ✅ Done |
+| Python     | Google GenAI  | `python/google-genai/`  | ✅ Done |
+| PHP        | Laravel AI    | `php/laravel/`          | ✅ Done |
 
 ## Test Compatibility
 
@@ -56,7 +56,7 @@ Each agent template must:
 1. **Extend base template**
 
    ```nunjucks
-   {% extends "base.{js,py}.njk" %}
+   {% extends "base.{node,python}.njk" %}
    ```
 
 2. **Import SDK**

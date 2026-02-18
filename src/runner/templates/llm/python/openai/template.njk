@@ -1,0 +1,95 @@
+{% extends "base.python.njk" %}
+
+{# Macro to convert our content format to OpenAI format for Python #}
+{% macro convertMessages(messages) %}
+[
+{% for message in messages %}
+        {
+            "role": "{{ message.role }}",
+{% if message.content is string %}
+            "content": "{{ message.content }}"
+{% else %}
+            "content": [
+{% for part in message.content %}
+{% if part.type == 'text' %}
+                {"type": "text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+                {"type": "image_url", "image_url": {"url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"}},
+{% endif %}
+{% endfor %}
+            ]
+{% endif %}
+        },
+{% endfor %}
+    ]
+{% endmacro %}
+
+{% block imports %}
+{{ super() }}
+{% if isAsync %}
+from openai import AsyncOpenAI
+{% else %}
+from openai import OpenAI
+{% endif %}
+{% if causeAPIError %}
+import respx
+import httpx
+{% endif %}
+{% endblock %}
+
+{% block inject_api_error %}
+{% if causeAPIError %}
+respx.route(host="api.openai.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.mock.start()
+{% endif %}
+{% endblock %}
+
+{% block setup %}
+{% if isAsync %}
+client = AsyncOpenAI()
+{% else %}
+client = OpenAI()
+{% endif %}
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+    # Turn {{ loop.index }}
+{% if isStreaming %}
+{% if isAsync %}
+    stream = await client.chat.completions.create(
+{% else %}
+    stream = client.chat.completions.create(
+{% endif %}
+        model="{{ input.model }}",
+        messages={{ convertMessages(input.messages) }},
+        stream=True,
+    )
+    
+    collected_content = []
+{% if isAsync %}
+    async for chunk in stream:
+{% else %}
+    for chunk in stream:
+{% endif %}
+        if chunk.choices[0].delta.content is not None:
+            collected_content.append(chunk.choices[0].delta.content)
+    
+    full_response = "".join(collected_content)
+    print(f"Turn {{ loop.index }} Response: {full_response}")
+{% else %}
+{% if isAsync %}
+    response = await client.chat.completions.create(
+{% else %}
+    response = client.chat.completions.create(
+{% endif %}
+        model="{{ input.model }}",
+        messages={{ convertMessages(input.messages) }},
+    )
+    print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
+{% endif %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endblock %}
