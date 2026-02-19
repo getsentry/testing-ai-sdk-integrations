@@ -2,7 +2,7 @@
  * Common test utilities for span validation
  */
 
-import { CapturedSpan, ErrorLocation } from "../types.js";
+import { CapturedSpan, ErrorLocation, FrameworkConfig } from "../types.js";
 import { SkipCheckError, CheckError } from "../validator.js";
 
 /**
@@ -49,7 +49,7 @@ export function skipIf(condition: boolean, reason: string): void {
  */
 export function mapToolName(
   toolName: string,
-  config?: { toolNameMapping?: { [key: string]: string } }
+  config?: FrameworkConfig
 ): string {
   return config?.toolNameMapping?.[toolName] ?? toolName;
 }

@@ -279,6 +279,7 @@ async function main() {
           executionMode: df.executionMode,
           streamingMode: df.streamingMode,
           modelOverrides: df.modelOverrides,
+          toolNameMapping: df.toolNameMapping,
           skip: df.skip,
         };
       });
