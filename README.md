@@ -494,6 +494,36 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
         Reporter outputs results
 ```
 
+## OpenTelemetry Attribute Migration
+
+The test framework supports both **legacy** and **OpenTelemetry (OTEL)** attribute formats, enabling smooth migration to the OTEL standard while maintaining backward compatibility.
+
+### Automatic Fallback & Deprecation Warnings
+
+- **New attributes first**: Checks always try OTEL attributes first (e.g., `gen_ai.input.messages`)
+- **Legacy fallback**: Automatically falls back to legacy attributes (e.g., `gen_ai.request.messages`) if new ones aren't present
+- **Non-blocking warnings**: When legacy attributes are detected, deprecation warnings are logged but tests still pass
+- **Dynamic tracking**: Deprecation mappings are loaded from the [sentry-conventions](https://github.com/getsentry/sentry-conventions) submodule
+
+### Example Output
+
+When a framework uses legacy attributes, you'll see:
+
+```
+⚠  DEPRECATION WARNING in checkInputMessagesSchema: 2 usage(s) of deprecated attributes
+   - gen_ai.request.messages (2 spans): Attribute "gen_ai.request.messages" is deprecated. Use "gen_ai.input.messages" instead (OTEL standard).
+✓ Test passed (with deprecation warnings)
+```
+
+### Updating Conventions
+
+To pull the latest attribute definitions:
+
+```bash
+npm run update-conventions
+npm run build
+```
+
 ## Adding a New Framework
 
 ### 1. Create Template Directory

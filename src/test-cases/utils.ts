@@ -34,6 +34,27 @@ export function skipIf(condition: boolean, reason: string): void {
 }
 
 /**
+ * Map a tool name using framework-specific toolNameMapping if available.
+ * Some frameworks (e.g., Laravel) use different naming conventions (PascalCase)
+ * than the test definitions (lowercase).
+ *
+ * @param toolName - The expected tool name from the test definition
+ * @param config - The framework configuration
+ * @returns The mapped tool name, or the original name if no mapping exists
+ *
+ * @example
+ * // Laravel config has: toolNameMapping: { "add": "Add", "multiply": "Multiply" }
+ * mapToolName("add", laravelConfig) // Returns "Add"
+ * mapToolName("add", openaiConfig)  // Returns "add" (no mapping)
+ */
+export function mapToolName(
+  toolName: string,
+  config?: { toolNameMapping?: { [key: string]: string } }
+): string {
+  return config?.toolNameMapping?.[toolName] ?? toolName;
+}
+
+/**
  * Callable that receives a span and returns an expected value for validation.
  * Use this to derive expected values dynamically from span attributes.
  *

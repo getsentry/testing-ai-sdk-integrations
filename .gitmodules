@@ -1,0 +1,3 @@
+[submodule "sentry-conventions"]
+	path = sentry-conventions
+	url = https://github.com/getsentry/sentry-conventions.git

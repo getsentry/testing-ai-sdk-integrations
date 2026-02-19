@@ -19,11 +19,6 @@ import {
   checkTrimmingMetadata,
   checkInputMessagesSchema,
 } from "../checks.js";
-import {
-  checkInputMessages,
-  checkOutputMessages,
-  checkSystemInstructions,
-} from "../otel-checks.js";
 
 // Generate a long message that exceeds 20KB
 // We'll repeat a pattern to create predictable content
@@ -63,11 +58,7 @@ export const longInputLLMTest: TestDefinition = {
     checkInputMessagesSchema,
   ],
 
-  warningChecks: [
-    checkInputMessages,
-    checkOutputMessages,
-    checkSystemInstructions,
-  ],
+  warningChecks: [],
 };
 
 export default longInputLLMTest;

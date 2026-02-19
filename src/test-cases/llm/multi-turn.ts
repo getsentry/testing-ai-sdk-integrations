@@ -14,11 +14,6 @@ import {
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
 } from "../checks.js";
-import {
-  checkInputMessages,
-  checkOutputMessages,
-  checkSystemInstructions,
-} from "../otel-checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
 import { CheckError } from "../../validator.js";
 
@@ -120,9 +115,6 @@ export const multiTurnLLMTest: TestDefinition = {
   warningChecks: [
     checkInputTokensCached,
     checkOutputTokensReasoning,
-    checkInputMessages,
-    checkOutputMessages,
-    checkSystemInstructions,
   ],
 };
 

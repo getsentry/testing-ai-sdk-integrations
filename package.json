@@ -10,7 +10,8 @@
     "test": "node dist/cli.js",
     "setup": "node dist/setup.js",
     "dev": "npm run build && node dist/cli.js",
-    "report": "node dist/generate-html-report.js"
+    "report": "node dist/generate-html-report.js",
+    "update-conventions": "git submodule update --remote sentry-conventions"
   },
   "keywords": [
     "sentry",

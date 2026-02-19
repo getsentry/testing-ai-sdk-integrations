@@ -352,6 +352,41 @@ interface Check {
 | `checkTrimmingMetadata`      | Original length metadata is present                 |
 | `checkBinaryRedaction`       | Binary content (images) is redacted                 |
 
+## Attribute Deprecation System
+
+The project uses sentry-conventions as a git submodule to dynamically track deprecated GenAI attributes. This ensures the test framework stays aligned with OpenTelemetry standards while maintaining backward compatibility.
+
+### How It Works
+
+1. **Dynamic Loading**: The deprecation loader (`src/deprecation/loader.ts`) scans the `sentry-conventions/model/attributes/gen_ai/` directory at runtime to identify deprecated attributes
+2. **Automatic Fallback**: Checks use new OTEL attributes first, automatically falling back to legacy attributes if the new ones aren't present
+3. **Non-Blocking Warnings**: When legacy attributes are detected, deprecation warnings are logged (visible in console output) but tests continue to pass
+4. **Graceful Degradation**: If the submodule isn't available, the system continues to work with fallback behavior
+
+### Attribute Migration Mapping
+
+The following attributes have been migrated to OpenTelemetry standards:
+
+| Legacy Attribute | OTEL Replacement | Status |
+|------------------|------------------|--------|
+| `gen_ai.request.messages` | `gen_ai.input.messages` | Deprecated |
+| `gen_ai.response.text` | `gen_ai.output.messages` | Deprecated |
+| `gen_ai.response.tool_calls` | `gen_ai.output.messages` (embedded) | Deprecated |
+| `gen_ai.request.available_tools` | `gen_ai.tool.definitions` | Deprecated |
+| `gen_ai.tool.input` | `gen_ai.tool.call.arguments` | Pending deprecation |
+| `gen_ai.tool.output` | `gen_ai.tool.call.result` | Pending deprecation |
+
+### Updating Deprecation Mappings
+
+To pull the latest attribute definitions from sentry-conventions:
+
+```bash
+npm run update-conventions
+npm run build
+```
+
+The loader will automatically detect any new deprecations added to the conventions repository.
+
 ## Framework Configuration
 
 Each framework has a `config.json` file that defines its capabilities:

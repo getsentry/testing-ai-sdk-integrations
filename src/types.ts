@@ -125,6 +125,11 @@ export interface FrameworkConfig {
     request?: string;
     response?: string;
   };
+  // Tool name mapping: Map expected tool names to framework-reported names
+  // Example: { "add": "Add", "multiply": "Multiply" } for PascalCase frameworks
+  toolNameMapping?: {
+    [expectedName: string]: string;
+  };
   // Skip configuration: Tests or checks that should be skipped
   skip?: {
     tests?: string[]; // Array of test names to skip entirely
