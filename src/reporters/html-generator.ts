@@ -304,6 +304,11 @@ interface ReportCheckResult {
     attribute?: string;
     message: string;
   }>;
+  deprecationWarnings?: Array<{
+    spanId: string;
+    attribute?: string;
+    message: string;
+  }>;
 }
 
 /**
@@ -433,9 +438,33 @@ function CheckResultsBreakdown({
       const label = sev === "critical" ? "Critical" : sev === "warning" ? "Warnings" : "Checks";
       const items = groups[sev].map((cr) => {
         if (cr.status === "passed") {
-          return html`<div class="check-result check-passed">
+          const hasDeprecations = cr.deprecationWarnings && cr.deprecationWarnings.length > 0;
+          return html`<div class="check-result check-passed ${hasDeprecations ? 'check-with-deprecations' : ''}">
             <span class="check-icon">✓</span>
             <span class="check-name">${cr.name}</span>
+            ${hasDeprecations
+              ? html`<span class="deprecation-badge" title="${cr.deprecationWarnings!.length} deprecation warning(s)">
+                  ⚠ ${cr.deprecationWarnings!.length}
+                </span>`
+              : ""}
+            ${hasDeprecations
+              ? html`<div class="deprecation-details">
+                  <div class="deprecation-label">Deprecation Warnings:</div>
+                  ${Array.from(
+                    new Map(
+                      cr.deprecationWarnings!.filter((w) => w.attribute).map((w) => [
+                        w.attribute!,
+                        cr.deprecationWarnings!.filter((x) => x.attribute === w.attribute),
+                      ]),
+                    ).entries(),
+                  ).map(
+                    ([attr, warnings]) => html`<div class="deprecation-item">
+                      <code>${attr}</code> (${warnings.length} span${warnings.length > 1 ? "s" : ""})
+                      <div class="deprecation-message">${warnings[0].message}</div>
+                    </div>`,
+                  )}
+                </div>`
+              : ""}
           </div>`;
         } else if (cr.status === "skipped") {
           return html`<div class="check-result check-skipped">
@@ -457,6 +486,18 @@ function CheckResultsBreakdown({
   return html`<div class="check-results-breakdown">
     ${sections}
   </div>`;
+}
+
+/**
+ * Check if a test has any deprecation warnings in its check results
+ */
+function hasDeprecationWarnings(test: Test): boolean {
+  const extra = test.extra as Record<string, unknown> | undefined;
+  const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
+  if (!checkResults) return false;
+  return checkResults.some(
+    (cr) => cr.deprecationWarnings && cr.deprecationWarnings.length > 0,
+  );
 }
 
 /**
@@ -536,6 +577,72 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
               : spanCount === 0
                 ? html`<div class="no-spans">No spans captured</div>`
                 : ""}
+          </div>
+        </details>
+      `;
+    })}
+  `;
+}
+
+/**
+ * Deprecation warnings section - shows passed tests that use deprecated attributes
+ */
+function DeprecationWarningsSection({ tests }: { tests: Test[] }) {
+  const testsWithDeprecations = tests.filter(
+    (t) => t.status !== "failed" && hasDeprecationWarnings(t),
+  );
+
+  if (testsWithDeprecations.length === 0) {
+    return html``;
+  }
+
+  return html`
+    <h2>Deprecation Warnings (${testsWithDeprecations.length} test${testsWithDeprecations.length > 1 ? "s" : ""})</h2>
+    <p class="deprecation-section-desc">These tests passed but use deprecated attributes that should be migrated to newer OpenTelemetry conventions.</p>
+    ${testsWithDeprecations.map((test) => {
+      const caseId = test.name.split(" :: ")[1] || test.name;
+      const extra = test.extra as Record<string, unknown> | undefined;
+      const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
+
+      // Only include checks that have deprecation warnings
+      const checksWithWarnings = (checkResults || []).filter(
+        (cr) => cr.deprecationWarnings && cr.deprecationWarnings.length > 0,
+      );
+
+      return html`
+        <details class="deprecation-test">
+          <summary>
+            <span class="deprecation-icon">⚠</span>
+            <strong
+              >${test.suite && test.suite.length > 0
+                ? test.suite[0]
+                : "unknown"}</strong
+            >
+            :: ${caseId}
+            <span class="deprecation-badge">${checksWithWarnings.reduce((sum, cr) => sum + (cr.deprecationWarnings?.length || 0), 0)} warning${checksWithWarnings.reduce((sum, cr) => sum + (cr.deprecationWarnings?.length || 0), 0) !== 1 ? "s" : ""}</span>
+          </summary>
+          <div class="deprecation-test-details">
+            ${checksWithWarnings.map(
+              (cr) => html`<div class="check-result check-passed check-with-deprecations">
+                <span class="check-icon">✓</span>
+                <span class="check-name">${cr.name}</span>
+                <div class="deprecation-details">
+                  ${Array.from(
+                    new Map(
+                      cr.deprecationWarnings!.filter((w) => w.attribute).map((w) => [
+                        w.attribute!,
+                        cr.deprecationWarnings!.filter((x) => x.attribute === w.attribute),
+                      ]),
+                    ).entries(),
+                  ).map(
+                    ([attr, warnings]) => html`<div class="deprecation-item">
+                      <code>${attr}</code> (${warnings.length} span${warnings.length > 1 ? "s" : ""})
+                      <div class="deprecation-message">${warnings[0].message}</div>
+                    </div>`,
+                  )}
+                </div>
+              </div>`,
+            )}
           </div>
         </details>
       `;
@@ -911,6 +1018,78 @@ export function generateHTML(report: Report): string {
           .check-severity-warning .check-icon {
             color: #f57f17;
           }
+          .check-with-deprecations {
+            border-left-color: #ff9800;
+          }
+          .deprecation-badge {
+            display: inline-block;
+            background: #fff3e0;
+            color: #e65100;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: 8px;
+            font-weight: 600;
+          }
+          .deprecation-details {
+            margin: 8px 0 4px 24px;
+            padding: 8px;
+            background: #fffdf7;
+            border: 1px solid #ffe0b2;
+            border-radius: 4px;
+            font-size: 12px;
+          }
+          .deprecation-label {
+            font-weight: 600;
+            color: #e65100;
+            margin-bottom: 6px;
+          }
+          .deprecation-item {
+            margin: 4px 0;
+            padding: 4px 0;
+          }
+          .deprecation-item code {
+            background: #fff;
+            padding: 2px 4px;
+            border-radius: 2px;
+            border: 1px solid #ddd;
+            font-size: 11px;
+            color: #d84315;
+          }
+          .deprecation-message {
+            color: #666;
+            margin-top: 2px;
+            font-style: italic;
+          }
+          .deprecation-section-desc {
+            color: #666;
+            font-size: 14px;
+            margin: -10px 0 15px 0;
+          }
+          .deprecation-test {
+            margin: 15px 0;
+            border: 1px solid #ffe0b2;
+            border-radius: 4px;
+          }
+          .deprecation-test summary {
+            padding: 15px;
+            cursor: pointer;
+            background: #fffdf7;
+            user-select: none;
+          }
+          .deprecation-test summary:hover {
+            background: #fff8e1;
+          }
+          .deprecation-test[open] summary {
+            border-bottom: 1px solid #ffe0b2;
+          }
+          .deprecation-icon {
+            color: #e65100;
+            margin-right: 8px;
+          }
+          .deprecation-test-details {
+            padding: 15px;
+          }
           .check-error-msg {
             margin: 4px 0 4px 24px;
             font-size: 12px;
@@ -1017,6 +1196,7 @@ export function generateHTML(report: Report): string {
           ${SummaryCards({ summary: report.results.summary })}
           ${TestMatrix({ report })}
           ${FailedTestsDetails({ tests: report.results.tests })}
+          ${DeprecationWarningsSection({ tests: report.results.tests })}
         </div>
         <script dangerouslySetInnerHTML=${{ __html: `
           function toggleSpanPreview(btn) {

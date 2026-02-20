@@ -1125,6 +1125,32 @@ export class Orchestrator {
             console.log(
               `  ${colors.green}✓${colors.reset} ${colors.dim}${check.name}${colors.reset}`,
             );
+            // Show deprecation warnings if any
+            if (check.deprecationWarnings && check.deprecationWarnings.length > 0) {
+              // Group warnings by attribute
+              const warningsByAttr = new Map<string, number>();
+              for (const warning of check.deprecationWarnings) {
+                if (warning.attribute) {
+                  warningsByAttr.set(
+                    warning.attribute,
+                    (warningsByAttr.get(warning.attribute) || 0) + 1,
+                  );
+                }
+              }
+              console.log(
+                `    ${colors.yellow}⚠  Deprecation:${colors.reset} ${colors.dim}${check.deprecationWarnings.length} usage(s) of deprecated attributes${colors.reset}`,
+              );
+              for (const [attr, count] of warningsByAttr) {
+                const firstWarning = check.deprecationWarnings.find(
+                  (w) => w.attribute === attr,
+                );
+                if (firstWarning) {
+                  console.log(
+                    `      ${colors.gray}- ${attr} (${count} span${count > 1 ? "s" : ""}): ${firstWarning.message}${colors.reset}`,
+                  );
+                }
+              }
+            }
           } else if (check.status === "skipped") {
             const reason = check.skipReason || "Not supported";
             console.log(

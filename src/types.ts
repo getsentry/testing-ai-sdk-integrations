@@ -3,7 +3,16 @@
  */
 
 /**
+ * Optional result that check functions can return
+ */
+export interface CheckFunctionResult {
+  /** Deprecation warnings encountered during the check (non-blocking) */
+  deprecationWarnings?: ErrorLocation[];
+}
+
+/**
  * Check function signature
+ * Can return void (no warnings) or an object with deprecation warnings
  * @param spans - Captured spans from the test run
  * @param config - Framework configuration
  * @param testDef - The test definition being run
@@ -12,7 +21,7 @@ export type CheckFunction = (
   spans: CapturedSpan[],
   config: FrameworkConfig,
   testDef: TestDefinition,
-) => void | Promise<void>;
+) => void | Promise<void> | CheckFunctionResult | Promise<CheckFunctionResult>;
 
 /**
  * Check definition with name and function
@@ -163,6 +172,8 @@ export interface CheckResult {
   skipReason?: string;
   /** Locations within span data that caused the failure */
   errorLocations?: ErrorLocation[];
+  /** Deprecation warnings for legacy attributes used (non-blocking) */
+  deprecationWarnings?: ErrorLocation[];
 }
 
 export interface TestRun {

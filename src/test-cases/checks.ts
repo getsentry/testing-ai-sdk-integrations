@@ -36,13 +36,22 @@ import {
 
 
 /**
+ * Optional result that check functions can return
+ */
+export interface CheckFunctionResult {
+  /** Deprecation warnings encountered during the check (non-blocking) */
+  deprecationWarnings?: ErrorLocation[];
+}
+
+/**
  * Check function signature
+ * Can return void (no warnings) or an object with deprecation warnings
  */
 export type CheckFunction = (
   spans: CapturedSpan[],
   config: FrameworkConfig,
   testDef: TestDefinition,
-) => void | Promise<void>;
+) => void | Promise<void> | CheckFunctionResult | Promise<CheckFunctionResult>;
 
 /**
  * Check definition with name and function
@@ -197,11 +206,13 @@ export const checkChatSpanAttributes: Check = {
       }
     }
 
-    // Log deprecation warnings (non-blocking)
-    deprecationCollector.logWarnings("checkChatSpanAttributes");
-
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+
+    // Return warnings for test reports
+    if (deprecationCollector.hasWarnings()) {
+      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -437,11 +448,13 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
         }
       }
 
-      // Log deprecation warnings (non-blocking)
-      deprecationCollector.logWarnings(`checkToolCalls(${toolNames})`);
-
       if (errors.length > 0) {
         throw new CheckError(errors.join("\n"), locations);
+      }
+
+      // Return warnings for test reports
+      if (deprecationCollector.hasWarnings()) {
+        return { deprecationWarnings: deprecationCollector.getWarnings() };
       }
     },
   };
@@ -560,11 +573,13 @@ export const checkAvailableTools: Check = {
       locations.push({ spanId: spanWithTools.span_id, attribute: toolsResult.usedAttribute!, message: msg });
     }
 
-    // Log deprecation warnings (non-blocking)
-    deprecationCollector.logWarnings("checkAvailableTools");
-
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+
+    // Return warnings for test reports
+    if (deprecationCollector.hasWarnings()) {
+      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -743,11 +758,13 @@ export function checkResponseToolCalls(
         }
       }
 
-      // Log deprecation warnings (non-blocking)
-      deprecationCollector.logWarnings(`checkResponseToolCalls(${toolNames})`);
-
       if (errors.length > 0) {
         throw new CheckError(errors.join("\n"), locations);
+      }
+
+      // Return warnings for test reports
+      if (deprecationCollector.hasWarnings()) {
+        return { deprecationWarnings: deprecationCollector.getWarnings() };
       }
     },
   };
@@ -962,11 +979,13 @@ export const checkInputMessagesSchema: Check = {
       }
     }
 
-    // Log deprecation warnings (non-blocking)
-    deprecationCollector.logWarnings("checkInputMessagesSchema");
-
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+
+    // Return warnings for test reports
+    if (deprecationCollector.hasWarnings()) {
+      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -1059,11 +1078,13 @@ export const checkBinaryRedaction: Check = {
       }
     }
 
-    // Log deprecation warnings (non-blocking)
-    deprecationCollector.logWarnings("checkBinaryRedaction");
-
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+
+    // Return warnings for test reports
+    if (deprecationCollector.hasWarnings()) {
+      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -1239,11 +1260,13 @@ export const checkMessageTrimming: Check = {
 
     skipIf(!foundTrimmedMessage, "No gen_ai.input.messages or gen_ai.request.messages attribute found");
 
-    // Log deprecation warnings (non-blocking)
-    deprecationCollector.logWarnings("checkMessageTrimming");
-
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+
+    // Return warnings for test reports
+    if (deprecationCollector.hasWarnings()) {
+      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -1329,11 +1352,13 @@ export const checkTrimmingMetadata: Check = {
       }
     }
 
-    // Log deprecation warnings (non-blocking)
-    deprecationCollector.logWarnings("checkTrimmingMetadata");
-
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+
+    // Return warnings for test reports
+    if (deprecationCollector.hasWarnings()) {
+      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
