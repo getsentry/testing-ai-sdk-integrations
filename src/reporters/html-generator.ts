@@ -304,11 +304,27 @@ interface ReportCheckResult {
     attribute?: string;
     message: string;
   }>;
-  deprecationWarnings?: Array<{
-    spanId: string;
-    attribute?: string;
-    message: string;
-  }>;
+}
+
+/**
+ * Audited attribute from the attribute audit phase
+ */
+interface ReportAuditedAttribute {
+  attribute: string;
+  status: "known" | "deprecated" | "unknown";
+  replacement?: string;
+  message: string;
+  spanIds: string[];
+}
+
+/**
+ * Attribute audit result from the extra data
+ */
+interface ReportAttributeAudit {
+  totalAttributes: number;
+  knownAttributes: ReportAuditedAttribute[];
+  deprecatedAttributes: ReportAuditedAttribute[];
+  unknownAttributes: ReportAuditedAttribute[];
 }
 
 /**
@@ -438,33 +454,9 @@ function CheckResultsBreakdown({
       const label = sev === "critical" ? "Critical" : sev === "warning" ? "Warnings" : "Checks";
       const items = groups[sev].map((cr) => {
         if (cr.status === "passed") {
-          const hasDeprecations = cr.deprecationWarnings && cr.deprecationWarnings.length > 0;
-          return html`<div class="check-result check-passed ${hasDeprecations ? 'check-with-deprecations' : ''}">
+          return html`<div class="check-result check-passed">
             <span class="check-icon">✓</span>
             <span class="check-name">${cr.name}</span>
-            ${hasDeprecations
-              ? html`<span class="deprecation-badge" title="${cr.deprecationWarnings!.length} deprecation warning(s)">
-                  ⚠ ${cr.deprecationWarnings!.length}
-                </span>`
-              : ""}
-            ${hasDeprecations
-              ? html`<div class="deprecation-details">
-                  <div class="deprecation-label">Deprecation Warnings:</div>
-                  ${Array.from(
-                    new Map(
-                      cr.deprecationWarnings!.filter((w) => w.attribute).map((w) => [
-                        w.attribute!,
-                        cr.deprecationWarnings!.filter((x) => x.attribute === w.attribute),
-                      ]),
-                    ).entries(),
-                  ).map(
-                    ([attr, warnings]) => html`<div class="deprecation-item">
-                      <code>${attr}</code> (${warnings.length} span${warnings.length > 1 ? "s" : ""})
-                      <div class="deprecation-message">${warnings[0].message}</div>
-                    </div>`,
-                  )}
-                </div>`
-              : ""}
           </div>`;
         } else if (cr.status === "skipped") {
           return html`<div class="check-result check-skipped">
@@ -489,15 +481,47 @@ function CheckResultsBreakdown({
 }
 
 /**
- * Check if a test has any deprecation warnings in its check results
+ * Render inline audit findings for a single test.
+ * Used inside both FailedTestsDetails and AttributeAuditSection.
  */
-function hasDeprecationWarnings(test: Test): boolean {
-  const extra = test.extra as Record<string, unknown> | undefined;
-  const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
-  if (!checkResults) return false;
-  return checkResults.some(
-    (cr) => cr.deprecationWarnings && cr.deprecationWarnings.length > 0,
-  );
+function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
+  if (audit.deprecatedAttributes.length === 0 && audit.unknownAttributes.length === 0) {
+    return "";
+  }
+
+  return html`<div class="audit-inline">
+    ${audit.deprecatedAttributes.length > 0
+      ? html`<div class="audit-group audit-group-deprecated">
+          <div class="audit-group-label">Deprecated Attributes</div>
+          ${audit.deprecatedAttributes
+            .slice()
+            .sort((a, b) => a.attribute.localeCompare(b.attribute))
+            .map(
+              (attr) => html`<div class="audit-item audit-item-deprecated">
+                <code class="audit-attr">${attr.attribute}</code>
+                <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
+                ${attr.replacement ? html`<span class="audit-arrow">→</span> <code class="audit-replacement">${attr.replacement}</code>` : ""}
+                <div class="audit-message">${attr.message}</div>
+              </div>`,
+            )}
+        </div>`
+      : ""}
+    ${audit.unknownAttributes.length > 0
+      ? html`<div class="audit-group audit-group-unknown">
+          <div class="audit-group-label">Unknown Attributes</div>
+          ${audit.unknownAttributes
+            .slice()
+            .sort((a, b) => a.attribute.localeCompare(b.attribute))
+            .map(
+              (attr) => html`<div class="audit-item audit-item-unknown">
+                <code class="audit-attr">${attr.attribute}</code>
+                <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
+                <div class="audit-message">${attr.message}</div>
+              </div>`,
+            )}
+        </div>`
+      : ""}
+  </div>`;
 }
 
 /**
@@ -518,6 +542,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const spans = extra?.spans as unknown[] | undefined;
       const spanCount = extra?.spanCount as number | undefined;
       const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
+      const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
 
       // Count failures by severity for summary badges
       const severityCounts = { critical: 0, normal: 0, warning: 0 };
@@ -564,6 +589,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
                     </div>
                   `
                 : ""}
+            ${audit ? InlineAuditDisplay({ audit }) : ""}
             ${spans && spans.length > 0
               ? html`
                   <details class="spans-section">
@@ -585,64 +611,46 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
 }
 
 /**
- * Deprecation warnings section - shows passed tests that use deprecated attributes
+ * Attribute audit section - shows deprecated and unknown gen_ai attributes per test.
+ * Only includes non-failed tests (failed tests show audit inline in FailedTestsDetails).
  */
-function DeprecationWarningsSection({ tests }: { tests: Test[] }) {
-  const testsWithDeprecations = tests.filter(
-    (t) => t.status !== "failed" && hasDeprecationWarnings(t),
-  );
+function AttributeAuditSection({ tests }: { tests: Test[] }) {
+  // Only show non-failed tests here (failed tests have audit inline)
+  const testsWithFindings = tests.filter((t) => {
+    if (t.status === "failed") return false;
+    const extra = t.extra as Record<string, unknown> | undefined;
+    const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
+    return audit && (audit.deprecatedAttributes.length > 0 || audit.unknownAttributes.length > 0);
+  });
 
-  if (testsWithDeprecations.length === 0) {
+  if (testsWithFindings.length === 0) {
     return html``;
   }
 
   return html`
-    <h2>Deprecation Warnings (${testsWithDeprecations.length} test${testsWithDeprecations.length > 1 ? "s" : ""})</h2>
-    <p class="deprecation-section-desc">These tests passed but use deprecated attributes that should be migrated to newer OpenTelemetry conventions.</p>
-    ${testsWithDeprecations.map((test) => {
+    <h2>Attribute Audit (${testsWithFindings.length} test${testsWithFindings.length !== 1 ? "s" : ""})</h2>
+    <p class="audit-section-desc">Audit of <code>gen_ai.*</code> attributes found on captured spans, checked against sentry-conventions definitions.</p>
+    ${testsWithFindings.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
-      const extra = test.extra as Record<string, unknown> | undefined;
-      const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
-
-      // Only include checks that have deprecation warnings
-      const checksWithWarnings = (checkResults || []).filter(
-        (cr) => cr.deprecationWarnings && cr.deprecationWarnings.length > 0,
-      );
+      const extra = test.extra as Record<string, unknown>;
+      const audit = extra.attributeAudit as ReportAttributeAudit;
+      const deprecated = audit.deprecatedAttributes.length;
+      const unknown = audit.unknownAttributes.length;
 
       return html`
-        <details class="deprecation-test">
+        <details class="audit-test">
           <summary>
-            <span class="deprecation-icon">⚠</span>
+            <span class="audit-icon">⚠</span>
             <strong
               >${test.suite && test.suite.length > 0
                 ? test.suite[0]
                 : "unknown"}</strong
             >
             :: ${caseId}
-            <span class="deprecation-badge">${checksWithWarnings.reduce((sum, cr) => sum + (cr.deprecationWarnings?.length || 0), 0)} warning${checksWithWarnings.reduce((sum, cr) => sum + (cr.deprecationWarnings?.length || 0), 0) !== 1 ? "s" : ""}</span>
+            <span class="audit-badge">${deprecated > 0 ? `${deprecated} deprecated` : ""}${deprecated > 0 && unknown > 0 ? ", " : ""}${unknown > 0 ? `${unknown} unknown` : ""}</span>
           </summary>
-          <div class="deprecation-test-details">
-            ${checksWithWarnings.map(
-              (cr) => html`<div class="check-result check-passed check-with-deprecations">
-                <span class="check-icon">✓</span>
-                <span class="check-name">${cr.name}</span>
-                <div class="deprecation-details">
-                  ${Array.from(
-                    new Map(
-                      cr.deprecationWarnings!.filter((w) => w.attribute).map((w) => [
-                        w.attribute!,
-                        cr.deprecationWarnings!.filter((x) => x.attribute === w.attribute),
-                      ]),
-                    ).entries(),
-                  ).map(
-                    ([attr, warnings]) => html`<div class="deprecation-item">
-                      <code>${attr}</code> (${warnings.length} span${warnings.length > 1 ? "s" : ""})
-                      <div class="deprecation-message">${warnings[0].message}</div>
-                    </div>`,
-                  )}
-                </div>
-              </div>`,
-            )}
+          <div class="audit-test-details">
+            ${InlineAuditDisplay({ audit })}
           </div>
         </details>
       `;
@@ -1018,10 +1026,40 @@ export function generateHTML(report: Report): string {
           .check-severity-warning .check-icon {
             color: #f57f17;
           }
-          .check-with-deprecations {
-            border-left-color: #ff9800;
+          /* Attribute audit section */
+          .audit-section-desc {
+            color: #666;
+            font-size: 14px;
+            margin: -10px 0 15px 0;
           }
-          .deprecation-badge {
+          .audit-section-desc code {
+            background: #f5f5f5;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 13px;
+          }
+          .audit-test {
+            margin: 15px 0;
+            border: 1px solid #ffe0b2;
+            border-radius: 4px;
+          }
+          .audit-test summary {
+            padding: 15px;
+            cursor: pointer;
+            background: #fffdf7;
+            user-select: none;
+          }
+          .audit-test summary:hover {
+            background: #fff8e1;
+          }
+          .audit-test[open] summary {
+            border-bottom: 1px solid #ffe0b2;
+          }
+          .audit-icon {
+            color: #e65100;
+            margin-right: 8px;
+          }
+          .audit-badge {
             display: inline-block;
             background: #fff3e0;
             color: #e65100;
@@ -1031,64 +1069,86 @@ export function generateHTML(report: Report): string {
             margin-left: 8px;
             font-weight: 600;
           }
-          .deprecation-details {
-            margin: 8px 0 4px 24px;
-            padding: 8px;
-            background: #fffdf7;
-            border: 1px solid #ffe0b2;
-            border-radius: 4px;
-            font-size: 12px;
+          .audit-test-details {
+            padding: 15px;
           }
-          .deprecation-label {
+          .audit-inline {
+            margin: 10px 0;
+          }
+          .audit-group {
+            margin: 8px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px 12px;
+          }
+          .audit-group-deprecated {
+            border-color: #ffe0b2;
+            background: #fffdf7;
+          }
+          .audit-group-unknown {
+            border-color: #e0e0e0;
+            background: #fafafa;
+          }
+          .audit-group-label {
+            font-size: 11px;
             font-weight: 600;
-            color: #e65100;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             margin-bottom: 6px;
           }
-          .deprecation-item {
-            margin: 4px 0;
-            padding: 4px 0;
+          .audit-group-deprecated .audit-group-label {
+            color: #e65100;
           }
-          .deprecation-item code {
+          .audit-group-unknown .audit-group-label {
+            color: #666;
+          }
+          .audit-item {
+            margin: 6px 0;
+            padding: 6px 8px;
+            border-radius: 4px;
+          }
+          .audit-item-deprecated {
+            background: #fff8e1;
+            border-left: 3px solid #ff9800;
+          }
+          .audit-item-unknown {
+            background: #f5f5f5;
+            border-left: 3px solid #9e9e9e;
+          }
+          .audit-attr {
             background: #fff;
             padding: 2px 4px;
             border-radius: 2px;
             border: 1px solid #ddd;
-            font-size: 11px;
+            font-size: 12px;
             color: #d84315;
           }
-          .deprecation-message {
+          .audit-item-unknown .audit-attr {
+            color: #555;
+          }
+          .audit-span-count {
+            color: #888;
+            font-size: 12px;
+            margin-left: 4px;
+          }
+          .audit-arrow {
+            color: #4caf50;
+            font-weight: bold;
+            margin: 0 4px;
+          }
+          .audit-replacement {
+            background: #e8f5e9;
+            padding: 2px 4px;
+            border-radius: 2px;
+            border: 1px solid #c8e6c9;
+            font-size: 12px;
+            color: #2e7d32;
+          }
+          .audit-message {
             color: #666;
             margin-top: 2px;
+            font-size: 12px;
             font-style: italic;
-          }
-          .deprecation-section-desc {
-            color: #666;
-            font-size: 14px;
-            margin: -10px 0 15px 0;
-          }
-          .deprecation-test {
-            margin: 15px 0;
-            border: 1px solid #ffe0b2;
-            border-radius: 4px;
-          }
-          .deprecation-test summary {
-            padding: 15px;
-            cursor: pointer;
-            background: #fffdf7;
-            user-select: none;
-          }
-          .deprecation-test summary:hover {
-            background: #fff8e1;
-          }
-          .deprecation-test[open] summary {
-            border-bottom: 1px solid #ffe0b2;
-          }
-          .deprecation-icon {
-            color: #e65100;
-            margin-right: 8px;
-          }
-          .deprecation-test-details {
-            padding: 15px;
           }
           .check-error-msg {
             margin: 4px 0 4px 24px;
@@ -1196,7 +1256,7 @@ export function generateHTML(report: Report): string {
           ${SummaryCards({ summary: report.results.summary })}
           ${TestMatrix({ report })}
           ${FailedTestsDetails({ tests: report.results.tests })}
-          ${DeprecationWarningsSection({ tests: report.results.tests })}
+          ${AttributeAuditSection({ tests: report.results.tests })}
         </div>
         <script dangerouslySetInnerHTML=${{ __html: `
           function toggleSpanPreview(btn) {

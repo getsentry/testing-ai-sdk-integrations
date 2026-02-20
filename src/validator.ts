@@ -122,15 +122,11 @@ export class Validator {
       }
 
       try {
-        const checkFnResult = await check.fn(spans, frameworkConfig, testDefinition);
+        await check.fn(spans, frameworkConfig, testDefinition);
         const result: CheckResult = {
           name: checkName,
           severity,
           status: "passed",
-          deprecationWarnings:
-            typeof checkFnResult === "object" && checkFnResult !== null
-              ? (checkFnResult as any).deprecationWarnings
-              : undefined,
         };
         checkResults.push(result);
         onCheckResult?.(result);

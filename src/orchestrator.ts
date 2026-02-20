@@ -30,6 +30,7 @@ import {
   TestReport,
   CapturedSpan,
 } from "./types.js";
+import { auditAttributes } from "./auditor.js";
 
 export class Orchestrator {
   private spanCollector: SpanCollector;
@@ -865,10 +866,18 @@ export class Orchestrator {
       );
       testRun.checkResults = checkResults;
 
+      // Run attribute audit on captured spans
+      if (spans.length > 0) {
+        testRun.attributeAudit = auditAttributes(spans);
+      }
+
       testRun.status = "passed";
 
       // Update live status
       if (this.useLiveStatus) {
+        if (testRun.attributeAudit) {
+          this.liveStatus.updateAuditResult(testRun, testRun.attributeAudit);
+        }
         this.liveStatus.updateTestStatus(testRun, "passed");
       }
 
@@ -889,8 +898,16 @@ export class Orchestrator {
         testRun.error = error instanceof Error ? error.message : String(error);
       }
 
+      // Run attribute audit even on failed tests
+      if (testRun.spans && testRun.spans.length > 0) {
+        testRun.attributeAudit = auditAttributes(testRun.spans);
+      }
+
       // Update live status
       if (this.useLiveStatus) {
+        if (testRun.attributeAudit) {
+          this.liveStatus.updateAuditResult(testRun, testRun.attributeAudit);
+        }
         this.liveStatus.updateTestStatus(testRun, "failed", testRun.error);
       }
 
@@ -1125,32 +1142,6 @@ export class Orchestrator {
             console.log(
               `  ${colors.green}✓${colors.reset} ${colors.dim}${check.name}${colors.reset}`,
             );
-            // Show deprecation warnings if any
-            if (check.deprecationWarnings && check.deprecationWarnings.length > 0) {
-              // Group warnings by attribute
-              const warningsByAttr = new Map<string, number>();
-              for (const warning of check.deprecationWarnings) {
-                if (warning.attribute) {
-                  warningsByAttr.set(
-                    warning.attribute,
-                    (warningsByAttr.get(warning.attribute) || 0) + 1,
-                  );
-                }
-              }
-              console.log(
-                `    ${colors.yellow}⚠  Deprecation:${colors.reset} ${colors.dim}${check.deprecationWarnings.length} usage(s) of deprecated attributes${colors.reset}`,
-              );
-              for (const [attr, count] of warningsByAttr) {
-                const firstWarning = check.deprecationWarnings.find(
-                  (w) => w.attribute === attr,
-                );
-                if (firstWarning) {
-                  console.log(
-                    `      ${colors.gray}- ${attr} (${count} span${count > 1 ? "s" : ""}): ${firstWarning.message}${colors.reset}`,
-                  );
-                }
-              }
-            }
           } else if (check.status === "skipped") {
             const reason = check.skipReason || "Not supported";
             console.log(
@@ -1201,6 +1192,29 @@ export class Orchestrator {
         console.log(
           `  ${colors.red}Error:${colors.reset} ${colors.dim}${run.error}${colors.reset}`,
         );
+      }
+
+      // Attribute audit summary
+      if (run.attributeAudit) {
+        const audit = run.attributeAudit;
+        if (audit.deprecatedAttributes.length > 0) {
+          console.log(`  ${colors.yellow}⚠  Deprecated Attributes:${colors.reset}`);
+          for (const attr of audit.deprecatedAttributes) {
+            const spanCount = attr.spanIds.length;
+            console.log(
+              `    ${colors.dim}- ${attr.attribute} (${spanCount} span${spanCount !== 1 ? "s" : ""}): ${attr.message}${colors.reset}`,
+            );
+          }
+        }
+        if (audit.unknownAttributes.length > 0) {
+          console.log(`  ${colors.gray}?  Unknown Attributes:${colors.reset}`);
+          for (const attr of audit.unknownAttributes) {
+            const spanCount = attr.spanIds.length;
+            console.log(
+              `    ${colors.dim}- ${attr.attribute} (${spanCount} span${spanCount !== 1 ? "s" : ""}): ${attr.message}${colors.reset}`,
+            );
+          }
+        }
       }
 
       // Duration

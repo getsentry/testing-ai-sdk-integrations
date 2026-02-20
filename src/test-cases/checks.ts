@@ -1,16 +1,18 @@
 /**
  * Reusable check functions for test cases
  *
- * Each check function follows the signature:
- *   (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void
- *
  * Check functions can:
  * - Throw a CheckError with ErrorLocation[] to fail with precise span/attribute info
  * - Throw a regular Error to fail the check
  * - Call skip() or skipIf() to skip the check
+ *
+ * Deprecation/unknown attribute detection is handled separately by the
+ * post-check attribute auditor (src/auditor.ts). Checks use
+ * getAttributeWithFallback() for backward compatibility but do not
+ * collect or report deprecation warnings.
  */
 
-import { CapturedSpan, FrameworkConfig, TestDefinition, ErrorLocation } from "../types.js";
+import { CapturedSpan, ErrorLocation, Check } from "../types.js";
 import { CheckError } from "../validator.js";
 import {
   extractGenAISpans,
@@ -28,38 +30,7 @@ import {
   TOOL_OPERATION_NAME_PATTERN,
   HANDOFF_OPERATION_NAME_PATTERN,
 } from "./utils.js";
-import {
-  getAttributeWithFallback,
-  DeprecationWarningCollector,
-} from "../deprecation/fallback.js";
-
-
-
-/**
- * Optional result that check functions can return
- */
-export interface CheckFunctionResult {
-  /** Deprecation warnings encountered during the check (non-blocking) */
-  deprecationWarnings?: ErrorLocation[];
-}
-
-/**
- * Check function signature
- * Can return void (no warnings) or an object with deprecation warnings
- */
-export type CheckFunction = (
-  spans: CapturedSpan[],
-  config: FrameworkConfig,
-  testDef: TestDefinition,
-) => void | Promise<void> | CheckFunctionResult | Promise<CheckFunctionResult>;
-
-/**
- * Check definition with name and function
- */
-export interface Check {
-  name: string;
-  fn: CheckFunction;
-}
+import { getAttributeWithFallback } from "../deprecation/fallback.js";
 
 // =============================================================================
 // Structure Checks
@@ -163,9 +134,6 @@ export const checkChatSpanAttributes: Check = {
     const responseModel =
       config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
 
-    const deprecationCollector = new DeprecationWarningCollector();
-
-    // Check most attributes with assertAttributes
     assertAttributes(chatSpans, {
       "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
@@ -181,25 +149,21 @@ export const checkChatSpanAttributes: Check = {
     const locations: ErrorLocation[] = [];
 
     for (const span of chatSpans) {
-      // Check input messages (new vs legacy)
       const messagesResult = getAttributeWithFallback(
         span,
         "gen_ai.input.messages",
         "gen_ai.request.messages"
       );
-      deprecationCollector.add(messagesResult.deprecationWarning);
       if (messagesResult.value === undefined) {
         errors.push("Should have gen_ai.input.messages or gen_ai.request.messages");
         locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: "Missing messages attribute" });
       }
 
-      // Check response text/output (new vs legacy)
       const responseResult = getAttributeWithFallback(
         span,
-        "gen_ai.output.messages",    // New OTEL format
-        "gen_ai.response.text"        // Legacy format
+        "gen_ai.output.messages",
+        "gen_ai.response.text"
       );
-      deprecationCollector.add(responseResult.deprecationWarning);
       if (responseResult.value === undefined) {
         errors.push("Should have gen_ai.output.messages or gen_ai.response.text");
         locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing response attribute" });
@@ -208,11 +172,6 @@ export const checkChatSpanAttributes: Check = {
 
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
-    }
-
-    // Return warnings for test reports
-    if (deprecationCollector.hasWarnings()) {
-      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -328,7 +287,6 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
 
       const errors: string[] = [];
       const locations: ErrorLocation[] = [];
-      const deprecationCollector = new DeprecationWarningCollector();
 
       for (const expected of expectedTools) {
         // Map the expected tool name using framework-specific naming
@@ -367,11 +325,9 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
         if (expected.input !== undefined) {
           const inputResult = getAttributeWithFallback(
             toolSpan,
-            "gen_ai.tool.call.arguments",  // New OTEL attribute
-            "gen_ai.tool.input"             // Legacy attribute
+            "gen_ai.tool.call.arguments",
+            "gen_ai.tool.input"
           );
-
-          deprecationCollector.add(inputResult.deprecationWarning);
 
           if (inputResult.value === undefined || inputResult.value === null) {
             const msg = `Tool "${expected.name}" should have gen_ai.tool.call.arguments or gen_ai.tool.input`;
@@ -421,11 +377,9 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
         if (expected.output !== undefined) {
           const outputResult = getAttributeWithFallback(
             toolSpan,
-            "gen_ai.tool.call.result",  // New OTEL attribute
-            "gen_ai.tool.output"         // Legacy attribute
+            "gen_ai.tool.call.result",
+            "gen_ai.tool.output"
           );
-
-          deprecationCollector.add(outputResult.deprecationWarning);
 
           if (outputResult.value === undefined || outputResult.value === null) {
             const msg = `Tool "${expected.name}" should have gen_ai.tool.call.result or gen_ai.tool.output`;
@@ -451,11 +405,6 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
       if (errors.length > 0) {
         throw new CheckError(errors.join("\n"), locations);
       }
-
-      // Return warnings for test reports
-      if (deprecationCollector.hasWarnings()) {
-        return { deprecationWarnings: deprecationCollector.getWarnings() };
-      }
     },
   };
 }
@@ -479,8 +428,6 @@ export const checkAvailableTools: Check = {
       throw new CheckError("Test should define at least one tool");
     }
 
-    const deprecationCollector = new DeprecationWarningCollector();
-
     // Find a chat span with available_tools (try both new and legacy attributes)
     let spanWithTools: CapturedSpan | undefined;
     let toolsResult: ReturnType<typeof getAttributeWithFallback> | undefined;
@@ -488,14 +435,13 @@ export const checkAvailableTools: Check = {
     for (const span of chatSpans) {
       const result = getAttributeWithFallback(
         span,
-        "gen_ai.tool.definitions",           // New OTEL attribute
-        "gen_ai.request.available_tools"     // Legacy attribute
+        "gen_ai.tool.definitions",
+        "gen_ai.request.available_tools"
       );
 
       if (result.value !== undefined) {
         spanWithTools = span;
         toolsResult = result;
-        deprecationCollector.add(result.deprecationWarning);
         break;
       }
     }
@@ -576,11 +522,6 @@ export const checkAvailableTools: Check = {
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
     }
-
-    // Return warnings for test reports
-    if (deprecationCollector.hasWarnings()) {
-      return { deprecationWarnings: deprecationCollector.getWarnings() };
-    }
   },
 };
 
@@ -623,20 +564,16 @@ export function checkResponseToolCalls(
 
       const errors: string[] = [];
       const locations: ErrorLocation[] = [];
-      const deprecationCollector = new DeprecationWarningCollector();
 
       // Collect all tool_calls from all chat spans, tracking which span they came from
       const allToolCalls: Array<{ data: Record<string, unknown>; sourceSpan: CapturedSpan; usedAttribute: string }> = [];
 
       for (const span of chatSpans) {
-        // Try new format first (gen_ai.output.messages), then fall back to old (gen_ai.response.tool_calls)
         const result = getAttributeWithFallback(
           span,
-          "gen_ai.output.messages",      // New OTEL format
-          "gen_ai.response.tool_calls"   // Legacy format
+          "gen_ai.output.messages",
+          "gen_ai.response.tool_calls"
         );
-
-        deprecationCollector.add(result.deprecationWarning);
 
         if (result.value === undefined) continue;
 
@@ -761,11 +698,6 @@ export function checkResponseToolCalls(
       if (errors.length > 0) {
         throw new CheckError(errors.join("\n"), locations);
       }
-
-      // Return warnings for test reports
-      if (deprecationCollector.hasWarnings()) {
-        return { deprecationWarnings: deprecationCollector.getWarnings() };
-      }
     },
   };
 }
@@ -813,18 +745,14 @@ export const checkInputMessagesSchema: Check = {
 
     const errors: string[] = [];
     const locations: ErrorLocation[] = [];
-    const deprecationCollector = new DeprecationWarningCollector();
     let foundMessages = false;
 
     for (const span of spansToCheck) {
-      // Use fallback helper - tries new attribute first, falls back to old
       const result = getAttributeWithFallback(
         span,
-        "gen_ai.input.messages",     // New OTEL attribute
-        "gen_ai.request.messages"    // Legacy attribute
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
       );
-
-      deprecationCollector.add(result.deprecationWarning);
 
       if (result.value === undefined) continue;
       foundMessages = true;
@@ -982,11 +910,6 @@ export const checkInputMessagesSchema: Check = {
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
     }
-
-    // Return warnings for test reports
-    if (deprecationCollector.hasWarnings()) {
-      return { deprecationWarnings: deprecationCollector.getWarnings() };
-    }
   },
 };
 
@@ -1014,18 +937,15 @@ export const checkBinaryRedaction: Check = {
 
     const errors: string[] = [];
     const locations: ErrorLocation[] = [];
-    const deprecationCollector = new DeprecationWarningCollector();
     let foundMessages = false;
     let foundRedaction = false;
 
     for (const span of spansToCheck) {
       const result = getAttributeWithFallback(
         span,
-        "gen_ai.input.messages",     // New OTEL attribute
-        "gen_ai.request.messages"    // Legacy attribute
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
       );
-
-      deprecationCollector.add(result.deprecationWarning);
 
       if (result.value === undefined) continue;
       foundMessages = true;
@@ -1080,11 +1000,6 @@ export const checkBinaryRedaction: Check = {
 
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
-    }
-
-    // Return warnings for test reports
-    if (deprecationCollector.hasWarnings()) {
-      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };
@@ -1227,16 +1142,13 @@ export const checkMessageTrimming: Check = {
     const maxExpectedSize = 15000;
     const errors: string[] = [];
     const locations: ErrorLocation[] = [];
-    const deprecationCollector = new DeprecationWarningCollector();
 
     for (const span of aiSpans) {
       const result = getAttributeWithFallback(
         span,
-        "gen_ai.input.messages",     // New OTEL attribute
-        "gen_ai.request.messages"    // Legacy attribute
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
       );
-
-      deprecationCollector.add(result.deprecationWarning);
 
       if (result.value !== undefined) {
         const messageStr =
@@ -1263,11 +1175,6 @@ export const checkMessageTrimming: Check = {
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
     }
-
-    // Return warnings for test reports
-    if (deprecationCollector.hasWarnings()) {
-      return { deprecationWarnings: deprecationCollector.getWarnings() };
-    }
   },
 };
 
@@ -1287,17 +1194,13 @@ export const checkTrimmingMetadata: Check = {
     let foundMetadata = false;
     const errors: string[] = [];
     const locations: ErrorLocation[] = [];
-    const deprecationCollector = new DeprecationWarningCollector();
 
     for (const span of aiSpans) {
-      // Check for original_length metadata (new and legacy)
       const originalLengthResult = getAttributeWithFallback(
         span,
         "gen_ai.input.messages.original_length",
         "gen_ai.request.messages.original_length"
       );
-
-      deprecationCollector.add(originalLengthResult.deprecationWarning);
 
       if (originalLengthResult.value === undefined) continue;
 
@@ -1323,8 +1226,6 @@ export const checkTrimmingMetadata: Check = {
         "gen_ai.input.messages",
         "gen_ai.request.messages"
       );
-
-      deprecationCollector.add(messagesResult.deprecationWarning);
 
       if (messagesResult.value !== undefined) {
         const messagesStr =
@@ -1354,11 +1255,6 @@ export const checkTrimmingMetadata: Check = {
 
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
-    }
-
-    // Return warnings for test reports
-    if (deprecationCollector.hasWarnings()) {
-      return { deprecationWarnings: deprecationCollector.getWarnings() };
     }
   },
 };

@@ -78,6 +78,55 @@ export function loadDeprecationMappings(): Map<string, DeprecationMapping> {
 }
 
 /**
+ * Cache for all loaded gen_ai attribute definitions
+ */
+let cachedAllAttributes: Map<string, AttributeDefinition> | null = null;
+
+/**
+ * Load ALL gen_ai attribute definitions from sentry-conventions.
+ * Returns Map from attribute key to its full definition.
+ * Used by the attribute auditor to classify attributes as
+ * known, deprecated, or unknown.
+ */
+export function loadAllGenAIAttributes(): Map<string, AttributeDefinition> {
+  if (cachedAllAttributes) {
+    return cachedAllAttributes;
+  }
+
+  const attributes = new Map<string, AttributeDefinition>();
+
+  const genAiDir = join(
+    process.cwd(),
+    "sentry-conventions",
+    "model",
+    "attributes",
+    "gen_ai"
+  );
+
+  try {
+    const files = readdirSync(genAiDir).filter((f) => f.endsWith(".json"));
+
+    for (const file of files) {
+      try {
+        const filePath = join(genAiDir, file);
+        const content = readFileSync(filePath, "utf-8");
+        const attr: AttributeDefinition = JSON.parse(content);
+        attributes.set(attr.key, attr);
+      } catch (fileError) {
+        console.warn(`Warning: Could not parse ${file}:`, fileError);
+      }
+    }
+  } catch (error) {
+    console.warn(
+      "⚠ Warning: Could not load sentry-conventions. Attribute audit will be limited."
+    );
+  }
+
+  cachedAllAttributes = attributes;
+  return attributes;
+}
+
+/**
  * Check if an attribute is deprecated
  *
  * @param attrName - The attribute name to check

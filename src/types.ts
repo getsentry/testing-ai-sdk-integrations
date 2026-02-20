@@ -3,16 +3,7 @@
  */
 
 /**
- * Optional result that check functions can return
- */
-export interface CheckFunctionResult {
-  /** Deprecation warnings encountered during the check (non-blocking) */
-  deprecationWarnings?: ErrorLocation[];
-}
-
-/**
  * Check function signature
- * Can return void (no warnings) or an object with deprecation warnings
  * @param spans - Captured spans from the test run
  * @param config - Framework configuration
  * @param testDef - The test definition being run
@@ -21,7 +12,7 @@ export type CheckFunction = (
   spans: CapturedSpan[],
   config: FrameworkConfig,
   testDef: TestDefinition,
-) => void | Promise<void> | CheckFunctionResult | Promise<CheckFunctionResult>;
+) => void | Promise<void>;
 
 /**
  * Check definition with name and function
@@ -172,8 +163,47 @@ export interface CheckResult {
   skipReason?: string;
   /** Locations within span data that caused the failure */
   errorLocations?: ErrorLocation[];
-  /** Deprecation warnings for legacy attributes used (non-blocking) */
-  deprecationWarnings?: ErrorLocation[];
+}
+
+// =============================================================================
+// Attribute Audit Types (post-check phase)
+// =============================================================================
+
+/**
+ * Classification of a gen_ai.* attribute found in captured spans
+ */
+export type AuditAttributeStatus = "known" | "deprecated" | "unknown";
+
+/**
+ * A single audited attribute entry
+ */
+export interface AuditedAttribute {
+  /** The attribute key (e.g., "gen_ai.request.messages") */
+  attribute: string;
+  /** Whether the attribute is known, deprecated, or unknown */
+  status: AuditAttributeStatus;
+  /** For deprecated attributes: the replacement attribute key */
+  replacement?: string;
+  /** Human-readable message */
+  message: string;
+  /** Span IDs where this attribute was found */
+  spanIds: string[];
+}
+
+/**
+ * Result of the post-check attribute audit for a test run.
+ * Scans all gen_ai.* attributes on captured spans and classifies each
+ * as known, deprecated, or unknown relative to sentry-conventions.
+ */
+export interface AttributeAudit {
+  /** Total number of unique gen_ai.* attributes found across all spans */
+  totalAttributes: number;
+  /** Attributes that are defined in sentry-conventions and not deprecated */
+  knownAttributes: AuditedAttribute[];
+  /** Attributes that are deprecated in sentry-conventions */
+  deprecatedAttributes: AuditedAttribute[];
+  /** Attributes with gen_ai.* prefix not found in sentry-conventions */
+  unknownAttributes: AuditedAttribute[];
 }
 
 export interface TestRun {
@@ -188,6 +218,8 @@ export interface TestRun {
   error?: string;
   spans?: CapturedSpan[];
   checkResults?: CheckResult[];
+  /** Post-check attribute audit results */
+  attributeAudit?: AttributeAudit;
   skipReason?: string;
 }
 

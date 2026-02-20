@@ -81,6 +81,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       ...(run.checkResults && {
         checkResults: run.checkResults,
       }),
+      ...(run.attributeAudit && {
+        attributeAudit: run.attributeAudit,
+      }),
     };
 
     return test;
