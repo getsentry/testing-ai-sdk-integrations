@@ -125,6 +125,11 @@ export interface FrameworkConfig {
     request?: string;
     response?: string;
   };
+  // Tool name mapping: Map expected tool names to framework-reported names
+  // Example: { "add": "Add", "multiply": "Multiply" } for PascalCase frameworks
+  toolNameMapping?: {
+    [expectedName: string]: string;
+  };
   // Skip configuration: Tests or checks that should be skipped
   skip?: {
     tests?: string[]; // Array of test names to skip entirely
@@ -160,6 +165,47 @@ export interface CheckResult {
   errorLocations?: ErrorLocation[];
 }
 
+// =============================================================================
+// Attribute Audit Types (post-check phase)
+// =============================================================================
+
+/**
+ * Classification of a gen_ai.* attribute found in captured spans
+ */
+export type AuditAttributeStatus = "known" | "deprecated" | "unknown";
+
+/**
+ * A single audited attribute entry
+ */
+export interface AuditedAttribute {
+  /** The attribute key (e.g., "gen_ai.request.messages") */
+  attribute: string;
+  /** Whether the attribute is known, deprecated, or unknown */
+  status: AuditAttributeStatus;
+  /** For deprecated attributes: the replacement attribute key */
+  replacement?: string;
+  /** Human-readable message */
+  message: string;
+  /** Span IDs where this attribute was found */
+  spanIds: string[];
+}
+
+/**
+ * Result of the post-check attribute audit for a test run.
+ * Scans all gen_ai.* attributes on captured spans and classifies each
+ * as known, deprecated, or unknown relative to sentry-conventions.
+ */
+export interface AttributeAudit {
+  /** Total number of unique gen_ai.* attributes found across all spans */
+  totalAttributes: number;
+  /** Attributes that are defined in sentry-conventions and not deprecated */
+  knownAttributes: AuditedAttribute[];
+  /** Attributes that are deprecated in sentry-conventions */
+  deprecatedAttributes: AuditedAttribute[];
+  /** Attributes with gen_ai.* prefix not found in sentry-conventions */
+  unknownAttributes: AuditedAttribute[];
+}
+
 export interface TestRun {
   id: string;
   /** Original index in the test matrix, used for consistent ordering in reports */
@@ -172,6 +218,8 @@ export interface TestRun {
   error?: string;
   spans?: CapturedSpan[];
   checkResults?: CheckResult[];
+  /** Post-check attribute audit results */
+  attributeAudit?: AttributeAudit;
   skipReason?: string;
 }
 

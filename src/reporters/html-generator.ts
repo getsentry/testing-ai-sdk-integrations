@@ -307,6 +307,27 @@ interface ReportCheckResult {
 }
 
 /**
+ * Audited attribute from the attribute audit phase
+ */
+interface ReportAuditedAttribute {
+  attribute: string;
+  status: "known" | "deprecated" | "unknown";
+  replacement?: string;
+  message: string;
+  spanIds: string[];
+}
+
+/**
+ * Attribute audit result from the extra data
+ */
+interface ReportAttributeAudit {
+  totalAttributes: number;
+  knownAttributes: ReportAuditedAttribute[];
+  deprecatedAttributes: ReportAuditedAttribute[];
+  unknownAttributes: ReportAuditedAttribute[];
+}
+
+/**
  * Escape HTML special characters to prevent XSS in pre-rendered HTML strings
  */
 function escapeHtml(str: string): string {
@@ -460,6 +481,50 @@ function CheckResultsBreakdown({
 }
 
 /**
+ * Render inline audit findings for a single test.
+ * Used inside both FailedTestsDetails and AttributeAuditSection.
+ */
+function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
+  if (audit.deprecatedAttributes.length === 0 && audit.unknownAttributes.length === 0) {
+    return "";
+  }
+
+  return html`<div class="audit-inline">
+    ${audit.deprecatedAttributes.length > 0
+      ? html`<div class="audit-group audit-group-deprecated">
+          <div class="audit-group-label">Deprecated Attributes</div>
+          ${audit.deprecatedAttributes
+            .slice()
+            .sort((a, b) => a.attribute.localeCompare(b.attribute))
+            .map(
+              (attr) => html`<div class="audit-item audit-item-deprecated">
+                <code class="audit-attr">${attr.attribute}</code>
+                <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
+                ${attr.replacement ? html`<span class="audit-arrow">→</span> <code class="audit-replacement">${attr.replacement}</code>` : ""}
+                <div class="audit-message">${attr.message}</div>
+              </div>`,
+            )}
+        </div>`
+      : ""}
+    ${audit.unknownAttributes.length > 0
+      ? html`<div class="audit-group audit-group-unknown">
+          <div class="audit-group-label">Unknown Attributes</div>
+          ${audit.unknownAttributes
+            .slice()
+            .sort((a, b) => a.attribute.localeCompare(b.attribute))
+            .map(
+              (attr) => html`<div class="audit-item audit-item-unknown">
+                <code class="audit-attr">${attr.attribute}</code>
+                <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
+                <div class="audit-message">${attr.message}</div>
+              </div>`,
+            )}
+        </div>`
+      : ""}
+  </div>`;
+}
+
+/**
  * Failed tests details section
  */
 function FailedTestsDetails({ tests }: { tests: Test[] }) {
@@ -477,6 +542,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const spans = extra?.spans as unknown[] | undefined;
       const spanCount = extra?.spanCount as number | undefined;
       const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
+      const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
 
       // Count failures by severity for summary badges
       const severityCounts = { critical: 0, normal: 0, warning: 0 };
@@ -523,6 +589,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
                     </div>
                   `
                 : ""}
+            ${audit ? InlineAuditDisplay({ audit }) : ""}
             ${spans && spans.length > 0
               ? html`
                   <details class="spans-section">
@@ -536,6 +603,54 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
               : spanCount === 0
                 ? html`<div class="no-spans">No spans captured</div>`
                 : ""}
+          </div>
+        </details>
+      `;
+    })}
+  `;
+}
+
+/**
+ * Attribute audit section - shows deprecated and unknown gen_ai attributes per test.
+ * Only includes non-failed tests (failed tests show audit inline in FailedTestsDetails).
+ */
+function AttributeAuditSection({ tests }: { tests: Test[] }) {
+  // Only show non-failed tests here (failed tests have audit inline)
+  const testsWithFindings = tests.filter((t) => {
+    if (t.status === "failed") return false;
+    const extra = t.extra as Record<string, unknown> | undefined;
+    const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
+    return audit && (audit.deprecatedAttributes.length > 0 || audit.unknownAttributes.length > 0);
+  });
+
+  if (testsWithFindings.length === 0) {
+    return html``;
+  }
+
+  return html`
+    <h2>Attribute Audit (${testsWithFindings.length} test${testsWithFindings.length !== 1 ? "s" : ""})</h2>
+    <p class="audit-section-desc">Audit of <code>gen_ai.*</code> attributes found on captured spans, checked against sentry-conventions definitions.</p>
+    ${testsWithFindings.map((test) => {
+      const caseId = test.name.split(" :: ")[1] || test.name;
+      const extra = test.extra as Record<string, unknown>;
+      const audit = extra.attributeAudit as ReportAttributeAudit;
+      const deprecated = audit.deprecatedAttributes.length;
+      const unknown = audit.unknownAttributes.length;
+
+      return html`
+        <details class="audit-test">
+          <summary>
+            <span class="audit-icon">⚠</span>
+            <strong
+              >${test.suite && test.suite.length > 0
+                ? test.suite[0]
+                : "unknown"}</strong
+            >
+            :: ${caseId}
+            <span class="audit-badge">${deprecated > 0 ? `${deprecated} deprecated` : ""}${deprecated > 0 && unknown > 0 ? ", " : ""}${unknown > 0 ? `${unknown} unknown` : ""}</span>
+          </summary>
+          <div class="audit-test-details">
+            ${InlineAuditDisplay({ audit })}
           </div>
         </details>
       `;
@@ -911,6 +1026,130 @@ export function generateHTML(report: Report): string {
           .check-severity-warning .check-icon {
             color: #f57f17;
           }
+          /* Attribute audit section */
+          .audit-section-desc {
+            color: #666;
+            font-size: 14px;
+            margin: -10px 0 15px 0;
+          }
+          .audit-section-desc code {
+            background: #f5f5f5;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 13px;
+          }
+          .audit-test {
+            margin: 15px 0;
+            border: 1px solid #ffe0b2;
+            border-radius: 4px;
+          }
+          .audit-test summary {
+            padding: 15px;
+            cursor: pointer;
+            background: #fffdf7;
+            user-select: none;
+          }
+          .audit-test summary:hover {
+            background: #fff8e1;
+          }
+          .audit-test[open] summary {
+            border-bottom: 1px solid #ffe0b2;
+          }
+          .audit-icon {
+            color: #e65100;
+            margin-right: 8px;
+          }
+          .audit-badge {
+            display: inline-block;
+            background: #fff3e0;
+            color: #e65100;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-left: 8px;
+            font-weight: 600;
+          }
+          .audit-test-details {
+            padding: 15px;
+          }
+          .audit-inline {
+            margin: 10px 0;
+          }
+          .audit-group {
+            margin: 8px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px 12px;
+          }
+          .audit-group-deprecated {
+            border-color: #ffe0b2;
+            background: #fffdf7;
+          }
+          .audit-group-unknown {
+            border-color: #e0e0e0;
+            background: #fafafa;
+          }
+          .audit-group-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+          }
+          .audit-group-deprecated .audit-group-label {
+            color: #e65100;
+          }
+          .audit-group-unknown .audit-group-label {
+            color: #666;
+          }
+          .audit-item {
+            margin: 6px 0;
+            padding: 6px 8px;
+            border-radius: 4px;
+          }
+          .audit-item-deprecated {
+            background: #fff8e1;
+            border-left: 3px solid #ff9800;
+          }
+          .audit-item-unknown {
+            background: #f5f5f5;
+            border-left: 3px solid #9e9e9e;
+          }
+          .audit-attr {
+            background: #fff;
+            padding: 2px 4px;
+            border-radius: 2px;
+            border: 1px solid #ddd;
+            font-size: 12px;
+            color: #d84315;
+          }
+          .audit-item-unknown .audit-attr {
+            color: #555;
+          }
+          .audit-span-count {
+            color: #888;
+            font-size: 12px;
+            margin-left: 4px;
+          }
+          .audit-arrow {
+            color: #4caf50;
+            font-weight: bold;
+            margin: 0 4px;
+          }
+          .audit-replacement {
+            background: #e8f5e9;
+            padding: 2px 4px;
+            border-radius: 2px;
+            border: 1px solid #c8e6c9;
+            font-size: 12px;
+            color: #2e7d32;
+          }
+          .audit-message {
+            color: #666;
+            margin-top: 2px;
+            font-size: 12px;
+            font-style: italic;
+          }
           .check-error-msg {
             margin: 4px 0 4px 24px;
             font-size: 12px;
@@ -1017,6 +1256,7 @@ export function generateHTML(report: Report): string {
           ${SummaryCards({ summary: report.results.summary })}
           ${TestMatrix({ report })}
           ${FailedTestsDetails({ tests: report.results.tests })}
+          ${AttributeAuditSection({ tests: report.results.tests })}
         </div>
         <script dangerouslySetInnerHTML=${{ __html: `
           function toggleSpanPreview(btn) {

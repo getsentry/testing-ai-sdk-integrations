@@ -2,7 +2,7 @@
  * Common test utilities for span validation
  */
 
-import { CapturedSpan, ErrorLocation } from "../types.js";
+import { CapturedSpan, ErrorLocation, FrameworkConfig } from "../types.js";
 import { SkipCheckError, CheckError } from "../validator.js";
 
 /**
@@ -31,6 +31,27 @@ export function skipIf(condition: boolean, reason: string): void {
   if (condition) {
     throw new SkipCheckError(reason);
   }
+}
+
+/**
+ * Map a tool name using framework-specific toolNameMapping if available.
+ * Some frameworks (e.g., Laravel) use different naming conventions (PascalCase)
+ * than the test definitions (lowercase).
+ *
+ * @param toolName - The expected tool name from the test definition
+ * @param config - The framework configuration
+ * @returns The mapped tool name, or the original name if no mapping exists
+ *
+ * @example
+ * // Laravel config has: toolNameMapping: { "add": "Add", "multiply": "Multiply" }
+ * mapToolName("add", laravelConfig) // Returns "Add"
+ * mapToolName("add", openaiConfig)  // Returns "add" (no mapping)
+ */
+export function mapToolName(
+  toolName: string,
+  config?: FrameworkConfig
+): string {
+  return config?.toolNameMapping?.[toolName] ?? toolName;
 }
 
 /**

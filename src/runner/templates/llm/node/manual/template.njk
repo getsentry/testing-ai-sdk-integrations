@@ -117,7 +117,7 @@ function buildSentryMessages(messages) {
 
       const desc{{ loop.index }} = `chat ${model{{ loop.index }}}`;
       await Sentry.startSpan({ op: "gen_ai.chat", name: desc{{ loop.index }} }, async (span) => {
-        span.setAttribute("span.description", desc{{ loop.index }});
+        span.setAttribute("description", desc{{ loop.index }});
         span.setAttribute("gen_ai.operation.name", "chat");
         span.setAttribute("gen_ai.request.model", model{{ loop.index }});
         span.setAttribute("gen_ai.response.model", model{{ loop.index }});

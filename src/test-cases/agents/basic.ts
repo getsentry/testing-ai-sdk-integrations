@@ -15,11 +15,6 @@ import {
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
 } from "../checks.js";
-import {
-  checkInputMessages,
-  checkOutputMessages,
-  checkSystemInstructions,
-} from "../otel-checks.js";
 
 export const basicAgentTest: TestDefinition = {
   name: "Basic Agent Test",
@@ -57,9 +52,6 @@ export const basicAgentTest: TestDefinition = {
   warningChecks: [
     checkInputTokensCached,
     checkOutputTokensReasoning,
-    checkInputMessages,
-    checkOutputMessages,
-    checkSystemInstructions,
   ],
 };
 

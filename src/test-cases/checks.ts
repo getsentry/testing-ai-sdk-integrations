@@ -1,16 +1,18 @@
 /**
  * Reusable check functions for test cases
  *
- * Each check function follows the signature:
- *   (spans: CapturedSpan[], config: FrameworkConfig, testDef: TestDefinition) => void
- *
  * Check functions can:
  * - Throw a CheckError with ErrorLocation[] to fail with precise span/attribute info
  * - Throw a regular Error to fail the check
  * - Call skip() or skipIf() to skip the check
+ *
+ * Deprecation/unknown attribute detection is handled separately by the
+ * post-check attribute auditor (src/auditor.ts). Checks use
+ * getAttributeWithFallback() for backward compatibility but do not
+ * collect or report deprecation warnings.
  */
 
-import { CapturedSpan, FrameworkConfig, TestDefinition, ErrorLocation } from "../types.js";
+import { CapturedSpan, ErrorLocation, Check } from "../types.js";
 import { CheckError } from "../validator.js";
 import {
   extractGenAISpans,
@@ -22,30 +24,13 @@ import {
   checkTokenUsage,
   skip,
   skipIf,
+  mapToolName,
   AGENT_OPERATION_NAME_PATTERN,
   AI_CLIENT_OPERATION_NAME_PATTERN,
   TOOL_OPERATION_NAME_PATTERN,
   HANDOFF_OPERATION_NAME_PATTERN,
 } from "./utils.js";
-
-
-
-/**
- * Check function signature
- */
-export type CheckFunction = (
-  spans: CapturedSpan[],
-  config: FrameworkConfig,
-  testDef: TestDefinition,
-) => void | Promise<void>;
-
-/**
- * Check definition with name and function
- */
-export interface Check {
-  name: string;
-  fn: CheckFunction;
-}
+import { getAttributeWithFallback } from "../deprecation/fallback.js";
 
 // =============================================================================
 // Structure Checks
@@ -125,7 +110,7 @@ export function checkAISpanCount(
  * Check attributes on chat/completion spans (LLM API calls)
  *
  * Validates:
- * - span.description equals "<gen_ai.operation.name> <gen_ai.request.model>"
+ * - description equals "<gen_ai.operation.name> <gen_ai.request.model>"
  * - gen_ai.operation.name matches AI_CLIENT_OPERATION_NAME_PATTERN
  * - gen_ai.request.model matches expected model
  * - gen_ai.request.messages exists
@@ -148,19 +133,46 @@ export const checkChatSpanAttributes: Check = {
       config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
     const responseModel =
       config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
-      
 
     assertAttributes(chatSpans, {
-      "span.description": (span) =>
+      "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": AI_CLIENT_OPERATION_NAME_PATTERN,
       "gen_ai.request.model": requestModel,
-      "gen_ai.request.messages": true,
       "gen_ai.response.model": responseModel,
-      "gen_ai.response.text": true,
       "gen_ai.usage.input_tokens": true,
       "gen_ai.usage.output_tokens": true,
     });
+
+    // Handle attributes with fallback separately
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
+
+    for (const span of chatSpans) {
+      const messagesResult = getAttributeWithFallback(
+        span,
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
+      );
+      if (messagesResult.value === undefined) {
+        errors.push("Should have gen_ai.input.messages or gen_ai.request.messages");
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: "Missing messages attribute" });
+      }
+
+      const responseResult = getAttributeWithFallback(
+        span,
+        "gen_ai.output.messages",
+        "gen_ai.response.text"
+      );
+      if (responseResult.value === undefined) {
+        errors.push("Should have gen_ai.output.messages or gen_ai.response.text");
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing response attribute" });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 
@@ -168,7 +180,7 @@ export const checkChatSpanAttributes: Check = {
  * Check attributes on invoke_agent spans (agent invocations)
  *
  * Validates:
- * - span.description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
+ * - description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
  * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
  * - gen_ai.agent.name exists
  *
@@ -183,7 +195,7 @@ export const checkAgentSpanAttributes: Check = {
     }
 
     assertAttributes(agentSpans, {
-      "span.description": (span) =>
+      "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
       "gen_ai.agent.name": true,
@@ -195,7 +207,7 @@ export const checkAgentSpanAttributes: Check = {
  * Check attributes on tool execution spans
  *
  * Validates:
- * - span.description equals "<gen_ai.operation.name> <gen_ai.tool.name>"
+ * - description equals "<gen_ai.operation.name> <gen_ai.tool.name>"
  * - gen_ai.operation.name matches TOOL_OPERATION_NAME_PATTERN
  * - gen_ai.tool.type exists
  * - gen_ai.tool.name exists
@@ -212,7 +224,7 @@ export const checkToolSpanAttributes: Check = {
     }
 
     assertAttributes(toolSpans, {
-      "span.description": (span) =>
+      "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.tool.name"]}`,
       "gen_ai.operation.name": TOOL_OPERATION_NAME_PATTERN,
       "gen_ai.tool.type": true,
@@ -265,7 +277,7 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
   const toolNames = expectedTools.map((t) => t.name).join(", ");
   return {
     name: `checkToolCalls(${toolNames})`,
-    fn: (spans) => {
+    fn: (spans, config) => {
       const toolSpans = findToolSpans(extractGenAISpans(spans));
       if (toolSpans.length < expectedTools.length) {
         throw new CheckError(
@@ -277,15 +289,17 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
       const locations: ErrorLocation[] = [];
 
       for (const expected of expectedTools) {
+        // Map the expected tool name using framework-specific naming
+        const expectedToolName = mapToolName(expected.name, config);
+
         // Find the tool span matching this expected tool
         const toolSpan = toolSpans.find(
-          (s) => s.data?.["gen_ai.tool.name"] === expected.name,
+          (s) => s.data?.["gen_ai.tool.name"] === expectedToolName,
         );
         if (!toolSpan) {
-          errors.push(`Should have a tool span for "${expected.name}"`);
+          errors.push(`Should have a tool span for "${expectedToolName}" (mapped from "${expected.name}")`);
           continue;
         }
-
 
         // Validate type if specified
         if (expected.type !== undefined) {
@@ -307,27 +321,32 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
           }
         }
 
-        // Validate input if specified
+        // Validate input if specified (with fallback to legacy attribute)
         if (expected.input !== undefined) {
-          const inputRaw = toolSpan.data?.["gen_ai.tool.input"];
-          if (inputRaw === undefined || inputRaw === null) {
-            const msg = `Tool "${expected.name}" should have gen_ai.tool.input`;
+          const inputResult = getAttributeWithFallback(
+            toolSpan,
+            "gen_ai.tool.call.arguments",
+            "gen_ai.tool.input"
+          );
+
+          if (inputResult.value === undefined || inputResult.value === null) {
+            const msg = `Tool "${expected.name}" should have gen_ai.tool.call.arguments or gen_ai.tool.input`;
             errors.push(msg);
-            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.arguments", message: msg });
           } else {
             // Parse input if it's a JSON string
             let input: Record<string, unknown>;
-            if (typeof inputRaw === "string") {
+            if (typeof inputResult.value === "string") {
               try {
-                input = JSON.parse(inputRaw);
+                input = JSON.parse(inputResult.value);
               } catch {
-                const msg = `Tool "${expected.name}" has invalid JSON in gen_ai.tool.input: ${inputRaw}`;
+                const msg = `Tool "${expected.name}" has invalid JSON in ${inputResult.usedAttribute}: ${inputResult.value}`;
                 errors.push(msg);
-                locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+                locations.push({ spanId: toolSpan.span_id, attribute: inputResult.usedAttribute!, message: msg });
                 continue;
               }
             } else {
-              input = inputRaw as Record<string, unknown>;
+              input = inputResult.value as Record<string, unknown>;
             }
 
             // Check each expected input field
@@ -335,7 +354,7 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
               if (input[key] === undefined || input[key] === null) {
                 const msg = `Tool "${expected.name}" input should have "${key}"`;
                 errors.push(msg);
-                locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+                locations.push({ spanId: toolSpan.span_id, attribute: inputResult.usedAttribute!, message: msg });
               } else if (value !== undefined) {
                 const actualValue = input[key];
                 let matches = false;
@@ -347,32 +366,37 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
                 if (!matches) {
                   const msg = `Tool "${expected.name}" input.${key} should equal ${JSON.stringify(value)} but is ${JSON.stringify(actualValue)}`;
                   errors.push(msg);
-                  locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.input", message: msg });
+                  locations.push({ spanId: toolSpan.span_id, attribute: inputResult.usedAttribute!, message: msg });
                 }
               }
             }
           }
         }
 
-        // Validate output if specified
+        // Validate output if specified (with fallback to legacy attribute)
         if (expected.output !== undefined) {
-          const outputRaw = toolSpan.data?.["gen_ai.tool.output"];
-          if (outputRaw === undefined || outputRaw === null) {
-            const msg = `Tool "${expected.name}" should have gen_ai.tool.output`;
+          const outputResult = getAttributeWithFallback(
+            toolSpan,
+            "gen_ai.tool.call.result",
+            "gen_ai.tool.output"
+          );
+
+          if (outputResult.value === undefined || outputResult.value === null) {
+            const msg = `Tool "${expected.name}" should have gen_ai.tool.call.result or gen_ai.tool.output`;
             errors.push(msg);
-            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.output", message: msg });
+            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.call.result", message: msg });
           } else {
             let output: unknown;
-            if (typeof outputRaw === "string") {
-              try { output = JSON.parse(outputRaw); } catch { output = outputRaw; }
+            if (typeof outputResult.value === "string") {
+              try { output = JSON.parse(outputResult.value); } catch { output = outputResult.value; }
             } else {
-              output = outputRaw;
+              output = outputResult.value;
             }
 
             if (JSON.stringify(output) !== JSON.stringify(expected.output)) {
               const msg = `Tool "${expected.name}" output should equal ${JSON.stringify(expected.output)} but is ${JSON.stringify(output)}`;
               errors.push(msg);
-              locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.output", message: msg });
+              locations.push({ spanId: toolSpan.span_id, attribute: outputResult.usedAttribute!, message: msg });
             }
           }
         }
@@ -404,39 +428,53 @@ export const checkAvailableTools: Check = {
       throw new CheckError("Test should define at least one tool");
     }
 
-    // Find a chat span with available_tools
-    const spanWithTools = chatSpans.find(
-      (s) => s.data?.["gen_ai.request.available_tools"] !== undefined,
-    );
-    if (!spanWithTools) {
-      throw new CheckError("Should have a chat span with gen_ai.request.available_tools", chatSpans.map((s) => ({
-        spanId: s.span_id,
-        attribute: "gen_ai.request.available_tools",
-        message: "Attribute is missing",
-      })));
+    // Find a chat span with available_tools (try both new and legacy attributes)
+    let spanWithTools: CapturedSpan | undefined;
+    let toolsResult: ReturnType<typeof getAttributeWithFallback> | undefined;
+
+    for (const span of chatSpans) {
+      const result = getAttributeWithFallback(
+        span,
+        "gen_ai.tool.definitions",
+        "gen_ai.request.available_tools"
+      );
+
+      if (result.value !== undefined) {
+        spanWithTools = span;
+        toolsResult = result;
+        break;
+      }
     }
 
-    const availableToolsRaw =
-      spanWithTools.data?.["gen_ai.request.available_tools"];
+    if (!spanWithTools || !toolsResult) {
+      throw new CheckError(
+        "Should have a chat span with gen_ai.tool.definitions or gen_ai.request.available_tools",
+        chatSpans.map((s) => ({
+          spanId: s.span_id,
+          attribute: "gen_ai.tool.definitions",
+          message: "Attribute is missing",
+        }))
+      );
+    }
 
     // Parse if JSON string
     let availableTools: Array<Record<string, unknown>>;
-    if (typeof availableToolsRaw === "string") {
+    if (typeof toolsResult.value === "string") {
       try {
-        availableTools = JSON.parse(availableToolsRaw);
+        availableTools = JSON.parse(toolsResult.value);
       } catch {
         throw new CheckError(
-          `Invalid JSON in gen_ai.request.available_tools: ${availableToolsRaw}`,
-          [{ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: "Invalid JSON" }],
+          `Invalid JSON in ${toolsResult.usedAttribute}: ${toolsResult.value}`,
+          [{ spanId: spanWithTools.span_id, attribute: toolsResult.usedAttribute!, message: "Invalid JSON" }],
         );
       }
     } else {
-      availableTools = availableToolsRaw as Array<Record<string, unknown>>;
+      availableTools = toolsResult.value as Array<Record<string, unknown>>;
     }
 
     if (!Array.isArray(availableTools)) {
-      throw new CheckError("gen_ai.request.available_tools should be an array", [
-        { spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: "Not an array" },
+      throw new CheckError(`${toolsResult.usedAttribute} should be an array`, [
+        { spanId: spanWithTools.span_id, attribute: toolsResult.usedAttribute!, message: "Not an array" },
       ]);
     }
 
@@ -445,16 +483,19 @@ export const checkAvailableTools: Check = {
 
     // Check each defined tool exists in available_tools
     for (const definedTool of definedTools) {
+      // Map the expected tool name using framework-specific naming (e.g., "add" → "Add" for Laravel)
+      const expectedToolName = mapToolName(definedTool.name, config);
+
       const foundTool = availableTools.find((t) => {
         const toolName =
           t.name || (t.function as Record<string, unknown>)?.name;
-        return toolName === definedTool.name;
+        return toolName === expectedToolName;
       });
 
       if (!foundTool) {
-        const msg = `Available tools should include "${definedTool.name}"`;
+        const msg = `Available tools should include "${expectedToolName}" (mapped from "${definedTool.name}")`;
         errors.push(msg);
-        locations.push({ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: msg });
+        locations.push({ spanId: spanWithTools.span_id, attribute: toolsResult.usedAttribute!, message: msg });
         continue;
       }
 
@@ -466,7 +507,7 @@ export const checkAvailableTools: Check = {
         if (toolDesc !== definedTool.description) {
           const msg = `Tool "${definedTool.name}" should have description "${definedTool.description}" but has "${toolDesc}"`;
           errors.push(msg);
-          locations.push({ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: msg });
+          locations.push({ spanId: spanWithTools.span_id, attribute: toolsResult.usedAttribute!, message: msg });
         }
       }
     }
@@ -475,7 +516,7 @@ export const checkAvailableTools: Check = {
     if (availableTools.length !== definedTools.length) {
       const msg = `Should have ${definedTools.length} available tool(s) but found ${availableTools.length}`;
       errors.push(msg);
-      locations.push({ spanId: spanWithTools.span_id, attribute: "gen_ai.request.available_tools", message: msg });
+      locations.push({ spanId: spanWithTools.span_id, attribute: toolsResult.usedAttribute!, message: msg });
     }
 
     if (errors.length > 0) {
@@ -515,7 +556,7 @@ export function checkResponseToolCalls(
   const toolNames = expectedToolCalls.map((t) => t.name).join(", ");
   return {
     name: `checkResponseToolCalls(${toolNames})`,
-    fn: (spans) => {
+    fn: (spans, config) => {
       const chatSpans = findChatSpans(extractGenAISpans(spans));
       if (chatSpans.length === 0) {
         throw new CheckError("Should have at least one chat span");
@@ -525,28 +566,58 @@ export function checkResponseToolCalls(
       const locations: ErrorLocation[] = [];
 
       // Collect all tool_calls from all chat spans, tracking which span they came from
-      const allToolCalls: Array<{ data: Record<string, unknown>; sourceSpan: CapturedSpan }> = [];
+      const allToolCalls: Array<{ data: Record<string, unknown>; sourceSpan: CapturedSpan; usedAttribute: string }> = [];
 
       for (const span of chatSpans) {
-        const toolCallsRaw = span.data?.["gen_ai.response.tool_calls"];
-        if (toolCallsRaw === undefined) continue;
+        const result = getAttributeWithFallback(
+          span,
+          "gen_ai.output.messages",
+          "gen_ai.response.tool_calls"
+        );
 
-        let toolCalls: Array<Record<string, unknown>>;
-        if (typeof toolCallsRaw === "string") {
+        if (result.value === undefined) continue;
+
+        // Parse if JSON string
+        let parsedValue: unknown[];
+        if (typeof result.value === "string") {
           try {
-            toolCalls = JSON.parse(toolCallsRaw);
+            parsedValue = JSON.parse(result.value);
           } catch {
             throw new CheckError(
-              `Invalid JSON in gen_ai.response.tool_calls: ${toolCallsRaw}`,
-              [{ spanId: span.span_id, attribute: "gen_ai.response.tool_calls", message: "Invalid JSON" }],
+              `Invalid JSON in ${result.usedAttribute}: ${result.value}`,
+              [{ spanId: span.span_id, attribute: result.usedAttribute!, message: "Invalid JSON" }],
             );
           }
         } else {
-          toolCalls = toolCallsRaw as Array<Record<string, unknown>>;
+          parsedValue = result.value as unknown[];
         }
 
-        if (Array.isArray(toolCalls)) {
-          allToolCalls.push(...toolCalls.map((tc) => ({ data: tc, sourceSpan: span })));
+        if (!Array.isArray(parsedValue)) continue;
+
+        // Extract tool calls based on which format was used
+        if (result.usedAttribute === "gen_ai.output.messages") {
+          // New format: Extract tool calls from message parts
+          for (const msg of parsedValue as Array<Record<string, unknown>>) {
+            const parts = msg.parts as Array<Record<string, unknown>> | undefined;
+            if (parts) {
+              for (const part of parts) {
+                if (part.type === "tool_call") {
+                  allToolCalls.push({
+                    data: part as Record<string, unknown>,
+                    sourceSpan: span,
+                    usedAttribute: result.usedAttribute
+                  });
+                }
+              }
+            }
+          }
+        } else {
+          // Legacy format: Tool calls are directly in the array
+          allToolCalls.push(...parsedValue.map((tc) => ({
+            data: tc as Record<string, unknown>,
+            sourceSpan: span,
+            usedAttribute: result.usedAttribute!
+          })));
         }
       }
 
@@ -557,7 +628,7 @@ export function checkResponseToolCalls(
         for (const span of chatSpans) {
           locations.push({
             spanId: span.span_id,
-            attribute: "gen_ai.response.tool_calls",
+            attribute: "gen_ai.output.messages",
             message: msg,
           });
         }
@@ -565,14 +636,17 @@ export function checkResponseToolCalls(
 
       // Check each expected tool call
       for (const expected of expectedToolCalls) {
+        // Map the expected tool name using framework-specific naming
+        const expectedToolName = mapToolName(expected.name, config);
+
         const foundEntry = allToolCalls.find((entry) => {
           const tcName =
             entry.data.name || (entry.data.function as Record<string, unknown>)?.name;
-          return tcName === expected.name;
+          return tcName === expectedToolName;
         });
 
         if (!foundEntry) {
-          const msg = `Response should include tool call for "${expected.name}"`;
+          const msg = `Response should include tool call for "${expectedToolName}" (mapped from "${expected.name}")`;
           errors.push(msg);
           continue;
         }
@@ -591,7 +665,7 @@ export function checkResponseToolCalls(
           } catch {
             const msg = `Invalid JSON in tool call arguments for "${expected.name}": ${argsRaw}`;
             errors.push(msg);
-            locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: "gen_ai.response.tool_calls", message: msg });
+            locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: foundEntry.usedAttribute, message: msg });
             continue;
           }
         } else {
@@ -603,7 +677,7 @@ export function checkResponseToolCalls(
           if (actualArgs[key] === undefined || actualArgs[key] === null) {
             const msg = `Tool call "${expected.name}" should have argument "${key}"`;
             errors.push(msg);
-            locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: "gen_ai.response.tool_calls", message: msg });
+            locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: foundEntry.usedAttribute, message: msg });
           } else {
             const actualValue = actualArgs[key];
             let matches = false;
@@ -615,7 +689,7 @@ export function checkResponseToolCalls(
             if (!matches) {
               const msg = `Tool call "${expected.name}" argument "${key}" should equal ${JSON.stringify(value)} but is ${JSON.stringify(actualValue)}`;
               errors.push(msg);
-              locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: "gen_ai.response.tool_calls", message: msg });
+              locations.push({ spanId: foundEntry.sourceSpan.span_id, attribute: foundEntry.usedAttribute, message: msg });
             }
           }
         }
@@ -674,43 +748,41 @@ export const checkInputMessagesSchema: Check = {
     let foundMessages = false;
 
     for (const span of spansToCheck) {
-      // Check both new format (gen_ai.input.messages) and legacy (gen_ai.request.messages)
-      const messagesAttr = span.data?.["gen_ai.input.messages"] !== undefined
-        ? "gen_ai.input.messages"
-        : span.data?.["gen_ai.request.messages"] !== undefined
-          ? "gen_ai.request.messages"
-          : undefined;
-      const messagesRaw = messagesAttr ? span.data?.[messagesAttr] : undefined;
+      const result = getAttributeWithFallback(
+        span,
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
+      );
 
-      if (messagesRaw === undefined) continue;
+      if (result.value === undefined) continue;
       foundMessages = true;
 
       // Parse if JSON string
       let messages: unknown[];
-      if (typeof messagesRaw === "string") {
+      if (typeof result.value === "string") {
         try {
-          messages = JSON.parse(messagesRaw);
+          messages = JSON.parse(result.value);
         } catch {
-          const msg = `Invalid JSON in ${messagesAttr}: ${String(messagesRaw).substring(0, 100)}...`;
+          const msg = `Invalid JSON in ${result.usedAttribute}: ${String(result.value).substring(0, 100)}...`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
           continue;
         }
       } else {
-        messages = messagesRaw as unknown[];
+        messages = result.value as unknown[];
       }
 
       if (!Array.isArray(messages)) {
-        const msg = `${messagesAttr} should be an array`;
+        const msg = `${result.usedAttribute} should be an array`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
         continue;
       }
 
       if (messages.length === 0) {
-        const msg = `${messagesAttr} should not be empty`;
+        const msg = `${result.usedAttribute} should not be empty`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
         continue;
       }
 
@@ -722,7 +794,7 @@ export const checkInputMessagesSchema: Check = {
         if (typeof msgObj !== "object" || msgObj === null) {
           const msg = `${msgPath} should be an object`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
           continue;
         }
 
@@ -730,7 +802,7 @@ export const checkInputMessagesSchema: Check = {
         if (msgObj.role === undefined || msgObj.role === null) {
           const msg = `${msgPath} should have a role field`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
         } else if (
           !VALID_MESSAGE_ROLES.includes(
             msgObj.role as (typeof VALID_MESSAGE_ROLES)[number],
@@ -738,7 +810,7 @@ export const checkInputMessagesSchema: Check = {
         ) {
           const msg = `${msgPath}.role should be one of: ${VALID_MESSAGE_ROLES.join(", ")} (got: ${msgObj.role})`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
         }
 
         // Check for content (parts array or content string/array)
@@ -748,7 +820,7 @@ export const checkInputMessagesSchema: Check = {
         if (!hasParts && !hasContent) {
           const msg = `${msgPath} should have either "parts" or "content" field`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
         }
 
         // Validate parts array if present
@@ -756,7 +828,7 @@ export const checkInputMessagesSchema: Check = {
           if (!Array.isArray(msgObj.parts)) {
             const msg = `${msgPath}.parts should be an array`;
             errors.push(msg);
-            locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+            locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
           } else {
             const parts = msgObj.parts as Array<Record<string, unknown>>;
             for (let j = 0; j < parts.length; j++) {
@@ -766,7 +838,7 @@ export const checkInputMessagesSchema: Check = {
               if (typeof part !== "object" || part === null) {
                 const msg = `${partPath} should be an object`;
                 errors.push(msg);
-                locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
                 continue;
               }
 
@@ -778,26 +850,26 @@ export const checkInputMessagesSchema: Check = {
                 ) {
                   const msg = `${partPath}.type should be one of: ${VALID_PART_TYPES.join(", ")} (got: ${part.type})`;
                   errors.push(msg);
-                  locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                  locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
                 }
 
                 if (part.type === "text") {
                   if (part.text === undefined && part.content === undefined) {
                     const msg = `${partPath} with type "text" should have "text" or "content" field`;
                     errors.push(msg);
-                    locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                    locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
                   }
                 } else if (part.type === "tool_call") {
                   if (part.name === undefined || part.name === null) {
                     const msg = `${partPath} with type "tool_call" should have "name" field`;
                     errors.push(msg);
-                    locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                    locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
                   }
                 } else if (part.type === "tool_call_response") {
                   if (part.id === undefined && part.tool_call_id === undefined) {
                     const msg = `${partPath} with type "tool_call_response" should have "id" or "tool_call_id" field`;
                     errors.push(msg);
-                    locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+                    locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
                   }
                 }
               }
@@ -816,7 +888,7 @@ export const checkInputMessagesSchema: Check = {
           if (!isValidContent) {
             const msg = `${msgPath}.content should be a string, array, or object`;
             errors.push(msg);
-            locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+            locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
           }
         }
       }
@@ -869,20 +941,19 @@ export const checkBinaryRedaction: Check = {
     let foundRedaction = false;
 
     for (const span of spansToCheck) {
-      const messagesAttr = span.data?.["gen_ai.input.messages"] !== undefined
-        ? "gen_ai.input.messages"
-        : span.data?.["gen_ai.request.messages"] !== undefined
-          ? "gen_ai.request.messages"
-          : undefined;
-      const messagesRaw = messagesAttr ? span.data?.[messagesAttr] : undefined;
+      const result = getAttributeWithFallback(
+        span,
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
+      );
 
-      if (messagesRaw === undefined) continue;
+      if (result.value === undefined) continue;
       foundMessages = true;
 
       const messagesStr =
-        typeof messagesRaw === "string"
-          ? messagesRaw
-          : JSON.stringify(messagesRaw);
+        typeof result.value === "string"
+          ? result.value
+          : JSON.stringify(result.value);
 
       if (messagesStr.includes("[Blob substitute]")) {
         foundRedaction = true;
@@ -892,7 +963,7 @@ export const checkBinaryRedaction: Check = {
       if (base64Pattern.test(messagesStr)) {
         const msg = "Messages should not contain raw base64 data (should be redacted)";
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+        locations.push({ spanId: span.span_id, attribute: result.usedAttribute!, message: msg });
       }
     }
 
@@ -912,13 +983,15 @@ export const checkBinaryRedaction: Check = {
       const msg = "Messages should contain '[Blob substitute]' marker indicating binary content was redacted";
       errors.push(msg);
       for (const span of spansToCheck) {
-        const attr = span.data?.["gen_ai.input.messages"] !== undefined
-          ? "gen_ai.input.messages"
-          : "gen_ai.request.messages";
-        if (span.data?.[attr] !== undefined) {
+        const result = getAttributeWithFallback(
+          span,
+          "gen_ai.input.messages",
+          "gen_ai.request.messages"
+        );
+        if (result.value !== undefined) {
           locations.push({
             spanId: span.span_id,
-            attribute: attr,
+            attribute: result.usedAttribute!,
             message: msg,
           });
         }
@@ -1071,19 +1144,24 @@ export const checkMessageTrimming: Check = {
     const locations: ErrorLocation[] = [];
 
     for (const span of aiSpans) {
-      const messageValue = span.data?.["gen_ai.request.messages"];
-      if (messageValue !== undefined) {
+      const result = getAttributeWithFallback(
+        span,
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
+      );
+
+      if (result.value !== undefined) {
         const messageStr =
-          typeof messageValue === "string"
-            ? messageValue
-            : JSON.stringify(messageValue);
+          typeof result.value === "string"
+            ? result.value
+            : JSON.stringify(result.value);
 
         if (messageStr.length >= maxExpectedSize) {
           const msg = `Message should be trimmed (length ${messageStr.length} >= ${maxExpectedSize})`;
           errors.push(msg);
           locations.push({
             spanId: span.span_id,
-            attribute: "gen_ai.request.messages",
+            attribute: result.usedAttribute!,
             message: msg,
           });
         }
@@ -1092,7 +1170,7 @@ export const checkMessageTrimming: Check = {
       }
     }
 
-    skipIf(!foundTrimmedMessage, "No gen_ai.request.messages attribute found");
+    skipIf(!foundTrimmedMessage, "No gen_ai.input.messages or gen_ai.request.messages attribute found");
 
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
@@ -1118,49 +1196,47 @@ export const checkTrimmingMetadata: Check = {
     const locations: ErrorLocation[] = [];
 
     for (const span of aiSpans) {
-      // Check both new and legacy attribute names
-      const originalLengthAttr = span.data?.["gen_ai.input.messages.original_length"] !== undefined
-        ? "gen_ai.input.messages.original_length"
-        : span.data?.["gen_ai.request.messages.original_length"] !== undefined
-          ? "gen_ai.request.messages.original_length"
-          : undefined;
-      const originalLength = originalLengthAttr ? span.data?.[originalLengthAttr] : undefined;
+      const originalLengthResult = getAttributeWithFallback(
+        span,
+        "gen_ai.input.messages.original_length",
+        "gen_ai.request.messages.original_length"
+      );
 
-      if (originalLength === undefined) continue;
+      if (originalLengthResult.value === undefined) continue;
 
       foundMetadata = true;
+      const originalLength = originalLengthResult.value;
 
       if (typeof originalLength !== "number") {
         const msg = `original_length should be a number but is ${typeof originalLength}`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: originalLengthAttr, message: msg });
+        locations.push({ spanId: span.span_id, attribute: originalLengthResult.usedAttribute!, message: msg });
         continue;
       }
       if (originalLength <= 0) {
         const msg = `original_length should be > 0 but is ${originalLength}`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: originalLengthAttr, message: msg });
+        locations.push({ spanId: span.span_id, attribute: originalLengthResult.usedAttribute!, message: msg });
         continue;
       }
 
       // Get the messages to validate content length constraint
-      const messagesRaw =
-        span.data?.["gen_ai.input.messages"] ??
-        span.data?.["gen_ai.request.messages"];
-      const messagesAttr = span.data?.["gen_ai.input.messages"] !== undefined
-        ? "gen_ai.input.messages"
-        : "gen_ai.request.messages";
+      const messagesResult = getAttributeWithFallback(
+        span,
+        "gen_ai.input.messages",
+        "gen_ai.request.messages"
+      );
 
-      if (messagesRaw !== undefined) {
+      if (messagesResult.value !== undefined) {
         const messagesStr =
-          typeof messagesRaw === "string"
-            ? messagesRaw
-            : JSON.stringify(messagesRaw);
+          typeof messagesResult.value === "string"
+            ? messagesResult.value
+            : JSON.stringify(messagesResult.value);
 
         if (messagesStr.length >= originalLength) {
           const msg = `Truncated messages content length (${messagesStr.length}) should be less than original_length (${originalLength})`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesAttr, message: msg });
+          locations.push({ spanId: span.span_id, attribute: messagesResult.usedAttribute!, message: msg });
         }
       }
     }

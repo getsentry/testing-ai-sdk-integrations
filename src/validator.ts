@@ -123,7 +123,11 @@ export class Validator {
 
       try {
         await check.fn(spans, frameworkConfig, testDefinition);
-        const result: CheckResult = { name: checkName, severity, status: "passed" };
+        const result: CheckResult = {
+          name: checkName,
+          severity,
+          status: "passed",
+        };
         checkResults.push(result);
         onCheckResult?.(result);
         if (this.verbose) {

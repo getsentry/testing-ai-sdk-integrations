@@ -21,10 +21,6 @@ import {
   checkAgentHierarchy,
   checkInputMessagesSchema,
 } from "../checks.js";
-import {
-  checkInputMessages,
-  checkOutputMessages,
-} from "../otel-checks.js";
 
 // Generate a long message that exceeds 20KB
 // We'll repeat a pattern to create predictable content
@@ -86,10 +82,7 @@ export const longInputAgentTest: TestDefinition = {
     checkInputMessagesSchema,
   ],
 
-  warningChecks: [
-    checkInputMessages,
-    checkOutputMessages,
-  ],
+  warningChecks: [],
 };
 
 export default longInputAgentTest;

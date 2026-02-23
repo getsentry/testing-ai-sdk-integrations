@@ -15,5 +15,11 @@
   "modelOverrides": {
     "request": "gpt-5.2",
     "response": "gpt-5.2*"
+  },
+  "toolNameMapping": {
+    "add": "Add",
+    "multiply": "Multiply",
+    "read_file": "ReadFile",
+    "get_word_count": "GetWordCount"
   }
 }

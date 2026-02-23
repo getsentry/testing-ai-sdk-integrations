@@ -15,13 +15,6 @@ import {
   checkAvailableTools,
   checkResponseToolCalls,
 } from "../checks.js";
-import {
-  checkInputMessages,
-  checkOutputMessages,
-  checkToolDefinitions,
-  checkToolCallArguments,
-  checkOutputMessagesToolCalls,
-} from "../otel-checks.js";
 import { extractGenAISpans, findToolSpans } from "../utils.js";
 import { CheckError } from "../../validator.js";
 
@@ -139,15 +132,7 @@ export const toolErrorAgentTest: TestDefinition = {
     checkToolErrorSpan,
   ],
 
-  warningChecks: [
-    checkInputMessages,
-    checkOutputMessages,
-    checkToolDefinitions,
-    checkToolCallArguments,
-    checkOutputMessagesToolCalls([
-      { name: "read_file", arguments: { path: "/nonexistent/file.txt" } },
-    ]),
-  ],
+  warningChecks: [],
 };
 
 export default toolErrorAgentTest;

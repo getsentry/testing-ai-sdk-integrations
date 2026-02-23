@@ -12,11 +12,6 @@ import {
   checkInputMessagesSchema,
   checkBinaryRedaction,
 } from "../checks.js";
-import {
-  checkInputMessages,
-  checkOutputMessages,
-  checkSystemInstructions,
-} from "../otel-checks.js";
 
 // Small 10x10 red PNG image encoded as base64
 const TEST_IMAGE_BASE64 =
@@ -64,11 +59,7 @@ export const visionLLMTest: TestDefinition = {
     checkBinaryRedaction,
   ],
 
-  warningChecks: [
-    checkInputMessages,
-    checkOutputMessages,
-    checkSystemInstructions,
-  ],
+  warningChecks: [],
 };
 
 export default visionLLMTest;

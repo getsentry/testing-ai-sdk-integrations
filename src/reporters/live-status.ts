@@ -6,7 +6,7 @@
  */
 
 import logUpdate from "log-update";
-import { TestRun, CheckResult } from "../types.js";
+import { TestRun, CheckResult, AttributeAudit } from "../types.js";
 
 interface TestState {
   framework: string;
@@ -17,6 +17,7 @@ interface TestState {
   status: "pending" | "running" | "passed" | "failed" | "skipped";
   currentCheck?: string;
   checkResults: CheckResult[];
+  attributeAudit?: AttributeAudit;
   error?: string;
   startTime?: number;
 }
@@ -123,6 +124,17 @@ export class LiveStatusReporter {
         state.checkResults.push(checkResult);
       }
       state.currentCheck = undefined; // Clear current check after result
+    }
+  }
+
+  /**
+   * Update attribute audit result for a test
+   */
+  updateAuditResult(testRun: TestRun, audit: AttributeAudit): void {
+    const key = this.getKey(testRun);
+    const state = this.states.get(key);
+    if (state) {
+      state.attributeAudit = audit;
     }
   }
 
@@ -235,6 +247,20 @@ export class LiveStatusReporter {
               }
             } else {
               lines.push(checkLine);
+            }
+          }
+
+          // Show audit summary if findings exist
+          if (test.attributeAudit) {
+            const deprecated = test.attributeAudit.deprecatedAttributes.length;
+            const unknown = test.attributeAudit.unknownAttributes.length;
+            if (deprecated > 0 || unknown > 0) {
+              const parts: string[] = [];
+              if (deprecated > 0) parts.push(`${deprecated} deprecated`);
+              if (unknown > 0) parts.push(`${unknown} unknown`);
+              lines.push(
+                `      ${colors.yellow}⚠${colors.reset} ${colors.dim}Audit: ${parts.join(", ")} attribute(s)${colors.reset}`,
+              );
             }
           }
 

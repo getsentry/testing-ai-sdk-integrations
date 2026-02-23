@@ -36,6 +36,11 @@ export interface FrameworkConfig {
     response?: string;
   };
 
+  /** Tool name mapping: Map expected tool names to framework-reported names */
+  toolNameMapping?: {
+    [expectedName: string]: string;
+  };
+
   /** Skip configuration: Tests or checks that should be skipped */
   skip?: {
     tests?: string[]; // Array of test names to skip entirely
