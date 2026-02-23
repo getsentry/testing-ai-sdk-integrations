@@ -45,17 +45,9 @@ inputs:
   anthropic-api-key:
     description: "Anthropic API key"
     required: true
-  google-api-key:
-    description: "Google API key for GenAI"
+  google-genai-api-key:
+    description: "Google GenAI API key"
     required: true
-  google-vertex-project:
-    description: "Google Vertex AI project ID"
-    required: false
-    default: ""
-  google-vertex-location:
-    description: "Google Vertex AI location"
-    required: false
-    default: "us-central1"
 
 outputs:
   success:
@@ -109,9 +101,7 @@ runs:
       env:
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
-        GOOGLE_API_KEY: ${{ inputs.google-api-key }}
-        GOOGLE_VERTEX_PROJECT: ${{ inputs.google-vertex-project }}
-        GOOGLE_VERTEX_LOCATION: ${{ inputs.google-vertex-location }}
+        GOOGLE_GENAI_API_KEY: ${{ inputs.google-genai-api-key }}
       run: |
         set +e
 
