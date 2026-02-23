@@ -3,16 +3,13 @@
 {% block imports %}
 {{ super() }}
 from google import genai
-from google.genai.types import HttpOptions, Tool, FunctionDeclaration
+from google.genai.types import Tool, FunctionDeclaration
 {% endblock %}
 
 {% block setup %}
 # Initialize Google GenAI client
 client = genai.Client(
-    vertexai=True,
-    project=os.environ["GOOGLE_VERTEX_PROJECT"],
-    location=os.environ["GOOGLE_VERTEX_LOCATION"],
-    http_options=HttpOptions(api_version="v1"),
+    api_key=os.environ["GOOGLE_GENAI_API_KEY"],
 )
 
 {% if agent and agent.tools and agent.tools | length > 0 %}

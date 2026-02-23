@@ -753,7 +753,7 @@ Create a `.env` file with your API keys:
 ```bash
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=...
+GOOGLE_GENAI_API_KEY=...
 ```
 
 ## Debugging
@@ -815,7 +815,7 @@ jobs:
           platform: python # or 'node', or leave empty for both
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
+          google-genai-api-key: ${{ secrets.GOOGLE_GENAI_API_KEY }}
 ```
 
 ### Action Inputs
@@ -830,9 +830,7 @@ jobs:
 | `sentry-javascript-path` | No       | `""`          | Path to local sentry-javascript for linking                                                   |
 | `openai-api-key`         | Yes      | -             | OpenAI API key                                                                                |
 | `anthropic-api-key`      | Yes      | -             | Anthropic API key                                                                             |
-| `google-api-key`         | Yes      | -             | Google API key for GenAI                                                                      |
-| `google-vertex-project`  | No       | `""`          | Google Vertex AI project ID                                                                   |
-| `google-vertex-location` | No       | `us-central1` | Google Vertex AI location                                                                     |
+| `google-genai-api-key`   | Yes      | -             | Google GenAI API key                                                                          |
 
 ### Action Outputs
 
@@ -857,7 +855,7 @@ jobs:
     sentry-python-path: ${{ github.workspace }}
     openai-api-key: ${{ secrets.OPENAI_API_KEY }}
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-    google-api-key: ${{ secrets.GOOGLE_API_KEY }}
+    google-genai-api-key: ${{ secrets.GOOGLE_GENAI_API_KEY }}
 
 - name: Check results
   run: |

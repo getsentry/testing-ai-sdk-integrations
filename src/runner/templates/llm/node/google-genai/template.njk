@@ -26,9 +26,7 @@ let client;
       // Dynamic import of google-genai AFTER Sentry.init() to ensure instrumentation
       const { GoogleGenAI } = await import("@google/genai");
       client = new GoogleGenAI({
-        vertexai: true,
-        project: process.env.GOOGLE_VERTEX_PROJECT,
-        location: process.env.GOOGLE_VERTEX_LOCATION,
+        apiKey: process.env.GOOGLE_GENAI_API_KEY,
       });
 {% endblock %}
 
