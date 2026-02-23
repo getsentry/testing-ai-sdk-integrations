@@ -11,7 +11,7 @@
   "versions": ["1.38.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
-    "request": "text-embedding-004",
-    "response": "text-embedding-004*"
+    "request": "models/gemini-embedding-001",
+    "response": "models/gemini-embedding-001*"
   }
 }
