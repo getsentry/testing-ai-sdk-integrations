@@ -217,7 +217,7 @@ export function listFrameworks(): void {
 
     for (const framework of categoryFrameworks) {
       const platformIcon = getPlatformIcon(framework.platform);
-      const typeIcon = framework.type === "agentic" ? "🤖" : "💬";
+      const typeIcon = framework.type === "agentic" ? "🤖" : framework.type === "embeddings" ? "🔢" : "💬";
 
       console.log(`  ${platformIcon} ${typeIcon} ${framework.name}`);
       console.log(`     ${framework.displayName}`);

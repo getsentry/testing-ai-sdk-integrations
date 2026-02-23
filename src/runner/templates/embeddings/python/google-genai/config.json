@@ -1,0 +1,17 @@
+{
+  "name": "google-genai",
+  "displayName": "Google GenAI Python SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "python",
+  "executionMode": "both",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "google-genai", "version": "framework" }
+  ],
+  "versions": ["1.61.0"],
+  "sentryVersions": ["2.51.0", "latest"],
+  "modelOverrides": {
+    "request": "models/gemini-embedding-001",
+    "response": "models/gemini-embedding-001*"
+  }
+}

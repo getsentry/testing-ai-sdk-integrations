@@ -1,0 +1,13 @@
+{
+  "name": "litellm",
+  "displayName": "LiteLLM Python SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "python",
+  "executionMode": "both",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "litellm", "version": "framework" }
+  ],
+  "versions": ["1.81.6"],
+  "sentryVersions": ["2.51.0", "latest"]
+}

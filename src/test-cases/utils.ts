@@ -468,6 +468,14 @@ export const TOOL_OPERATION_NAME_PATTERN =
  */
 export const HANDOFF_OPERATION_NAME_PATTERN = /^(gen_ai\.)?handoff$/;
 
+/**
+ * Pattern for embedding operation names (gen_ai.operation.name)
+ *
+ * Matches:
+ * - gen_ai.embeddings, embeddings
+ */
+export const EMBEDDING_OPERATION_NAME_PATTERN = /^(gen_ai\.)?embeddings$/;
+
 // =============================================================================
 // Span Type Filtering Helpers
 // =============================================================================
@@ -509,6 +517,16 @@ export function findHandoffSpans(spans: CapturedSpan[]): CapturedSpan[] {
   return spans.filter((s) => {
     const opName = s.data?.["gen_ai.operation.name"];
     return typeof opName === "string" && HANDOFF_OPERATION_NAME_PATTERN.test(opName);
+  });
+}
+
+/**
+ * Find embedding spans by matching gen_ai.operation.name against EMBEDDING_OPERATION_NAME_PATTERN
+ */
+export function findEmbeddingSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    const opName = s.data?.["gen_ai.operation.name"];
+    return typeof opName === "string" && EMBEDDING_OPERATION_NAME_PATTERN.test(opName);
   });
 }
 

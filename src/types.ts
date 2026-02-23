@@ -34,7 +34,7 @@ export interface TestDefinition {
   name: string;
   description: string;
   /** Test type: determines which frameworks this test can run on */
-  type: "llm" | "agent";
+  type: "llm" | "agent" | "embeddings";
   agent?: AgentDefinition;
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
@@ -90,7 +90,9 @@ export interface Message {
 
 export interface TestInput {
   model: string;
-  messages: Message[];
+  messages?: Message[];
+  /** Embedding input text (for embeddings tests) */
+  input?: string;
   [key: string]: any;
 }
 
@@ -109,7 +111,7 @@ export interface CapturedSpan {
 export interface FrameworkConfig {
   name: string;
   platform: "node" | "python" | "browser" | "nextjs" | "php";
-  type: "llm-only" | "agentic";
+  type: "llm-only" | "agentic" | "embeddings";
   version: string;
   sentryVersion: string;
   // Optional: Path to template file (set when using discovered frameworks)

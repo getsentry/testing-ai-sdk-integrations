@@ -41,12 +41,14 @@ testing-ai-sdk-integrations/
 │   │   │   ├── basic-error.ts        # Error handling test
 │   │   │   ├── vision.ts             # Vision/image input test
 │   │   │   └── long-input.ts         # Long input trimming test
-│   │   └── agents/                   # Agent test cases
-│   │       ├── basic.ts              # Basic agent (no tools)
-│   │       ├── tool-call.ts          # Agent with tool calling
-│   │       ├── tool-error.ts         # Tool error handling
-│   │       ├── vision.ts             # Vision agent test
-│   │       └── long-input.ts         # Long input agent test
+│   │   ├── agents/                   # Agent test cases
+│   │   │   ├── basic.ts              # Basic agent (no tools)
+│   │   │   ├── tool-call.ts          # Agent with tool calling
+│   │   │   ├── tool-error.ts         # Tool error handling
+│   │   │   ├── vision.ts             # Vision agent test
+│   │   │   └── long-input.ts         # Long input agent test
+│   │   └── embeddings/               # Embeddings test cases
+│   │       └── basic.ts              # Basic embedding test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
 │   │   ├── javascript-runner.ts      # JS (Node) execution
@@ -73,7 +75,7 @@ testing-ai-sdk-integrations/
 
 ### Framework Templates Structure
 
-Templates are organized by **category** (llm, agents), then **platform** (node, py, browser), then **framework** name. The framework folder name is the **SDK or framework that Sentry instruments** (e.g. `openai` = OpenAI SDK, `langchain` = LangChain); the fact that a template calls a given provider (e.g. LangChain using OpenAI) is an implementation detail. See `src/runner/templates/README.md` for the full naming convention and options to reduce confusion.
+Templates are organized by **category** (llm, agents, embeddings), then **platform** (node, python, browser), then **framework** name. The framework folder name is the **SDK or framework that Sentry instruments** (e.g. `openai` = OpenAI SDK, `langchain` = LangChain); the fact that a template calls a given provider (e.g. LangChain using OpenAI) is an implementation detail. See `src/runner/templates/README.md` for the full naming convention and options to reduce confusion.
 
 ```
 src/runner/templates/
@@ -103,21 +105,28 @@ src/runner/templates/
 │       ├── google-genai/
 │       ├── langchain/
 │       └── openai/
-└── agents/                           # Agentic frameworks
-    ├── node/
-    │   ├── langgraph/
-    │   ├── mastra/
-    │   └── vercel/
+├── agents/                           # Agentic frameworks
+│   ├── node/
+│   │   ├── langgraph/
+│   │   ├── mastra/
+│   │   └── vercel/
+│   └── python/
+│   │   ├── google-genai/
+│   │   ├── langgraph/
+│   │   ├── openai-agents/
+│   │   └── pydantic-ai/
+│   ├── nextjs/
+│   │   ├── mastra/
+│   │   └── vercel/
+│   └── php/
+│       └── laravel/                  # config.json + template.njk + agent.php.njk + tool.php.njk
+└── embeddings/                       # Embedding frameworks
     └── python/
-    │   ├── google-genai/
-    │   ├── langgraph/
-    │   ├── openai-agents/
-    │   └── pydantic-ai/
-    ├── nextjs/
-    │   ├── mastra/
-    │   └── vercel/
-    └── php/
-        └── laravel/                  # config.json + template.njk + agent.php.njk + tool.php.njk
+        ├── google-genai/
+        ├── langchain/
+        ├── litellm/
+        ├── manual/                   # Manual instrumentation (no SDK dependency)
+        └── openai/
 ```
 
 ## Quick Start
@@ -144,6 +153,10 @@ npm run test -- --platform browser
 npm run test -- --platform nextjs
 npm run test -- --platform php                        # PHP platform (Laravel)
 npm run test -- --platform js                         # all JS platforms (node + browser)
+
+# Run tests for a specific type (llm, agents, embeddings)
+npm run test -- --type embeddings
+npm run test -- --type llm --platform python
 
 # Run with verbose output
 npm run test -- --framework openai --verbose
@@ -175,6 +188,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
+  --type <type>              Filter by framework type (llm, agents, embeddings)
   --platform <node|python|browser|nextjs|php|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
@@ -248,6 +262,11 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `pydantic-ai`   | agents   | agentic  | -         | async           |
 | Python            | `google-genai`  | agents   | agentic  | -         | sync/async      |
 | PHP (Laravel)     | `laravel`       | agents   | agentic  | -         | -               |
+| Python            | `manual`        | embeddings | embeddings | -      | sync/async      |
+| Python            | `openai`        | embeddings | embeddings | -      | sync/async      |
+| Python            | `litellm`       | embeddings | embeddings | -      | sync/async      |
+| Python            | `langchain`     | embeddings | embeddings | -      | sync/async      |
+| Python            | `google-genai`  | embeddings | embeddings | -      | sync/async      |
 
 ## Test Cases
 
@@ -255,8 +274,8 @@ Test cases are TypeScript files in `src/test-cases/` that define:
 
 - **name**: Human-readable test name
 - **description**: What the test validates
-- **type**: `"llm"` or `"agent"` (determines which frameworks can run it)
-- **inputs**: Test input data (model, messages)
+- **type**: `"llm"`, `"agent"`, or `"embeddings"` (determines which frameworks can run it)
+- **inputs**: Test input data (model, messages or input text)
 - **checks**: Array of check functions that validate captured spans
 
 ### LLM Test Cases
@@ -278,6 +297,12 @@ Test cases are TypeScript files in `src/test-cases/` that define:
 | `Tool Error Agent Test` | Agent with tool that raises exception   |
 | `Vision Agent Test`     | Agent that processes images             |
 | `Long Input Agent Test` | Agent with large input trimming         |
+
+### Embeddings Test Cases
+
+| Test                     | Description                          |
+| ------------------------ | ------------------------------------ |
+| `Basic Embeddings Test`  | Single embedding call with text input |
 
 ### Test Definition Example
 
@@ -351,6 +376,8 @@ interface Check {
 | `checkMessageTrimming`       | Messages are trimmed below 15KB                     |
 | `checkTrimmingMetadata`      | Original length metadata is present                 |
 | `checkBinaryRedaction`       | Binary content (images) is redacted                 |
+| `checkEmbeddingSpanAttributes` | Validates embedding spans (model, input, description) |
+| `checkEmbeddingTokenUsage`   | Embedding token usage (input_tokens, total_tokens)  |
 
 ## Attribute Deprecation System
 
@@ -410,7 +437,7 @@ Each framework has a `config.json` file that defines its capabilities:
 | ---------------- | ------------------------------------------------------------------------------------------------------- |
 | `name`           | Framework identifier                                                                                    |
 | `displayName`    | Human-readable name                                                                                     |
-| `type`           | `"llm-only"` or `"agentic"`                                                                             |
+| `type`           | `"llm-only"`, `"agentic"`, or `"embeddings"`                                                            |
 | `platform`       | `"node"`, `"python"`, `"browser"`, `"php"`, or `"nextjs"` (CLI also accepts `"js"` as meta-platform for node + browser) |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
@@ -432,6 +459,7 @@ Available in `src/test-cases/utils.ts`:
 | `findAgentSpans()`     | Find `invoke_agent` spans              |
 | `findChatSpans()`      | Find `chat`/`completion` spans         |
 | `findToolSpans()`      | Find tool execution spans              |
+| `findEmbeddingSpans()` | Find `embeddings` spans                |
 | `assertAttributes()`   | Schema-based attribute validation      |
 | `printSpanSummary()`   | Debug helper to print captured spans   |
 
@@ -566,7 +594,7 @@ npm run test -- --test "Your Test Name" --verbose
 interface TestDefinition {
   name: string;
   description: string;
-  type: "llm" | "agent";
+  type: "llm" | "agent" | "embeddings";
   inputs: TestInput[];
   agent?: AgentDefinition; // For agent tests
   causeAPIError?: boolean; // Trigger API errors
@@ -580,7 +608,7 @@ interface TestDefinition {
 interface FrameworkConfig {
   name: string;
   platform: "node" | "python" | "browser" | "nextjs" | "php";
-  type: "llm-only" | "agentic";
+  type: "llm-only" | "agentic" | "embeddings";
   version: string;
   sentryVersion: string;
   templatePath?: string;
@@ -614,7 +642,7 @@ All API keys should be in a root `.env` file (gitignored):
 # .env
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=...
+GOOGLE_GENAI_API_KEY=...
 ```
 
 ## Debugging
