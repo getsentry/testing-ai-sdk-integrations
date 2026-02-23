@@ -1,0 +1,13 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI Browser SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "browser",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "openai", "version": "framework" },
+    { "package": "@sentry/browser", "version": "sentry" }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["latest"]
+}

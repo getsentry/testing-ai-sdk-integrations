@@ -1,0 +1,15 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain Next.js (Embeddings)",
+  "type": "embeddings",
+  "platform": "nextjs",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "@langchain/core", "version": "latest" },
+    { "package": "@langchain/openai", "version": "latest" },
+    { "package": "@sentry/nextjs", "version": "sentry" },
+    { "package": "next", "version": "latest" }
+  ],
+  "versions": ["latest"],
+  "sentryVersions": ["latest"]
+}

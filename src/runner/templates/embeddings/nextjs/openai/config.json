@@ -1,0 +1,14 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI Next.js SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "nextjs",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "openai", "version": "framework" },
+    { "package": "@sentry/nextjs", "version": "sentry" },
+    { "package": "next", "version": "latest" }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["latest"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "vercel",
+  "displayName": "Vercel AI SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "node",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "ai", "version": "framework" },
+    { "package": "@ai-sdk/openai", "version": "latest" }
+  ],
+  "versions": ["4.3.16"],
+  "sentryVersions": ["10.28.0", "latest"]
+}

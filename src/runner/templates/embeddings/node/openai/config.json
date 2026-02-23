@@ -1,0 +1,12 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI JavaScript SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "node",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "openai", "version": "framework" }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["10.28.0", "latest"]
+}

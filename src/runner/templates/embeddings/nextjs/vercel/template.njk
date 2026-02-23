@@ -1,0 +1,37 @@
+{% extends "base.nextjs.njk" %}
+
+{% block setup %}
+let embed, openai;
+{% endblock %}
+
+{% block dynamic_imports %}
+      const ai = await import("ai");
+      const aiSdkOpenai = await import("@ai-sdk/openai");
+      embed = ai.embed;
+      openai = aiSdkOpenai.openai;
+
+      console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+      console.log('Starting embedding request {{ loop.index }}...');
+
+      try {
+        const { embedding, usage } = await embed({
+          model: openai.embedding("{{ input.model }}"),
+          value: {{ input.input | dump }},
+          experimental_telemetry: {
+            isEnabled: true,
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        });
+        console.log('Embedding dimension:', embedding.length);
+        console.log('Token usage:', usage);
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error('Error in request {{ loop.index }}:', error.message);
+      }
+{% endfor %}
+{% endblock %}

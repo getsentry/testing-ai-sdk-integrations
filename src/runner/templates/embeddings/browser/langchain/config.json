@@ -1,0 +1,15 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain Browser (Embeddings)",
+  "type": "embeddings",
+  "platform": "browser",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "@sentry/browser", "version": "sentry" },
+    { "package": "langchain", "version": "framework" },
+    { "package": "@langchain/openai", "version": "0.3.0" },
+    { "package": "@langchain/core", "version": "0.3.49" }
+  ],
+  "versions": ["0.3.24"],
+  "sentryVersions": ["latest"]
+}

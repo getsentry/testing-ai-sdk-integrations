@@ -1,0 +1,14 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain JavaScript SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "node",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "langchain", "version": "framework" },
+    { "package": "@langchain/openai", "version": "0.3.0" },
+    { "package": "@langchain/core", "version": "0.3.49" }
+  ],
+  "versions": ["0.3.24"],
+  "sentryVersions": ["10.38.0", "latest"]
+}

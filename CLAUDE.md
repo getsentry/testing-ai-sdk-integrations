@@ -121,12 +121,28 @@ src/runner/templates/
 │   └── php/
 │       └── laravel/                  # config.json + template.njk + agent.php.njk + tool.php.njk
 └── embeddings/                       # Embedding frameworks
-    └── python/
-        ├── google-genai/
-        ├── langchain/
-        ├── litellm/
-        ├── manual/                   # Manual instrumentation (no SDK dependency)
-        └── openai/
+    ├── node/
+    │   ├── google-genai/
+    │   ├── langchain/
+    │   ├── openai/
+    │   └── vercel/
+    ├── browser/
+    │   ├── google-genai/
+    │   ├── langchain/
+    │   └── openai/
+    ├── nextjs/
+    │   ├── google-genai/
+    │   ├── langchain/
+    │   ├── openai/
+    │   └── vercel/
+    ├── python/
+    │   ├── google-genai/
+    │   ├── langchain/
+    │   ├── litellm/
+    │   ├── manual/                   # Manual instrumentation (no SDK dependency)
+    │   └── openai/
+    └── php/
+        └── laravel/
 ```
 
 ## Quick Start
@@ -262,11 +278,23 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `pydantic-ai`   | agents   | agentic  | -         | async           |
 | Python            | `google-genai`  | agents   | agentic  | -         | sync/async      |
 | PHP (Laravel)     | `laravel`       | agents   | agentic  | -         | -               |
+| JavaScript (Node) | `openai`        | embeddings | embeddings | -      | -               |
+| JavaScript (Node) | `google-genai`  | embeddings | embeddings | -      | -               |
+| JavaScript (Node) | `langchain`     | embeddings | embeddings | -      | -               |
+| JavaScript (Node) | `vercel`        | embeddings | embeddings | -      | -               |
+| Browser           | `openai`        | embeddings | embeddings | -      | -               |
+| Browser           | `google-genai`  | embeddings | embeddings | -      | -               |
+| Browser           | `langchain`     | embeddings | embeddings | -      | -               |
+| Next.js           | `openai`        | embeddings | embeddings | -      | -               |
+| Next.js           | `google-genai`  | embeddings | embeddings | -      | -               |
+| Next.js           | `langchain`     | embeddings | embeddings | -      | -               |
+| Next.js           | `vercel`        | embeddings | embeddings | -      | -               |
 | Python            | `manual`        | embeddings | embeddings | -      | sync/async      |
 | Python            | `openai`        | embeddings | embeddings | -      | sync/async      |
 | Python            | `litellm`       | embeddings | embeddings | -      | sync/async      |
 | Python            | `langchain`     | embeddings | embeddings | -      | sync/async      |
 | Python            | `google-genai`  | embeddings | embeddings | -      | sync/async      |
+| PHP (Laravel)     | `laravel`       | embeddings | embeddings | -      | -               |
 
 ## Test Cases
 
