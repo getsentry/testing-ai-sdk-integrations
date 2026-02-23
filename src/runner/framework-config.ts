@@ -9,8 +9,8 @@ export interface FrameworkConfig {
   /** Human-readable display name */
   displayName: string;
 
-  /** Framework type: llm-only or agentic */
-  type: "llm-only" | "agentic";
+  /** Framework type: llm-only, agentic, or embeddings */
+  type: "llm-only" | "agentic" | "embeddings";
 
   /** Platform: Node.js, Browser, Next.js, Python, or PHP */
   platform: "node" | "python" | "browser" | "nextjs" | "php";
@@ -99,9 +99,9 @@ export function loadFrameworkConfig(configPath: string): FrameworkConfig {
     }
 
     // Validate type field
-    if (config.type !== "llm-only" && config.type !== "agentic") {
+    if (config.type !== "llm-only" && config.type !== "agentic" && config.type !== "embeddings") {
       throw new Error(
-        `Invalid type: ${config.type}. Must be 'llm-only' or 'agentic'`,
+        `Invalid type: ${config.type}. Must be 'llm-only', 'agentic', or 'embeddings'`,
       );
     }
 

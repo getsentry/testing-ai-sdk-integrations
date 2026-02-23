@@ -20,6 +20,7 @@ import {
   findChatSpans,
   findToolSpans,
   findHandoffSpans,
+  findEmbeddingSpans,
   assertAttributes,
   checkTokenUsage,
   skip,
@@ -29,6 +30,7 @@ import {
   AI_CLIENT_OPERATION_NAME_PATTERN,
   TOOL_OPERATION_NAME_PATTERN,
   HANDOFF_OPERATION_NAME_PATTERN,
+  EMBEDDING_OPERATION_NAME_PATTERN,
 } from "./utils.js";
 import { getAttributeWithFallback } from "../deprecation/fallback.js";
 
@@ -1381,6 +1383,71 @@ export const checkAgentHierarchy: Check = {
 
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
+    }
+  },
+};
+
+// =============================================================================
+// Embedding Checks
+// =============================================================================
+
+/**
+ * Check attributes on embedding spans
+ *
+ * Validates:
+ * - gen_ai.operation.name matches EMBEDDING_OPERATION_NAME_PATTERN
+ * - gen_ai.request.model exists
+ * - gen_ai.response.model exists
+ * - gen_ai.embeddings.input exists
+ * - description equals "embeddings <gen_ai.request.model>"
+ *
+ * Fails if no embedding spans are found.
+ */
+export const checkEmbeddingSpanAttributes: Check = {
+  name: "checkEmbeddingSpanAttributes",
+  fn: (spans, config, testDef) => {
+    const embeddingSpans = findEmbeddingSpans(extractGenAISpans(spans));
+    if (embeddingSpans.length === 0) {
+      throw new CheckError("Should have at least one embedding span");
+    }
+
+    const requestModel =
+      config.modelOverrides?.request || testDef.inputs[0]?.model || "text-embedding-*";
+    const responseModel =
+      config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
+
+    assertAttributes(embeddingSpans, {
+      "description": (span) =>
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
+      "gen_ai.operation.name": EMBEDDING_OPERATION_NAME_PATTERN,
+      "gen_ai.request.model": requestModel,
+      "gen_ai.response.model": responseModel,
+      "gen_ai.embeddings.input": true,
+    });
+  },
+};
+
+/**
+ * Check token usage on embedding spans
+ *
+ * Embeddings typically only have input_tokens and total_tokens (no output_tokens).
+ * Validates:
+ * - gen_ai.usage.input_tokens exists and > 0
+ * - gen_ai.usage.total_tokens exists and > 0
+ */
+export const checkEmbeddingTokenUsage: Check = {
+  name: "checkEmbeddingTokenUsage",
+  fn: (spans) => {
+    const embeddingSpans = findEmbeddingSpans(extractGenAISpans(spans));
+    skipIf(embeddingSpans.length === 0, "No embedding spans captured");
+
+    for (const span of embeddingSpans) {
+      checkTokenUsage(span, {
+        hasInputTokens: true,
+        hasOutputTokens: false,
+        hasTotalTokens: true,
+        validateSum: false,
+      });
     }
   },
 };

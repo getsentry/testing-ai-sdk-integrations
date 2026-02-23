@@ -1,0 +1,15 @@
+{
+  "name": "vercel",
+  "displayName": "Vercel AI SDK Next.js (Embeddings)",
+  "type": "embeddings",
+  "platform": "nextjs",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "ai", "version": "framework" },
+    { "package": "@ai-sdk/openai", "version": "latest" },
+    { "package": "@sentry/nextjs", "version": "sentry" },
+    { "package": "next", "version": "latest" }
+  ],
+  "versions": ["4.3.16"],
+  "sentryVersions": ["latest"]
+}

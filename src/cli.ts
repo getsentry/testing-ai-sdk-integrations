@@ -28,6 +28,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
+  --type <type>              Filter by framework type (llm, agents, embeddings)
   --platform <node|python|browser|php|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
@@ -67,6 +68,7 @@ function parseCliArgs() {
     options: {
       framework: { type: "string" },
       test: { type: "string" },
+      type: { type: "string" },
       platform: { type: "string" },
       sync: { type: "boolean", default: false },
       async: { type: "boolean", default: false },
@@ -108,6 +110,21 @@ function parseCliArgs() {
     parallel = parsed;
   }
 
+  // Validate and resolve type
+  const typeArg = values.type;
+  const typeMap: Record<string, "llm-only" | "agentic" | "embeddings"> = {
+    "llm": "llm-only",
+    "agents": "agentic",
+    "embeddings": "embeddings",
+  };
+  if (typeArg && !(typeArg in typeMap)) {
+    console.error(
+      `Error: --type must be one of: ${Object.keys(typeMap).join(", ")}`,
+    );
+    process.exit(1);
+  }
+  const resolvedType = typeArg ? typeMap[typeArg] : undefined;
+
   // Validate platform
   const platformArg = values.platform;
   const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php"];
@@ -122,6 +139,7 @@ function parseCliArgs() {
     command,
     framework: values.framework,
     test: values.test,
+    type: resolvedType,
     platform: platformArg,
     sync: values.sync,
     async: values.async,
@@ -183,6 +201,11 @@ async function main() {
       const platforms = resolvePlatformFilter(options.platform);
       discoveredFrameworks = discoveredFrameworks.filter((f) =>
         platforms.includes(f.platform),
+      );
+    }
+    if (options.type) {
+      discoveredFrameworks = discoveredFrameworks.filter(
+        (f) => f.type === options.type,
       );
     }
     if (options.framework) {

@@ -1,0 +1,12 @@
+{
+  "name": "laravel",
+  "displayName": "Laravel AI Framework (Embeddings)",
+  "type": "embeddings",
+  "platform": "php",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "laravel/ai", "version": "framework" }
+  ],
+  "versions": ["0.1.0"],
+  "sentryVersions": ["latest"]
+}

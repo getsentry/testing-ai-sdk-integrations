@@ -1,0 +1,13 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI Python SDK (Embeddings)",
+  "type": "embeddings",
+  "platform": "python",
+  "executionMode": "both",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "openai", "version": "framework" }
+  ],
+  "versions": ["2.16.0"],
+  "sentryVersions": ["2.51.0", "latest"]
+}

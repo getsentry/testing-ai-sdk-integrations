@@ -1,0 +1,41 @@
+{% extends "base.browser.njk" %}
+
+{% block setup %}
+    let client;
+{% endblock %}
+
+{% block dynamic_imports %}
+          const { GoogleGenAI } = await import("@google/genai");
+
+          const GOOGLE_API_KEY = window.GOOGLE_GENAI_API_KEY;
+          if (!GOOGLE_API_KEY) {
+            log('ERROR: GOOGLE_GENAI_API_KEY not found in window');
+            throw new Error('GOOGLE_GENAI_API_KEY not provided');
+          }
+
+          const genAI = new GoogleGenAI({
+            apiKey: GOOGLE_API_KEY,
+          });
+
+          client = Sentry.instrumentGoogleGenAIClient(genAI);
+
+          log('Google Gen AI client initialized and instrumented');
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+          log('Starting embedding request {{ loop.index }}...');
+
+          try {
+            const result = await client.models.embedContent({
+              model: "{{ input.model }}",
+              contents: {{ input.input | dump }},
+            });
+            log('Embedding values:', result.embeddings[0].values.length);
+          } catch (error) {
+            Sentry.captureException(error);
+            log('Error in request {{ loop.index }}:', error.message);
+            console.error("Error:", error);
+          }
+{% endfor %}
+{% endblock %}

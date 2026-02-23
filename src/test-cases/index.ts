@@ -15,6 +15,7 @@ import { toolCallAgentTest } from "./agents/tool-call.js";
 import { toolErrorAgentTest } from "./agents/tool-error.js";
 import { visionAgentTest } from "./agents/vision.js";
 import { longInputAgentTest } from "./agents/long-input.js";
+import { basicEmbeddingsTest } from "./embeddings/basic.js";
 
 /**
  * All available test cases
@@ -34,6 +35,9 @@ export const testCases = {
     vision: visionAgentTest,
     longInput: longInputAgentTest,
   },
+  embeddings: {
+    basic: basicEmbeddingsTest,
+  },
 };
 
 /**
@@ -51,10 +55,17 @@ export function getAgentTests(): TestDefinition[] {
 }
 
 /**
+ * Get all embeddings test cases
+ */
+export function getEmbeddingsTests(): TestDefinition[] {
+  return Object.values(testCases.embeddings);
+}
+
+/**
  * Get all test cases
  */
 export function getAllTests(): TestDefinition[] {
-  return [...getLLMTests(), ...getAgentTests()];
+  return [...getLLMTests(), ...getAgentTests(), ...getEmbeddingsTests()];
 }
 
 /**

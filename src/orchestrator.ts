@@ -752,6 +752,14 @@ export class Orchestrator {
       };
     }
 
+    // Embeddings tests can only run on embeddings frameworks
+    if (test.type === "embeddings" && framework.type !== "embeddings") {
+      return {
+        compatible: false,
+        reason: "Embeddings test requires embeddings framework",
+      };
+    }
+
     return { compatible: true };
   }
 
