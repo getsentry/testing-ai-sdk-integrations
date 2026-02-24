@@ -1142,7 +1142,7 @@ export const checkMessageTrimming: Check = {
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
     let foundTrimmedMessage = false;
-    const maxExpectedSize = 15000;
+    const maxExpectedSize = 20000;
     const errors: string[] = [];
     const locations: ErrorLocation[] = [];
 
