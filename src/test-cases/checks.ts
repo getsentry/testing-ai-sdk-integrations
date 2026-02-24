@@ -1364,8 +1364,9 @@ export const checkResponseModel: Check = {
 
     skipIf(spansToCheck.length === 0, "No chat or embedding spans captured");
 
+    const defaultModel = testDef.type === "embeddings" ? "text-embedding-*" : "gpt-*";
     const requestModel =
-      config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
+      config.modelOverrides?.request || testDef.inputs[0]?.model || defaultModel;
     const responseModel =
       config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
 
