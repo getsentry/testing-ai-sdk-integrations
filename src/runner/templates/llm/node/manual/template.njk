@@ -97,13 +97,11 @@ function buildSentryMessages(messages) {
       const model{{ loop.index }} = "{{ input.model }}";
       const messages{{ loop.index }} = {{ input.messages | dump }};
 
-      const { sentryMessages: sentry{{ loop.index }}, legacyMessages: legacy{{ loop.index }}, systemInstructions: system{{ loop.index }} } =
+      const { sentryMessages: sentry{{ loop.index }}, systemInstructions: system{{ loop.index }} } =
         buildSentryMessages(messages{{ loop.index }});
 
       const otel{{ loop.index }} = trimMessages(sentry{{ loop.index }});
-      const leg{{ loop.index }} = trimMessages(legacy{{ loop.index }});
       const otelJson{{ loop.index }} = JSON.stringify(otel{{ loop.index }}.messages);
-      const legacyJson{{ loop.index }} = JSON.stringify(leg{{ loop.index }}.messages);
 
       const contentLen{{ loop.index }} = messagesContentLength(messages{{ loop.index }});
       const inputTokens{{ loop.index }} = estimateTokens(contentLen{{ loop.index }}) + {{ loop.index0 * 20 }};
@@ -121,22 +119,13 @@ function buildSentryMessages(messages) {
         span.setAttribute("gen_ai.operation.name", "chat");
         span.setAttribute("gen_ai.request.model", model{{ loop.index }});
         span.setAttribute("gen_ai.response.model", model{{ loop.index }});
-        span.setAttribute("gen_ai.response.text", responseText{{ loop.index }});
         span.setAttribute("gen_ai.usage.input_tokens", inputTokens{{ loop.index }});
         span.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens{{ loop.index }} / 3)));
         span.setAttribute("gen_ai.usage.output_tokens", outputTokens{{ loop.index }});
         span.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens{{ loop.index }} / 4)));
         span.setAttribute("gen_ai.usage.total_tokens", totalTokens{{ loop.index }});
 
-        span.setAttribute("gen_ai.request.messages", legacyJson{{ loop.index }});
-        if (leg{{ loop.index }}.trimmed) {
-          span.setAttribute("gen_ai.request.messages.original_length", leg{{ loop.index }}.originalLength);
-        }
-
         span.setAttribute("gen_ai.input.messages", otelJson{{ loop.index }});
-        if (otel{{ loop.index }}.trimmed) {
-          span.setAttribute("gen_ai.input.messages.original_length", otel{{ loop.index }}.originalLength);
-        }
         span.setAttribute("gen_ai.output.messages", outputMessages{{ loop.index }});
         if (system{{ loop.index }} !== null) {
           span.setAttribute("gen_ai.system_instructions", system{{ loop.index }});

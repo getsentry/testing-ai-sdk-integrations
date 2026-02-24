@@ -98,12 +98,10 @@ const TOOLS = {{ agent.tools | dump }};
       const model = "{{ input.model }}";
       const messages = {{ input.messages | dump }};
 
-      const { sentryMessages, legacyMessages, systemInstructions } = buildSentryMessages(messages);
+      const { sentryMessages, systemInstructions } = buildSentryMessages(messages);
 
       const otel = trimMessages(sentryMessages);
-      const leg = trimMessages(legacyMessages);
       const otelJson = JSON.stringify(otel.messages);
-      const legacyJson = JSON.stringify(leg.messages);
 
       const contentLen = messagesContentLength(messages);
       const inputTokens = estimateTokens(contentLen) + 10;
@@ -111,17 +109,10 @@ const TOOLS = {{ agent.tools | dump }};
       const totalTokens = inputTokens + outputTokens;
       const responseText = "This is a simulated agent response for turn {{ loop.index }}.";
 
-      // Build available_tools and response tool_calls
-      const availableTools = [];
+      // Build tool definitions and output tool call parts
       const toolDefinitions = [];
-      const responseToolCalls = [];
       const outputToolCallParts = [];
       for (const tool of TOOLS) {
-        availableTools.push({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters || {},
-        });
         toolDefinitions.push({
           name: tool.name,
           description: tool.description,
@@ -129,10 +120,6 @@ const TOOLS = {{ agent.tools | dump }};
         });
         if (tool.result !== undefined || tool.error !== undefined) {
           const toolArgs = tool.arguments || {};
-          responseToolCalls.push({
-            name: tool.name,
-            arguments: JSON.stringify(toolArgs),
-          });
           outputToolCallParts.push({
             type: "tool_call",
             name: tool.name,
@@ -140,15 +127,13 @@ const TOOLS = {{ agent.tools | dump }};
           });
         }
       }
-      const availableToolsJson = JSON.stringify(availableTools);
       const toolDefinitionsJson = JSON.stringify(toolDefinitions);
-      const responseToolCallsJson = responseToolCalls.length > 0 ? JSON.stringify(responseToolCalls) : null;
 
       const outputParts = [{ type: "text", text: responseText }, ...outputToolCallParts];
       const outputMessages = JSON.stringify([{ role: "assistant", parts: outputParts }]);
 
       // Agent span (parent)
-      const agentDesc = `invoke_agent ${model}`;
+      const agentDesc = `invoke_agent ${AGENT_NAME}`;
       await Sentry.startSpan({ op: "gen_ai.invoke_agent", name: agentDesc }, async (agentSpan) => {
         agentSpan.setAttribute("description", agentDesc);
         agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
@@ -168,33 +153,20 @@ const TOOLS = {{ agent.tools | dump }};
           chatSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
           chatSpan.setAttribute("gen_ai.request.model", model);
           chatSpan.setAttribute("gen_ai.response.model", model);
-          chatSpan.setAttribute("gen_ai.response.text", responseText);
           chatSpan.setAttribute("gen_ai.usage.input_tokens", inputTokens);
           chatSpan.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens / 3)));
           chatSpan.setAttribute("gen_ai.usage.output_tokens", outputTokens);
           chatSpan.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens / 4)));
           chatSpan.setAttribute("gen_ai.usage.total_tokens", totalTokens);
 
-          chatSpan.setAttribute("gen_ai.request.messages", legacyJson);
-          if (leg.trimmed) {
-            chatSpan.setAttribute("gen_ai.request.messages.original_length", leg.originalLength);
-          }
-
           chatSpan.setAttribute("gen_ai.input.messages", otelJson);
-          if (otel.trimmed) {
-            chatSpan.setAttribute("gen_ai.input.messages.original_length", otel.originalLength);
-          }
           chatSpan.setAttribute("gen_ai.output.messages", outputMessages);
           if (systemInstructions !== null) {
             chatSpan.setAttribute("gen_ai.system_instructions", systemInstructions);
           }
 
-          if (availableTools.length > 0) {
-            chatSpan.setAttribute("gen_ai.request.available_tools", availableToolsJson);
+          if (toolDefinitions.length > 0) {
             chatSpan.setAttribute("gen_ai.tool.definitions", toolDefinitionsJson);
-          }
-          if (responseToolCallsJson) {
-            chatSpan.setAttribute("gen_ai.response.tool_calls", responseToolCallsJson);
           }
         });
 
@@ -211,17 +183,14 @@ const TOOLS = {{ agent.tools | dump }};
           toolSpan.setAttribute("gen_ai.tool.description", "{{ tool.description }}");
 
           const toolInputJson{{ loop.index }} = JSON.stringify({{ tool.arguments | dump }});
-          toolSpan.setAttribute("gen_ai.tool.input", toolInputJson{{ loop.index }});
           toolSpan.setAttribute("gen_ai.tool.call.arguments", toolInputJson{{ loop.index }});
 {% if tool.result is defined %}
 
-          toolSpan.setAttribute("gen_ai.tool.output", JSON.stringify({{ tool.result | dump }}));
           toolSpan.setAttribute("gen_ai.tool.call.result", JSON.stringify({{ tool.result | dump }}));
 {% endif %}
 {% if tool.error is defined %}
 
           toolSpan.setStatus({ code: 2, message: "internal_error" });
-          toolSpan.setAttribute("gen_ai.tool.error", "{{ tool.error }}");
 {% endif %}
         });
 
