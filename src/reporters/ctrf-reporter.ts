@@ -61,6 +61,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       test.trace = run.error;
     }
 
+    // Count warning check failures for this test
+    const warningCount = countWarnings(run.checkResults);
+
     // Add extra metadata
     test.extra = {
       framework: run.framework.name,
@@ -84,10 +87,19 @@ export function generateCTRFReport(testReport: TestReport): Report {
       ...(run.attributeAudit && {
         attributeAudit: run.attributeAudit,
       }),
+      ...(warningCount > 0 && {
+        warningCount,
+      }),
     };
 
     return test;
   });
+
+  // Count total warnings across all tests
+  const totalWarnings = testReport.runs.reduce(
+    (sum, run) => sum + countWarnings(run.checkResults),
+    0,
+  );
 
   // Calculate summary
   const summary = {
@@ -99,6 +111,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
     other: testReport.errors,
     start: startTime,
     stop: now,
+    ...(totalWarnings > 0 && {
+      extra: { warnings: totalWarnings },
+    }),
   };
 
   // Build CTRF report
@@ -116,6 +131,16 @@ export function generateCTRFReport(testReport: TestReport): Report {
   };
 
   return report;
+}
+
+/**
+ * Count failed warning-severity checks for a test run
+ */
+function countWarnings(checkResults?: CheckResult[]): number {
+  if (!checkResults) return 0;
+  return checkResults.filter(
+    (r) => r.status === "failed" && r.severity === "warning",
+  ).length;
 }
 
 /**

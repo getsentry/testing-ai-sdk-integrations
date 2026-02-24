@@ -18,6 +18,7 @@ import {
   checkMessageTrimming,
   checkTrimmingMetadata,
   checkInputMessagesSchema,
+  checkResponseModel,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -58,7 +59,9 @@ export const longInputLLMTest: TestDefinition = {
     checkInputMessagesSchema,
   ],
 
-  warningChecks: [],
+  warningChecks: [
+    checkResponseModel,
+  ],
 };
 
 export default longInputLLMTest;

@@ -13,6 +13,7 @@ import {
   checkInputTokensCached,
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
+  checkResponseModel,
 } from "../checks.js";
 
 export const basicLLMTest: TestDefinition = {
@@ -41,6 +42,7 @@ export const basicLLMTest: TestDefinition = {
   ],
 
   warningChecks: [
+    checkResponseModel,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],
