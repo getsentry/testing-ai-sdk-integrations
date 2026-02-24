@@ -179,6 +179,9 @@ export const checkChatSpanAttributes: Check = {
 /**
  * Check attributes on invoke_agent spans (agent invocations)
  *
+ * Per https://develop.sentry.dev/sdk/telemetry/traces/modules/ai-agents/
+ * the description should be "invoke_agent {gen_ai.agent.name}".
+ *
  * Validates:
  * - description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
  * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
@@ -188,18 +191,15 @@ export const checkChatSpanAttributes: Check = {
  */
 export const checkAgentSpanAttributes: Check = {
   name: "checkAgentSpanAttributes",
-  fn: (spans, config, testDef) => {
+  fn: (spans) => {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     if (agentSpans.length === 0) {
       throw new CheckError("Should have at least one agent span");
     }
 
-    const inputModel =
-      config.modelOverrides?.request || testDef.inputs[0]?.model;
-
     assertAttributes(agentSpans, {
       "description": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"] ?? inputModel}`,
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.agent.name"]}`,
       "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
       "gen_ai.agent.name": true,
     });
