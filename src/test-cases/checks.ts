@@ -188,15 +188,18 @@ export const checkChatSpanAttributes: Check = {
  */
 export const checkAgentSpanAttributes: Check = {
   name: "checkAgentSpanAttributes",
-  fn: (spans) => {
+  fn: (spans, config, testDef) => {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     if (agentSpans.length === 0) {
       throw new CheckError("Should have at least one agent span");
     }
 
+    const inputModel =
+      config.modelOverrides?.request || testDef.inputs[0]?.model;
+
     assertAttributes(agentSpans, {
       "description": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"] ?? inputModel}`,
       "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
       "gen_ai.agent.name": true,
     });
