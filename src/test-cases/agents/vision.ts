@@ -13,6 +13,7 @@ import {
   checkAgentHierarchy,
   checkInputMessagesSchema,
   checkBinaryRedaction,
+  checkResponseModel,
 } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
@@ -71,7 +72,9 @@ export const visionAgentTest: TestDefinition = {
     checkBinaryRedaction,
   ],
 
-  warningChecks: [],
+  warningChecks: [
+    checkResponseModel,
+  ],
 };
 
 export default visionAgentTest;

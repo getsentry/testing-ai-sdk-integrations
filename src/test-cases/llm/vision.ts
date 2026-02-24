@@ -11,6 +11,7 @@ import {
   checkValidTokenUsage,
   checkInputMessagesSchema,
   checkBinaryRedaction,
+  checkResponseModel,
 } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
@@ -59,7 +60,9 @@ export const visionLLMTest: TestDefinition = {
     checkBinaryRedaction,
   ],
 
-  warningChecks: [],
+  warningChecks: [
+    checkResponseModel,
+  ],
 };
 
 export default visionLLMTest;

@@ -659,6 +659,67 @@ function AttributeAuditSection({ tests }: { tests: Test[] }) {
 }
 
 /**
+ * Warnings section - shows passed tests that have failed warning-severity checks.
+ * Failed tests already show warnings inline in FailedTestsDetails.
+ */
+function WarningsSection({ tests }: { tests: Test[] }) {
+  const testsWithWarnings = tests.filter((t) => {
+    if (t.status === "failed") return false;
+    const extra = t.extra as Record<string, unknown> | undefined;
+    const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
+    if (!checkResults) return false;
+    return checkResults.some(
+      (cr) => cr.status === "failed" && cr.severity === "warning",
+    );
+  });
+
+  if (testsWithWarnings.length === 0) {
+    return html``;
+  }
+
+  return html`
+    <h2>Warnings (${testsWithWarnings.length} test${testsWithWarnings.length !== 1 ? "s" : ""})</h2>
+    <p class="warnings-section-desc">Passed tests with warning-level check failures. These indicate optional but recommended attributes or behaviors.</p>
+    ${testsWithWarnings.map((test) => {
+      const caseId = test.name.split(" :: ")[1] || test.name;
+      const extra = test.extra as Record<string, unknown>;
+      const checkResults = extra.checkResults as ReportCheckResult[];
+      const spans = extra.spans as unknown[] | undefined;
+      const warningResults = checkResults.filter(
+        (cr) => cr.status === "failed" && cr.severity === "warning",
+      );
+
+      // Index spans by span_id for quick lookup
+      const spanById = new Map<string, unknown>();
+      if (spans) {
+        for (const s of spans) {
+          const id = (s as Record<string, unknown>).span_id as string | undefined;
+          if (id) spanById.set(id, s);
+        }
+      }
+
+      return html`
+        <details class="warning-test">
+          <summary>
+            <span class="warning-icon">⚠</span>
+            <strong
+              >${test.suite && test.suite.length > 0
+                ? test.suite[0]
+                : "unknown"}</strong
+            >
+            :: ${caseId}
+            <span class="sev-badge sev-badge-warning">${"⚠"} ${warningResults.length}</span>
+          </summary>
+          <div class="warning-test-details">
+            ${warningResults.map((cr) => FailedCheckDetail({ cr, spanById }))}
+          </div>
+        </details>
+      `;
+    })}
+  `;
+}
+
+/**
  * Generate complete HTML report from CTRF report
  */
 export function generateHTML(report: Report): string {
@@ -1247,6 +1308,36 @@ export function generateHTML(report: Report): string {
             padding: 0 15px;
             border-left: 3px solid #f44336;
           }
+          /* Warnings section */
+          .warnings-section-desc {
+            color: #666;
+            font-size: 14px;
+            margin: -10px 0 15px 0;
+          }
+          .warning-test {
+            margin: 15px 0;
+            border: 1px solid #ffe0b2;
+            border-radius: 4px;
+          }
+          .warning-test summary {
+            padding: 15px;
+            cursor: pointer;
+            background: #fffdf7;
+            user-select: none;
+          }
+          .warning-test summary:hover {
+            background: #fff8e1;
+          }
+          .warning-test[open] summary {
+            border-bottom: 1px solid #ffe0b2;
+          }
+          .warning-icon {
+            color: #e65100;
+            margin-right: 8px;
+          }
+          .warning-test-details {
+            padding: 15px;
+          }
         </style>
       </head>
       <body>
@@ -1256,6 +1347,7 @@ export function generateHTML(report: Report): string {
           ${SummaryCards({ summary: report.results.summary })}
           ${TestMatrix({ report })}
           ${FailedTestsDetails({ tests: report.results.tests })}
+          ${WarningsSection({ tests: report.results.tests })}
           ${AttributeAuditSection({ tests: report.results.tests })}
         </div>
         <script dangerouslySetInnerHTML=${{ __html: `

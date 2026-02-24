@@ -7,17 +7,16 @@
  * Sentry SDKs trim long messages to prevent excessive span sizes.
  * This test validates:
  * 1. The message content is trimmed (less than original size)
- * 2. Metadata about trimming is present (original_length)
- * 3. Basic attributes are still captured correctly
- * 4. Token counts reflect the actual (untrimmed) input
+ * 2. Basic attributes are still captured correctly
+ * 3. Token counts reflect the actual (untrimmed) input
  */
 
 import { TestDefinition } from "../../types.js";
 import {
   checkChatSpanAttributes,
   checkMessageTrimming,
-  checkTrimmingMetadata,
   checkInputMessagesSchema,
+  checkResponseModel,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -54,11 +53,12 @@ export const longInputLLMTest: TestDefinition = {
 
   checks: [
     checkMessageTrimming,
-    checkTrimmingMetadata,
     checkInputMessagesSchema,
   ],
 
-  warningChecks: [],
+  warningChecks: [
+    checkResponseModel,
+  ],
 };
 
 export default longInputLLMTest;

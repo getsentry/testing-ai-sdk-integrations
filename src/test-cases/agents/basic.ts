@@ -14,6 +14,7 @@ import {
   checkInputTokensCached,
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
+  checkResponseModel,
 } from "../checks.js";
 
 export const basicAgentTest: TestDefinition = {
@@ -50,6 +51,7 @@ export const basicAgentTest: TestDefinition = {
   ],
 
   warningChecks: [
+    checkResponseModel,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],

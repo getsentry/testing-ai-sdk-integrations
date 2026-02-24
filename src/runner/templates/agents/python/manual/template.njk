@@ -102,12 +102,10 @@ TOOLS = {{ agent.tools | dump }}
     model = "{{ input.model }}"
     messages = {{ input.messages | dump }}
 
-    sentry_msgs, legacy_msgs, system_instructions = build_sentry_messages(messages)
+    sentry_msgs, _, system_instructions = build_sentry_messages(messages)
 
     sentry_msgs, otel_original_len, otel_trimmed = trim_messages(sentry_msgs)
-    legacy_msgs, legacy_original_len, legacy_trimmed = trim_messages(legacy_msgs)
     otel_messages_json = json.dumps(sentry_msgs)
-    legacy_messages_json = json.dumps(legacy_msgs)
 
     content_len = messages_content_length(messages)
     input_tokens = estimate_tokens(content_len) + 10
@@ -115,17 +113,10 @@ TOOLS = {{ agent.tools | dump }}
     total_tokens = input_tokens + output_tokens
     response_text = "This is a simulated agent response for turn {{ loop.index }}."
 
-    # Build available_tools and response tool_calls from TOOLS
-    available_tools = []
+    # Build tool definitions and output tool call parts
     tool_definitions = []
-    response_tool_calls = []
     output_tool_call_parts = []
     for tool in TOOLS:
-        available_tools.append({
-            "name": tool["name"],
-            "description": tool["description"],
-            "parameters": tool.get("parameters", {}),
-        })
         tool_definitions.append({
             "name": tool["name"],
             "description": tool["description"],
@@ -133,18 +124,12 @@ TOOLS = {{ agent.tools | dump }}
         })
         if tool.get("result") is not None or tool.get("error") is not None:
             tool_args = tool.get("arguments", {})
-            response_tool_calls.append({
-                "name": tool["name"],
-                "arguments": json.dumps(tool_args),
-            })
             output_tool_call_parts.append({
                 "type": "tool_call",
                 "name": tool["name"],
                 "arguments": json.dumps(tool_args),
             })
-    available_tools_json = json.dumps(available_tools)
     tool_definitions_json = json.dumps(tool_definitions)
-    response_tool_calls_json = json.dumps(response_tool_calls) if response_tool_calls else None
 
     # Build output messages
     output_parts = [{"type": "text", "text": response_text}]
@@ -152,7 +137,7 @@ TOOLS = {{ agent.tools | dump }}
     output_messages = json.dumps([{"role": "assistant", "parts": output_parts}])
 
     # Agent span (parent)
-    agent_desc = f"invoke_agent {model}"
+    agent_desc = f"invoke_agent {AGENT_NAME}"
     with sentry_sdk.start_span(op="gen_ai.invoke_agent", name=agent_desc) as agent_span:
         agent_span.set_data("description", agent_desc)
         agent_span.set_data("gen_ai.operation.name", "invoke_agent")
@@ -172,29 +157,19 @@ TOOLS = {{ agent.tools | dump }}
             chat_span.set_data("gen_ai.agent.name", AGENT_NAME)
             chat_span.set_data("gen_ai.request.model", model)
             chat_span.set_data("gen_ai.response.model", model)
-            chat_span.set_data("gen_ai.response.text", response_text)
             chat_span.set_data("gen_ai.usage.input_tokens", input_tokens)
             chat_span.set_data("gen_ai.usage.input_tokens.cached", max(0, input_tokens // 3))
             chat_span.set_data("gen_ai.usage.output_tokens", output_tokens)
             chat_span.set_data("gen_ai.usage.output_tokens.reasoning", max(0, output_tokens // 4))
             chat_span.set_data("gen_ai.usage.total_tokens", total_tokens)
 
-            chat_span.set_data("gen_ai.request.messages", legacy_messages_json)
-            if legacy_trimmed:
-                chat_span.set_data("gen_ai.request.messages.original_length", legacy_original_len)
-
             chat_span.set_data("gen_ai.input.messages", otel_messages_json)
-            if otel_trimmed:
-                chat_span.set_data("gen_ai.input.messages.original_length", otel_original_len)
             chat_span.set_data("gen_ai.output.messages", output_messages)
             if system_instructions is not None:
                 chat_span.set_data("gen_ai.system_instructions", system_instructions)
 
-            if available_tools:
-                chat_span.set_data("gen_ai.request.available_tools", available_tools_json)
+            if tool_definitions:
                 chat_span.set_data("gen_ai.tool.definitions", tool_definitions_json)
-            if response_tool_calls_json:
-                chat_span.set_data("gen_ai.response.tool_calls", response_tool_calls_json)
 
         # Tool spans (children of agent)
 {% for tool in agent.tools %}
@@ -209,17 +184,14 @@ TOOLS = {{ agent.tools | dump }}
             tool_span.set_data("gen_ai.tool.description", "{{ tool.description }}")
 
             tool_input_json = json.dumps({{ tool.arguments | dump }})
-            tool_span.set_data("gen_ai.tool.input", tool_input_json)
             tool_span.set_data("gen_ai.tool.call.arguments", tool_input_json)
 {% if tool.result is defined %}
 
-            tool_span.set_data("gen_ai.tool.output", json.dumps({{ tool.result | dump }}))
             tool_span.set_data("gen_ai.tool.call.result", json.dumps({{ tool.result | dump }}))
 {% endif %}
 {% if tool.error is defined %}
 
             tool_span.set_status("internal_error")
-            tool_span.set_data("gen_ai.tool.error", "{{ tool.error }}")
 {% endif %}
 
 {% endif %}

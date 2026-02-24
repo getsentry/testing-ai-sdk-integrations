@@ -22,6 +22,7 @@ import {
   checkAvailableTools,
   checkResponseToolCalls,
   checkInputMessagesSchema,
+  checkResponseModel,
 } from "../checks.js";
 
 export const toolCallAgentTest: TestDefinition = {
@@ -123,6 +124,7 @@ export const toolCallAgentTest: TestDefinition = {
   ],
 
   warningChecks: [
+    checkResponseModel,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],

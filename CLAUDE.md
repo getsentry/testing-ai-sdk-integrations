@@ -402,8 +402,8 @@ interface Check {
 | `checkResponseToolCalls([])` | Factory: validate tool calls in LLM response        |
 | `checkToolCalls([])`         | Factory: validate tool execution spans              |
 | `checkMessageTrimming`       | Messages are trimmed below 15KB                     |
-| `checkTrimmingMetadata`      | Original length metadata is present                 |
 | `checkBinaryRedaction`       | Binary content (images) is redacted                 |
+| `checkResponseModel`         | Warns when gen_ai.response.model is missing (warning) |
 | `checkEmbeddingSpanAttributes` | Validates embedding spans (model, input, description) |
 | `checkEmbeddingTokenUsage`   | Embedding token usage (input_tokens, total_tokens)  |
 

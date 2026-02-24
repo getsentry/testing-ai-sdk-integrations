@@ -13,6 +13,7 @@ import {
   checkInputTokensCached,
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
+  checkResponseModel,
 } from "../checks.js";
 import { extractGenAISpans, skipIf } from "../utils.js";
 import { CheckError } from "../../validator.js";
@@ -113,6 +114,7 @@ export const multiTurnLLMTest: TestDefinition = {
   ],
 
   warningChecks: [
+    checkResponseModel,
     checkInputTokensCached,
     checkOutputTokensReasoning,
   ],

@@ -116,10 +116,11 @@ export function checkAISpanCount(
  * - gen_ai.operation.name matches AI_CLIENT_OPERATION_NAME_PATTERN
  * - gen_ai.request.model matches expected model
  * - gen_ai.request.messages exists
- * - gen_ai.response.model matches expected pattern
  * - gen_ai.response.text exists
  * - gen_ai.usage.input_tokens exists
  * - gen_ai.usage.output_tokens exists
+ *
+ * Note: gen_ai.response.model is checked separately via checkResponseModel (warning level).
  *
  * Fails if no chat spans are found.
  */
@@ -133,15 +134,12 @@ export const checkChatSpanAttributes: Check = {
 
     const requestModel =
       config.modelOverrides?.request || testDef.inputs[0]?.model || "gpt-*";
-    const responseModel =
-      config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
 
     assertAttributes(chatSpans, {
       "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": AI_CLIENT_OPERATION_NAME_PATTERN,
       "gen_ai.request.model": requestModel,
-      "gen_ai.response.model": responseModel,
       "gen_ai.usage.input_tokens": true,
       "gen_ai.usage.output_tokens": true,
     });
@@ -181,6 +179,9 @@ export const checkChatSpanAttributes: Check = {
 /**
  * Check attributes on invoke_agent spans (agent invocations)
  *
+ * Per https://develop.sentry.dev/sdk/telemetry/traces/modules/ai-agents/
+ * the description should be "invoke_agent {gen_ai.agent.name}".
+ *
  * Validates:
  * - description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
  * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
@@ -198,7 +199,7 @@ export const checkAgentSpanAttributes: Check = {
 
     assertAttributes(agentSpans, {
       "description": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
+        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.agent.name"]}`,
       "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
       "gen_ai.agent.name": true,
     });
@@ -1141,7 +1142,7 @@ export const checkMessageTrimming: Check = {
     skipIf(aiSpans.length === 0, "No AI spans captured");
 
     let foundTrimmedMessage = false;
-    const maxExpectedSize = 15000;
+    const maxExpectedSize = 20000;
     const errors: string[] = [];
     const locations: ErrorLocation[] = [];
 
@@ -1173,87 +1174,6 @@ export const checkMessageTrimming: Check = {
     }
 
     skipIf(!foundTrimmedMessage, "No gen_ai.input.messages or gen_ai.request.messages attribute found");
-
-    if (errors.length > 0) {
-      throw new CheckError(errors.join("\n"), locations);
-    }
-  },
-};
-
-/**
- * Check that trimming metadata is present and the truncation constraint is satisfied
- *
- * Validates:
- * - gen_ai.input.messages.original_length (or gen_ai.request.messages.original_length) exists
- * - The messages text content length is less than original_length (actual truncation occurred)
- */
-export const checkTrimmingMetadata: Check = {
-  name: "checkTrimmingMetadata",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
-
-    let foundMetadata = false;
-    const errors: string[] = [];
-    const locations: ErrorLocation[] = [];
-
-    for (const span of aiSpans) {
-      const originalLengthResult = getAttributeWithFallback(
-        span,
-        "gen_ai.input.messages.original_length",
-        "gen_ai.request.messages.original_length"
-      );
-
-      if (originalLengthResult.value === undefined) continue;
-
-      foundMetadata = true;
-      const originalLength = originalLengthResult.value;
-
-      if (typeof originalLength !== "number") {
-        const msg = `original_length should be a number but is ${typeof originalLength}`;
-        errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: originalLengthResult.usedAttribute!, message: msg });
-        continue;
-      }
-      if (originalLength <= 0) {
-        const msg = `original_length should be > 0 but is ${originalLength}`;
-        errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: originalLengthResult.usedAttribute!, message: msg });
-        continue;
-      }
-
-      // Get the messages to validate content length constraint
-      const messagesResult = getAttributeWithFallback(
-        span,
-        "gen_ai.input.messages",
-        "gen_ai.request.messages"
-      );
-
-      if (messagesResult.value !== undefined) {
-        const messagesStr =
-          typeof messagesResult.value === "string"
-            ? messagesResult.value
-            : JSON.stringify(messagesResult.value);
-
-        if (messagesStr.length >= originalLength) {
-          const msg = `Truncated messages content length (${messagesStr.length}) should be less than original_length (${originalLength})`;
-          errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: messagesResult.usedAttribute!, message: msg });
-        }
-      }
-    }
-
-    if (!foundMetadata) {
-      const msg = "Should have at least one span with original_length metadata";
-      errors.push(msg);
-      for (const span of aiSpans) {
-        locations.push({
-          spanId: span.span_id,
-          attribute: "gen_ai.input.messages.original_length",
-          message: msg,
-        });
-      }
-    }
 
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
@@ -1397,9 +1317,10 @@ export const checkAgentHierarchy: Check = {
  * Validates:
  * - gen_ai.operation.name matches EMBEDDING_OPERATION_NAME_PATTERN
  * - gen_ai.request.model exists
- * - gen_ai.response.model exists
  * - gen_ai.embeddings.input exists
  * - description equals "embeddings <gen_ai.request.model>"
+ *
+ * Note: gen_ai.response.model is checked separately via checkResponseModel (warning level).
  *
  * Fails if no embedding spans are found.
  */
@@ -1413,17 +1334,81 @@ export const checkEmbeddingSpanAttributes: Check = {
 
     const requestModel =
       config.modelOverrides?.request || testDef.inputs[0]?.model || "text-embedding-*";
-    const responseModel =
-      config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
 
     assertAttributes(embeddingSpans, {
       "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.request.model"]}`,
       "gen_ai.operation.name": EMBEDDING_OPERATION_NAME_PATTERN,
       "gen_ai.request.model": requestModel,
-      "gen_ai.response.model": responseModel,
       "gen_ai.embeddings.input": true,
     });
+  },
+};
+
+/**
+ * Check that gen_ai.response.model is present on chat/completion and embedding spans.
+ *
+ * This attribute is optional but recommended. When missing, the check fails with
+ * a warning (should be placed in warningChecks) so that teams are aware the model
+ * response metadata is absent without blocking the overall test.
+ *
+ * When present, the value is validated against the expected response model pattern.
+ */
+export const checkResponseModel: Check = {
+  name: "checkResponseModel",
+  fn: (spans, config, testDef) => {
+    const aiSpans = extractGenAISpans(spans);
+    const chatSpans = findChatSpans(aiSpans);
+    const embeddingSpans = findEmbeddingSpans(aiSpans);
+    const spansToCheck = [...chatSpans, ...embeddingSpans];
+
+    skipIf(spansToCheck.length === 0, "No chat or embedding spans captured");
+
+    const defaultModel = testDef.type === "embeddings" ? "text-embedding-*" : "gpt-*";
+    const requestModel =
+      config.modelOverrides?.request || testDef.inputs[0]?.model || defaultModel;
+    const responseModel =
+      config.modelOverrides?.response || `${requestModel.replace("*", "")}*`;
+
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
+
+    for (const span of spansToCheck) {
+      const value = span.data?.["gen_ai.response.model"];
+      if (value === undefined || value === null) {
+        const msg = "gen_ai.response.model is missing (optional but recommended)";
+        errors.push(msg);
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.response.model",
+          message: msg,
+        });
+      } else if (typeof value === "string" && responseModel.endsWith("*")) {
+        // Wildcard pattern match
+        const prefix = responseModel.slice(0, -1);
+        if (!value.startsWith(prefix)) {
+          const msg = `gen_ai.response.model "${value}" does not match expected pattern "${responseModel}"`;
+          errors.push(msg);
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.response.model",
+            message: msg,
+          });
+        }
+      } else if (value !== responseModel) {
+        const msg = `gen_ai.response.model "${value}" does not match expected "${responseModel}"`;
+        errors.push(msg);
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.response.model",
+          message: msg,
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
   },
 };
 

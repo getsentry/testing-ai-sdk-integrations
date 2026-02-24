@@ -10,6 +10,7 @@ import {
   checkAISpanCount,
   checkEmbeddingSpanAttributes,
   checkEmbeddingTokenUsage,
+  checkResponseModel,
 } from "../checks.js";
 
 export const basicEmbeddingsTest: TestDefinition = {
@@ -31,6 +32,10 @@ export const basicEmbeddingsTest: TestDefinition = {
 
   checks: [
     checkEmbeddingTokenUsage,
+  ],
+
+  warningChecks: [
+    checkResponseModel,
   ],
 };
 

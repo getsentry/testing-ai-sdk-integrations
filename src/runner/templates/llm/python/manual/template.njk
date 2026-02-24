@@ -94,12 +94,10 @@ def build_sentry_messages(messages):
     model = "{{ input.model }}"
     messages = {{ input.messages | dump }}
 
-    sentry_msgs, legacy_msgs, system_instructions = build_sentry_messages(messages)
+    sentry_msgs, _, system_instructions = build_sentry_messages(messages)
 
     sentry_msgs, otel_original_len, otel_trimmed = trim_messages(sentry_msgs)
-    legacy_msgs, legacy_original_len, legacy_trimmed = trim_messages(legacy_msgs)
     otel_messages_json = json.dumps(sentry_msgs)
-    legacy_messages_json = json.dumps(legacy_msgs)
 
     content_len = messages_content_length(messages)
     input_tokens = estimate_tokens(content_len) + {{ loop.index0 * 20 }}
@@ -117,20 +115,13 @@ def build_sentry_messages(messages):
         span.set_data("gen_ai.operation.name", "chat")
         span.set_data("gen_ai.request.model", model)
         span.set_data("gen_ai.response.model", model)
-        span.set_data("gen_ai.response.text", response_text)
         span.set_data("gen_ai.usage.input_tokens", input_tokens)
         span.set_data("gen_ai.usage.input_tokens.cached", max(0, input_tokens // 3))
         span.set_data("gen_ai.usage.output_tokens", output_tokens)
         span.set_data("gen_ai.usage.output_tokens.reasoning", max(0, output_tokens // 4))
         span.set_data("gen_ai.usage.total_tokens", total_tokens)
 
-        span.set_data("gen_ai.request.messages", legacy_messages_json)
-        if legacy_trimmed:
-            span.set_data("gen_ai.request.messages.original_length", legacy_original_len)
-
         span.set_data("gen_ai.input.messages", otel_messages_json)
-        if otel_trimmed:
-            span.set_data("gen_ai.input.messages.original_length", otel_original_len)
         span.set_data("gen_ai.output.messages", output_messages)
         if system_instructions is not None:
             span.set_data("gen_ai.system_instructions", system_instructions)
