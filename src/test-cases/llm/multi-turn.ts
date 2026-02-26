@@ -24,7 +24,10 @@ import { CheckError } from "../../validator.js";
 const checkTokenProgression: Check = {
   name: "checkTokenProgression",
   fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
+    const aiSpans = extractGenAISpans(spans)
+      .slice()
+      // it's not guaranteed that the spans will be sorted by start_timestamp, so we need to sort them
+      .sort((a, b) => a.start_timestamp - b.start_timestamp);
     skipIf(
       aiSpans.length < 3,
       `Expected 3 spans for multi-turn test, got ${aiSpans.length}`,
