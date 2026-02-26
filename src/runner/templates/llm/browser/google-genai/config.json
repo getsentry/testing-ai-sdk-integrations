@@ -11,7 +11,7 @@
   "versions": ["1.38.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
-    "request": "gemini-2.0-flash",
-    "response": "gemini-2.0-flash*"
+    "request": "gemini-2.5-flash",
+    "response": "gemini-2.5-flash*"
   }
 }
