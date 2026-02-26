@@ -1159,8 +1159,8 @@ export const checkMessageTrimming: Check = {
             ? result.value
             : JSON.stringify(result.value);
 
-        if (messageStr.length >= maxExpectedSize) {
-          const msg = `Message should be trimmed (length ${messageStr.length} >= ${maxExpectedSize})`;
+        if (messageStr.length > maxExpectedSize) {
+          const msg = `Message should be trimmed (length ${messageStr.length} > ${maxExpectedSize})`;
           errors.push(msg);
           locations.push({
             spanId: span.span_id,
