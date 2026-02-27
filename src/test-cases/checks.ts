@@ -1412,6 +1412,107 @@ export const checkResponseModel: Check = {
   },
 };
 
+// =============================================================================
+// Conversation ID Checks
+// =============================================================================
+
+/**
+ * Check that gen_ai.conversation.id is present on all gen_ai spans
+ */
+export const checkConversationIdPresent: Check = {
+  name: "checkConversationIdPresent",
+  fn: (spans) => {
+    const aiSpans = extractGenAISpans(spans);
+    if (aiSpans.length === 0) {
+      throw new CheckError("Should have at least one AI span");
+    }
+
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
+
+    for (const span of aiSpans) {
+      const convId = span.data?.["gen_ai.conversation.id"];
+      if (convId === undefined || convId === null) {
+        const msg = `Span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.conversation.id attribute`;
+        errors.push(msg);
+        locations.push({
+          spanId: span.span_id,
+          attribute: "gen_ai.conversation.id",
+          message: msg,
+        });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
+  },
+};
+
+/**
+ * Check that conversation IDs on chat spans match the interleaved pattern from test inputs.
+ *
+ * For LLM tests: each input maps 1:1 to a chat span (ordered by timestamp).
+ * Validates that span[i].gen_ai.conversation.id === inputs[i].conversationId.
+ */
+export const checkConversationIdInterleaving: Check = {
+  name: "checkConversationIdInterleaving",
+  fn: (spans, config, testDef) => {
+    const chatSpans = findChatSpans(extractGenAISpans(spans)).sort(
+      (a, b) => a.start_timestamp - b.start_timestamp,
+    );
+
+    const inputsWithConvId = testDef.inputs.filter((i) => i.conversationId);
+    skipIf(
+      inputsWithConvId.length === 0,
+      "No inputs have conversationId field",
+    );
+
+    if (chatSpans.length < inputsWithConvId.length) {
+      throw new CheckError(
+        `Expected at least ${inputsWithConvId.length} chat spans for conversation ID validation, got ${chatSpans.length}`,
+      );
+    }
+
+    const errors: string[] = [];
+    const locations: ErrorLocation[] = [];
+
+    for (let i = 0; i < inputsWithConvId.length; i++) {
+      const expectedId = inputsWithConvId[i].conversationId;
+      const actualId = chatSpans[i].data?.["gen_ai.conversation.id"];
+
+      if (actualId !== expectedId) {
+        const msg = `Chat span ${i} gen_ai.conversation.id should be "${expectedId}" but is "${actualId}"`;
+        errors.push(msg);
+        locations.push({
+          spanId: chatSpans[i].span_id,
+          attribute: "gen_ai.conversation.id",
+          message: msg,
+        });
+      }
+    }
+
+    // Verify we have exactly 2 distinct conversation IDs
+    const uniqueIds = new Set(
+      chatSpans
+        .map((s) => s.data?.["gen_ai.conversation.id"])
+        .filter((id) => id !== undefined),
+    );
+    if (uniqueIds.size !== 2) {
+      const msg = `Expected exactly 2 distinct conversation IDs, got ${uniqueIds.size}: [${[...uniqueIds].join(", ")}]`;
+      errors.push(msg);
+    }
+
+    if (errors.length > 0) {
+      throw new CheckError(errors.join("\n"), locations);
+    }
+  },
+};
+
+// =============================================================================
+// Embedding Checks
+// =============================================================================
+
 /**
  * Check token usage on embedding spans
  *

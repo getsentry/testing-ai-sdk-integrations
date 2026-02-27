@@ -15,6 +15,8 @@ import { toolCallAgentTest } from "./agents/tool-call.js";
 import { toolErrorAgentTest } from "./agents/tool-error.js";
 import { visionAgentTest } from "./agents/vision.js";
 import { longInputAgentTest } from "./agents/long-input.js";
+import { conversationIdLLMTest } from "./llm/conversation-id.js";
+import { conversationIdAgentTest } from "./agents/conversation-id.js";
 import { basicEmbeddingsTest } from "./embeddings/basic.js";
 
 /**
@@ -27,6 +29,7 @@ export const testCases = {
     basicError: basicErrorLLMTest,
     vision: visionLLMTest,
     longInput: longInputLLMTest,
+    conversationId: conversationIdLLMTest,
   },
   agents: {
     basic: basicAgentTest,
@@ -34,6 +37,7 @@ export const testCases = {
     toolError: toolErrorAgentTest,
     vision: visionAgentTest,
     longInput: longInputAgentTest,
+    conversationId: conversationIdAgentTest,
   },
   embeddings: {
     basic: basicEmbeddingsTest,
