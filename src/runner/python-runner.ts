@@ -186,10 +186,12 @@ export class PythonRunner {
       dependencies.push(`"${framework.name}==${framework.version}"`);
     }
 
+    const minPythonVersion = framework.minimumPlatformVersion ?? '3.9';
+
     return `[project]
 name = "sentry-test-${framework.name}"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=${minPythonVersion}"
 dependencies = [
 ${dependencies.map(d => `    ${d},`).join('\n')}
 ]
