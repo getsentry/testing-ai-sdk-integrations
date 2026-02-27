@@ -232,6 +232,7 @@ async function main(): Promise<void> {
     return {
       name: df.name,
       platform: df.platform,
+      minimumPlatformVersion: df.minimumPlatformVersion,
       type: df.type,
       version: df.versions[0],
       sentryVersion,
