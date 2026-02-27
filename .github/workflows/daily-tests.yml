@@ -121,6 +121,15 @@ jobs:
           PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
           curl -sSf "${PAGES_URL}/history.json" -o history.json 2>/dev/null || echo "[]" > history.json
 
+      - name: Seed history from past CI runs (one-time)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(cat history.json 2>/dev/null)" = "[]" ] || [ ! -s history.json ]; then
+            echo "No existing history found, seeding from past workflow runs..."
+            node .github/scripts/extract-history.cjs history.json
+          fi
+
       - name: Update history with today's results
         run: |
           CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
