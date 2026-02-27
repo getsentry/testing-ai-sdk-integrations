@@ -41,6 +41,9 @@ export interface FrameworkConfig {
     [expectedName: string]: string;
   };
 
+  /** Minimum platform version required (e.g., "3.10" for Python). Defaults to platform default if omitted. */
+  minimumPlatformVersion?: string;
+
   /** Skip configuration: Tests or checks that should be skipped */
   skip?: {
     tests?: string[]; // Array of test names to skip entirely

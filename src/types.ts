@@ -132,6 +132,8 @@ export interface FrameworkConfig {
   toolNameMapping?: {
     [expectedName: string]: string;
   };
+  // Minimum platform version required (e.g., "3.10" for Python)
+  minimumPlatformVersion?: string;
   // Skip configuration: Tests or checks that should be skipped
   skip?: {
     tests?: string[]; // Array of test names to skip entirely
