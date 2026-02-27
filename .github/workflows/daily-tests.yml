@@ -108,6 +108,29 @@ jobs:
           mkdir -p _site
           cp $(ls -t test-results/test-report-*.html | head -1) _site/index.html
 
+      - name: Upload CTRF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctrf-report-${{ github.run_id }}
+          path: test-results/ctrf-report-*.json
+          retention-days: 90
+
+      - name: Fetch existing history from GitHub Pages
+        continue-on-error: true
+        run: |
+          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          curl -sSf "${PAGES_URL}/history.json" -o history.json 2>/dev/null || echo "[]" > history.json
+
+      - name: Update history with today's results
+        run: |
+          CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
+          node .github/scripts/update-history.cjs "$CTRF_FILE" history.json
+
+      - name: Generate trends page
+        run: |
+          node .github/scripts/generate-trends-page.cjs history.json _site/trends.html
+          cp history.json _site/history.json
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
 
