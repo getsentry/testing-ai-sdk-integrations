@@ -18,6 +18,7 @@ from pydantic_ai import Agent, ImageUrl, RunContext
 agent = Agent(
     "openai:{{ inputs[0].model }}",
     system_prompt="{{ system_content }}",
+    name="{{ agent.name }}"
 )
 
 {% if agent.tools | length > 0 %}
