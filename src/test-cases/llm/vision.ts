@@ -22,6 +22,7 @@ export const visionLLMTest: TestDefinition = {
   name: "Vision LLM Test",
   description: "Send an image to the LLM and ask about its contents",
   type: "llm",
+  timeoutMs: 120000,
 
   inputs: [
     {

@@ -326,7 +326,8 @@ async function main() {
       orchestrator.printReport(report);
 
       // Exit with appropriate code
-      const exitCode = report.failed > 0 || report.errors > 0 ? 1 : 0;
+      const exitCode =
+        report.failed > 0 || report.errors > 0 || report.timeouts > 0 ? 1 : 0;
       await orchestrator.stop();
       process.exit(exitCode);
     }

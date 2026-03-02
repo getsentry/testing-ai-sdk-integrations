@@ -39,6 +39,8 @@ export interface TestDefinition {
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
   causeAPIError?: boolean;
+  /** Execution timeout in milliseconds (default: 60000) */
+  timeoutMs?: number;
   /** Critical checks - core instrumentation must work (spans exist, attributes, hierarchy) */
   criticalChecks?: Check[];
   /** Normal checks - data correctness (token usage, messages, tool calls) */
@@ -216,7 +218,7 @@ export interface TestRun {
   index?: number;
   framework: FrameworkConfig;
   testDefinition: TestDefinition;
-  status: "pending" | "running" | "passed" | "failed" | "error" | "skipped";
+  status: "pending" | "running" | "passed" | "failed" | "error" | "skipped" | "timeout";
   startTime?: number;
   endTime?: number;
   error?: string;
@@ -233,6 +235,7 @@ export interface TestReport {
   failed: number;
   errors: number;
   skipped: number;
+  timeouts: number;
   duration: number;
   runs: TestRun[];
 }
@@ -247,6 +250,8 @@ export interface RunnerContext {
   isAsync?: boolean;
   // If true, render streaming version; if false, render non-streaming version
   isStreaming?: boolean;
+  // Execution timeout in milliseconds
+  timeoutMs: number;
   // Controls whether to print verbose console output (default: true)
   verbose?: boolean;
 }

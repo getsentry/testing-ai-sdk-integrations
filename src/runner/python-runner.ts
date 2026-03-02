@@ -277,7 +277,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
       const { stdout, stderr } = await execAsync(`${pythonPath} ${testFile}`, {
         cwd: workDir,
         env,
-        timeout: 60000, // 60 second timeout
+        timeout: context.timeoutMs,
       });
 
       // Write stdout and stderr to log file
@@ -345,8 +345,8 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         }
       }
 
-      if (error.code === 'ETIMEDOUT') {
-        throw new Error('Test execution timed out (60s)');
+      if (error.killed || error.code === 'ETIMEDOUT') {
+        throw new Error(`Test execution timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(`Test execution failed: ${error.message}\n${error.stderr || ''}`);
     }

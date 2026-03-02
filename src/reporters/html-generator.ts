@@ -29,6 +29,8 @@ function getStatusIcon(status: string): string {
       return "✓";
     case "failed":
       return "✗";
+    case "timeout":
+      return "⏱";
     case "skipped":
       return "○";
     default:
@@ -223,7 +225,11 @@ function TestMatrixByType({
 
     const result = testMap.get(key)!;
     result.total++;
-    result.variations.push({ mode, status: test.status });
+
+    // Use original status if available (e.g., "timeout" mapped to "failed" in CTRF)
+    const extra = test.extra as Record<string, unknown> | undefined;
+    const displayStatus = (extra?.originalStatus as string) || test.status;
+    result.variations.push({ mode, status: displayStatus });
 
     switch (test.status) {
       case "passed":
@@ -543,6 +549,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const spanCount = extra?.spanCount as number | undefined;
       const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
       const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
+      const isTimeout = extra?.originalStatus === "timeout";
 
       // Count failures by severity for summary badges
       const severityCounts = { critical: 0, normal: 0, warning: 0 };
@@ -556,9 +563,9 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       }
 
       return html`
-        <details class="failed-test">
+        <details class="${isTimeout ? "failed-test timeout-test" : "failed-test"}">
           <summary>
-            <span class="failed-icon">✗</span>
+            <span class="failed-icon">${isTimeout ? "⏱" : "✗"}</span>
             <strong
               >${test.suite && test.suite.length > 0
                 ? test.suite[0]
@@ -566,6 +573,9 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
             >
             :: ${caseId}
             <span class="severity-badges">
+              ${isTimeout
+                ? html`<span class="sev-badge sev-badge-timeout">${"⏱"} Timeout</span>`
+                : ""}
               ${severityCounts.critical > 0
                 ? html`<span class="sev-badge sev-badge-critical">${"❗"} ${severityCounts.critical}</span>`
                 : ""}
@@ -838,6 +848,11 @@ export function generateHTML(report: Report): string {
             color: #c62828;
             font-weight: bold;
           }
+          .matrix td.status-timeout {
+            background: #fff3e0;
+            color: #e65100;
+            font-weight: bold;
+          }
           .matrix td.status-skipped {
             background: #fff9c4;
             color: #f57f17;
@@ -877,6 +892,10 @@ export function generateHTML(report: Report): string {
           .mini-status.status-failed {
             background: #ffcdd2;
             color: #c62828;
+          }
+          .mini-status.status-timeout {
+            background: #fff3e0;
+            color: #e65100;
           }
           .mini-status.status-skipped {
             background: #fff9c4;
@@ -934,6 +953,12 @@ export function generateHTML(report: Report): string {
             border: 1px solid #ddd;
             border-radius: 4px;
           }
+          .failed-test.timeout-test {
+            border-color: #ffb74d;
+          }
+          .timeout-test .failed-icon {
+            color: #e65100;
+          }
           .failed-test summary {
             padding: 15px;
             cursor: pointer;
@@ -965,6 +990,10 @@ export function generateHTML(report: Report): string {
             padding: 1px 7px;
             border-radius: 10px;
             line-height: 1.4;
+          }
+          .sev-badge-timeout {
+            background: #fff3e0;
+            color: #e65100;
           }
           .sev-badge-critical {
             background: #ffcdd2;

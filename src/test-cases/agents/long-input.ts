@@ -32,6 +32,7 @@ export const longInputAgentTest: TestDefinition = {
   name: "Long Input Agent Test",
   description: "Tests message trimming for agent inputs > 20KB",
   type: "agent",
+  timeoutMs: 120000,
 
   // Simple agent with a tool - the focus is on the long input, not tool usage
   agent: {

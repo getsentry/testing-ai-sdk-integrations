@@ -71,6 +71,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
       sentryVersion: run.framework.sentryVersion,
       testType: run.testDefinition.type,
       platform: run.framework.platform,
+      ...(run.status === "timeout" && { originalStatus: "timeout" }),
       ...(run.framework.executionMode && {
         executionMode: run.framework.executionMode,
       }),
@@ -105,7 +106,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
   const summary = {
     tests: testReport.totalTests,
     passed: testReport.passed,
-    failed: testReport.failed,
+    failed: testReport.failed + testReport.timeouts,
     pending: 0,
     skipped: testReport.skipped,
     other: testReport.errors,
@@ -156,6 +157,8 @@ function mapStatus(
       return "failed";
     case "skipped":
       return "skipped";
+    case "timeout":
+      return "failed";
     case "error":
       return "other";
     case "pending":
