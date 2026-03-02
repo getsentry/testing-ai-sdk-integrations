@@ -52,6 +52,11 @@
 {% for message in input.messages %}
 {% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
 {% endfor %}
+{% if input.conversationId %}
+          if (typeof Sentry.setConversationId === "function") {
+            Sentry.setConversationId("{{ input.conversationId }}");
+          }
+{% endif %}
           // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
           try {
