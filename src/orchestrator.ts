@@ -1268,13 +1268,14 @@ export class Orchestrator {
     console.log("\n" + colors.gray + "─".repeat(70) + colors.reset);
 
     // Final summary
-    if (report.failed === 0 && report.errors === 0) {
+    if (report.failed === 0 && report.errors === 0 && report.timeouts === 0) {
       console.log(
         `\n${colors.green}${colors.bright}✓ All tests passed!${colors.reset} 🎉\n`,
       );
     } else {
+      const failCount = report.failed + report.errors + report.timeouts;
       console.log(
-        `\n${colors.red}${colors.bright}✗ ${report.failed + report.errors} test(s) failed${colors.reset}\n`,
+        `\n${colors.red}${colors.bright}✗ ${failCount} test(s) failed${colors.reset}\n`,
       );
     }
   }

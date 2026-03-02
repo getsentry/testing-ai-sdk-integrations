@@ -106,7 +106,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
   const summary = {
     tests: testReport.totalTests,
     passed: testReport.passed,
-    failed: testReport.failed,
+    failed: testReport.failed + testReport.timeouts,
     pending: 0,
     skipped: testReport.skipped,
     other: testReport.errors,
