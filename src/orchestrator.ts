@@ -228,6 +228,7 @@ export class Orchestrator {
           workDir,
           isAsync,
           isStreaming,
+          timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
         });
       } catch (setupError) {
@@ -270,6 +271,7 @@ export class Orchestrator {
             workDir,
             isAsync: testIsAsync,
             isStreaming: testIsStreaming,
+            timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
           });
 
@@ -474,6 +476,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
       });
 
@@ -833,6 +836,7 @@ export class Orchestrator {
       const isStreaming = testRun.framework.streamingMode === "streaming";
 
       // Execute test via runner (template already rendered in setup phase)
+      const timeoutMs = testRun.testDefinition.timeoutMs ?? 60000;
       await this.runner.executeOnly({
         runId: testRun.id,
         framework: testRun.framework,
@@ -841,6 +845,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
 
@@ -896,14 +901,16 @@ export class Orchestrator {
         process.stdout.write("\x1b[32m.\x1b[0m");
       }
     } catch (error) {
-      testRun.status = "failed";
-
       // Extract check results from ValidationError if available
       if (error instanceof ValidationError) {
+        testRun.status = "failed";
         testRun.checkResults = error.checkResults;
         testRun.error = error.message;
       } else {
-        testRun.error = error instanceof Error ? error.message : String(error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        const isTimeout = errorMsg.includes("timed out");
+        testRun.status = isTimeout ? "timeout" : "failed";
+        testRun.error = errorMsg;
       }
 
       // Run attribute audit even on failed tests
@@ -916,14 +923,24 @@ export class Orchestrator {
         if (testRun.attributeAudit) {
           this.liveStatus.updateAuditResult(testRun, testRun.attributeAudit);
         }
-        this.liveStatus.updateTestStatus(testRun, "failed", testRun.error);
+        this.liveStatus.updateTestStatus(
+          testRun,
+          testRun.status as "failed" | "timeout",
+          testRun.error,
+        );
       }
 
       if (this.verbose && !this.useLiveStatus) {
-        console.error(`✗ ${displayName} failed:`, testRun.error);
+        const icon = testRun.status === "timeout" ? "⏱" : "✗";
+        console.error(`${icon} ${displayName} ${testRun.status}:`, testRun.error);
       } else if (!this.useLiveStatus) {
-        // Pytest-style progress: F for failed
-        process.stdout.write("\x1b[31mF\x1b[0m");
+        if (testRun.status === "timeout") {
+          // Pytest-style progress: T for timeout
+          process.stdout.write("\x1b[33mT\x1b[0m");
+        } else {
+          // Pytest-style progress: F for failed
+          process.stdout.write("\x1b[31mF\x1b[0m");
+        }
       }
     } finally {
       testRun.endTime = Date.now();
@@ -969,6 +986,7 @@ export class Orchestrator {
     const failed = sortedRuns.filter((r) => r.status === "failed").length;
     const errors = sortedRuns.filter((r) => r.status === "error").length;
     const skipped = sortedRuns.filter((r) => r.status === "skipped").length;
+    const timeouts = sortedRuns.filter((r) => r.status === "timeout").length;
 
     return {
       totalTests: sortedRuns.length,
@@ -976,6 +994,7 @@ export class Orchestrator {
       failed,
       errors,
       skipped,
+      timeouts,
       duration: endTime - startTime,
       runs: sortedRuns,
     };
@@ -1097,6 +1116,11 @@ export class Orchestrator {
     );
     console.log(`${colors.green}✓ Passed:${colors.reset}     ${report.passed}`);
     console.log(`${colors.red}✗ Failed:${colors.reset}     ${report.failed}`);
+    if (report.timeouts > 0) {
+      console.log(
+        `${colors.yellow}⏱ Timed out:${colors.reset}  ${report.timeouts}`,
+      );
+    }
     if (report.skipped > 0) {
       console.log(
         `${colors.yellow}⊘ Skipped:${colors.reset}    ${report.skipped}`,
@@ -1136,6 +1160,10 @@ export class Orchestrator {
       if (run.status === "passed") {
         console.log(
           `\n${colors.green}✓${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset} ${run.testDefinition.name}${modeStr}`,
+        );
+      } else if (run.status === "timeout") {
+        console.log(
+          `\n${colors.yellow}⏱${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset} ${run.testDefinition.name}${modeStr}`,
         );
       } else {
         console.log(
@@ -1194,6 +1222,11 @@ export class Orchestrator {
         const reason = run.skipReason || "Test skipped";
         console.log(
           `  ${colors.yellow}⊘${colors.reset} ${colors.dim}${reason}${colors.reset}`,
+        );
+      } else if (run.status === "timeout" && run.error) {
+        // Timeout - no check results were produced
+        console.log(
+          `  ${colors.yellow}⏱ ${run.error}${colors.reset}`,
         );
       } else if (run.status === "failed" && run.error) {
         // Fallback for tests without check results

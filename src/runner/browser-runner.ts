@@ -317,9 +317,8 @@ export default defineConfig({
       });
 
       // Wait for test to complete (window.testComplete = true)
-      // Timeout after 60 seconds
       await page.waitForFunction("window.testComplete === true", {
-        timeout: 60000,
+        timeout: context.timeoutMs,
       });
 
       if (verbose) {
@@ -379,7 +378,7 @@ export default defineConfig({
       }
 
       if (error.message?.includes("Timeout")) {
-        throw new Error("Browser test timed out (60s)");
+        throw new Error(`Browser test timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(`Browser test execution failed: ${error.message}`);
     } finally {

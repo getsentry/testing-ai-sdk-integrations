@@ -14,7 +14,7 @@ interface TestState {
   type: string;
   testName: string;
   executionMode?: string;
-  status: "pending" | "running" | "passed" | "failed" | "skipped";
+  status: "pending" | "running" | "passed" | "failed" | "skipped" | "timeout";
   currentCheck?: string;
   checkResults: CheckResult[];
   attributeAudit?: AttributeAudit;
@@ -82,7 +82,7 @@ export class LiveStatusReporter {
    */
   updateTestStatus(
     testRun: TestRun,
-    status: "running" | "passed" | "failed" | "skipped",
+    status: "running" | "passed" | "failed" | "skipped" | "timeout",
     error?: string,
   ): void {
     const key = this.getKey(testRun);
@@ -264,15 +264,17 @@ export class LiveStatusReporter {
             }
           }
 
-          // Show error if failed
+          // Show error if failed or timed out
           if (
-            test.status === "failed" &&
+            (test.status === "failed" || test.status === "timeout") &&
             test.error &&
             test.checkResults.length === 0
           ) {
             const errorFirstLine = test.error.split("\n")[0];
+            const errorColor = test.status === "timeout" ? colors.yellow : colors.red;
+            const errorLabel = test.status === "timeout" ? "Timeout:" : "Error:";
             lines.push(
-              `      ${colors.red}Error:${colors.reset} ${colors.dim}${errorFirstLine}${colors.reset}`,
+              `      ${errorColor}${errorLabel}${colors.reset} ${colors.dim}${errorFirstLine}${colors.reset}`,
             );
           }
         }
@@ -310,8 +312,9 @@ export class LiveStatusReporter {
    */
   private getFrameworkStatus(
     tests: TestState[],
-  ): "pending" | "running" | "passed" | "failed" | "skipped" {
+  ): "pending" | "running" | "passed" | "failed" | "skipped" | "timeout" {
     if (tests.some((t) => t.status === "failed")) return "failed";
+    if (tests.some((t) => t.status === "timeout")) return "timeout";
     if (tests.some((t) => t.status === "running")) return "running";
     if (tests.every((t) => t.status === "passed")) return "passed";
     if (tests.every((t) => t.status === "skipped")) return "skipped";
@@ -336,6 +339,8 @@ export class LiveStatusReporter {
         return `${colors.green}✓${colors.reset}`;
       case "failed":
         return `${colors.red}✗${colors.reset}`;
+      case "timeout":
+        return `${colors.yellow}⏱${colors.reset}`;
       case "skipped":
         return `${colors.yellow}⊘${colors.reset}`;
       case "running":

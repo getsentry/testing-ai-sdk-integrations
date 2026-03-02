@@ -24,6 +24,7 @@ export const visionAgentTest: TestDefinition = {
   name: "Vision Agent Test",
   description: "Agent that analyzes an image",
   type: "agent",
+  timeoutMs: 120000,
 
   // No tools needed for this test - just image analysis
   agent: {
