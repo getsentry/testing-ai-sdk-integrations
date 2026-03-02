@@ -42,6 +42,9 @@ chat = ChatOpenAI(model="{{ input.model }}")
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}
+{% if input.conversationId %}
+    sentry_sdk.ai.set_conversation_id("{{ input.conversationId }}")
+{% endif %}
     messages = [
 {% for message in input.messages %}
     {% if message.role == 'system' %}
