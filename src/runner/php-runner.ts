@@ -357,7 +357,7 @@ return [
         }
       }
 
-      if (error.code === "ETIMEDOUT") {
+      if (error.killed || error.code === "ETIMEDOUT") {
         throw new Error(`Test execution timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(
