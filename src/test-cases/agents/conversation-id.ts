@@ -15,8 +15,7 @@ import {
   checkValidTokenUsage,
   checkAgentHierarchy,
   checkInputMessagesSchema,
-  checkConversationIdPresent,
-  checkConversationIdInterleaving,
+  checkConversationIds,
   checkResponseModel,
 } from "../checks.js";
 
@@ -45,25 +44,19 @@ export const conversationIdAgentTest: TestDefinition = {
     {
       model: "gpt-4o-mini",
       conversationId: "conv-b",
-      messages: [
-        { role: "user", content: "What is 2 + 2?" },
-      ],
+      messages: [{ role: "user", content: "What is 2 + 2?" }],
     },
     // Turn A2: Follow-up in conversation A
     {
       model: "gpt-4o-mini",
       conversationId: "conv-a",
-      messages: [
-        { role: "user", content: "What about Germany?" },
-      ],
+      messages: [{ role: "user", content: "What about Germany?" }],
     },
     // Turn B2: Follow-up in conversation B
     {
       model: "gpt-4o-mini",
       conversationId: "conv-b",
-      messages: [
-        { role: "user", content: "What about 3 + 3?" },
-      ],
+      messages: [{ role: "user", content: "What about 3 + 3?" }],
     },
   ],
 
@@ -71,14 +64,10 @@ export const conversationIdAgentTest: TestDefinition = {
     checkAgentSpanAttributes,
     checkChatSpanAttributes,
     checkAgentHierarchy,
-    checkConversationIdPresent,
+    checkConversationIds(["conv-a", "conv-b", "conv-a", "conv-b"]),
   ],
 
-  checks: [
-    checkConversationIdInterleaving,
-    checkValidTokenUsage,
-    checkInputMessagesSchema,
-  ],
+  checks: [checkValidTokenUsage, checkInputMessagesSchema],
 
   warningChecks: [checkResponseModel],
 };

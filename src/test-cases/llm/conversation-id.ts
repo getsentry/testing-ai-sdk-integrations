@@ -14,8 +14,7 @@ import {
   checkChatSpanAttributes,
   checkValidTokenUsage,
   checkInputMessagesSchema,
-  checkConversationIdPresent,
-  checkConversationIdInterleaving,
+  checkConversationIds,
   checkResponseModel,
 } from "../checks.js";
 
@@ -71,14 +70,10 @@ export const conversationIdLLMTest: TestDefinition = {
   criticalChecks: [
     checkAISpanCount(4),
     checkChatSpanAttributes,
-    checkConversationIdPresent,
+    checkConversationIds(["conv-a", "conv-b", "conv-a", "conv-b"]),
   ],
 
-  checks: [
-    checkConversationIdInterleaving,
-    checkValidTokenUsage,
-    checkInputMessagesSchema,
-  ],
+  checks: [checkValidTokenUsage, checkInputMessagesSchema],
 
   warningChecks: [checkResponseModel],
 };
