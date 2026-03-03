@@ -35,7 +35,7 @@ let llm, agent;
       llm = new ChatOpenAI({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
       });
-      agent = createReactAgent({ llm, tools: [] });
+      agent = createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
 {% endblock %}
 
 {% block test %}
