@@ -1,0 +1,22 @@
+{
+  "name": "langgraph",
+  "displayName": "LangGraph JavaScript SDK (Cloudflare)",
+  "type": "agentic",
+  "platform": "cloudflare",
+  "dependencies": [
+    {
+      "package": "@langchain/langgraph",
+      "version": "framework"
+    },
+    {
+      "package": "@langchain/openai",
+      "version": "0.3.0"
+    },
+    {
+      "package": "@langchain/core",
+      "version": "0.3.49"
+    }
+  ],
+  "versions": ["0.2.67"],
+  "sentryVersions": ["10.38.0", "latest"]
+}

@@ -1,0 +1,19 @@
+{% extends "base.cloudflare.njk" %}
+
+{% block dynamic_imports %}
+      const langchainOpenAI = await import("@langchain/openai");
+      const OpenAIEmbeddings = langchainOpenAI.OpenAIEmbeddings;
+      const callbackHandler = Sentry.createLangChainCallbackHandler();
+      const embeddings = new OpenAIEmbeddings({
+        modelName: "{{ inputs[0].model }}",
+        openAIApiKey: env.OPENAI_API_KEY,
+        callbacks: [callbackHandler],
+      });
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+      const result = await embeddings.embedQuery({{ input.input | dump }});
+      console.log("Embedding dimension:", result.length);
+{% endfor %}
+{% endblock %}
