@@ -11,6 +11,12 @@ import { RunnerContext } from "../types.js";
 
 const execAsync = promisify(exec);
 
+// Module-level port counter to avoid collisions when running tests in parallel
+let nextPort = 10000 + Math.floor(Math.random() * 40000);
+function allocatePort(): number {
+  return nextPort++;
+}
+
 export class CloudflareRunner {
   /**
    * Check if Cloudflare environment needs setup
@@ -219,8 +225,8 @@ export class CloudflareRunner {
       JSON.stringify(wranglerConfig, null, 2),
     );
 
-    // Pick a random port to avoid conflicts
-    const port = 10000 + Math.floor(Math.random() * 50000);
+    // Allocate a unique port to avoid collisions when running tests in parallel
+    const port = allocatePort();
 
     let wranglerProcess: ChildProcess | null = null;
     let stdout = "";
