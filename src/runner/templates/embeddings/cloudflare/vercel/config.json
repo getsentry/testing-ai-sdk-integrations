@@ -9,5 +9,5 @@
     { "package": "@ai-sdk/openai", "version": "latest" }
   ],
   "versions": ["4.3.16"],
-  "sentryVersions": ["10.28.0", "latest"]
+  "sentryVersions": ["latest"]
 }

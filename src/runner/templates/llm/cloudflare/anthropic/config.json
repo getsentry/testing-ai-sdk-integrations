@@ -11,7 +11,7 @@
     }
   ],
   "versions": ["0.39.0"],
-  "sentryVersions": ["10.28.0", "latest"],
+  "sentryVersions": ["latest"],
   "modelOverrides": {
     "request": "claude-haiku-4-5",
     "response": "claude-haiku-4-5*"
