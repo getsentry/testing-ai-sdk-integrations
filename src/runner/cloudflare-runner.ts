@@ -63,9 +63,8 @@ export class CloudflareRunner {
       console.log("  ✓ wrangler.json generated");
     }
 
-    // Create .dev.vars with API keys and SENTRY_DSN
+    // Create .dev.vars with API keys only (SENTRY_DSN is per-test in wrangler config)
     const devVars = [
-      `SENTRY_DSN=${context.sentryDsn || ""}`,
       `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ""}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ""}`,
       `GOOGLE_GENAI_API_KEY=${process.env.GOOGLE_GENAI_API_KEY || ""}`,
@@ -210,21 +209,15 @@ export class CloudflareRunner {
       main: testFile,
       compatibility_date: "2024-09-23",
       compatibility_flags: ["nodejs_compat"],
+      vars: {
+        SENTRY_DSN: sentryDsn,
+        RUN_ID: runId,
+      },
     };
     await fs.writeFile(
       path.join(workDir, wranglerConfigFile),
       JSON.stringify(wranglerConfig, null, 2),
     );
-
-    // Update .dev.vars with the correct SENTRY_DSN for this test run
-    const devVars = [
-      `SENTRY_DSN=${sentryDsn}`,
-      `RUN_ID=${runId}`,
-      `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ""}`,
-      `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ""}`,
-      `GOOGLE_GENAI_API_KEY=${process.env.GOOGLE_GENAI_API_KEY || ""}`,
-    ].join("\n");
-    await fs.writeFile(path.join(workDir, ".dev.vars"), devVars);
 
     // Pick a random port to avoid conflicts
     const port = 10000 + Math.floor(Math.random() * 50000);
