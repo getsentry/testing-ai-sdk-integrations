@@ -19,8 +19,8 @@
 
 {% block dynamic_imports %}
       const OpenAI = (await import("openai")).default;
-      const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-      Sentry.instrumentOpenAiClient(client);
+      const rawClient = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+      const client = Sentry.instrumentOpenAiClient(rawClient);
 {% endblock %}
 
 {% block test %}

@@ -8,7 +8,7 @@
       const ai = await import("ai");
       const aiSdkOpenai = await import("@ai-sdk/openai");
       const embed = ai.embed;
-      const openai = aiSdkOpenai.openai;
+      const openai = aiSdkOpenai.createOpenAI({ apiKey: env.OPENAI_API_KEY });
 {% endblock %}
 
 {% block test %}

@@ -202,7 +202,9 @@ export class CloudflareRunner {
     const testFile = `test-${testCaseId}${modeSuffix}.js`;
     const logFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.log`);
 
-    // Update wrangler.json to point to this specific test file
+    // Write a test-specific wrangler config file to avoid race conditions
+    // when multiple tests share the same workDir
+    const wranglerConfigFile = `wrangler-${testCaseId}${modeSuffix}.json`;
     const wranglerConfig = {
       name: `test-${framework.name}`,
       main: testFile,
@@ -210,7 +212,7 @@ export class CloudflareRunner {
       compatibility_flags: ["nodejs_compat"],
     };
     await fs.writeFile(
-      path.join(workDir, "wrangler.json"),
+      path.join(workDir, wranglerConfigFile),
       JSON.stringify(wranglerConfig, null, 2),
     );
 
@@ -240,7 +242,7 @@ export class CloudflareRunner {
 
         wranglerProcess = spawn(
           "npx",
-          ["wrangler", "dev", "--port", String(port)],
+          ["wrangler", "dev", "--config", wranglerConfigFile, "--port", String(port)],
           {
             cwd: workDir,
             env: {
