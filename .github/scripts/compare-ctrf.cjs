@@ -115,12 +115,47 @@ function getStatusEmoji(status) {
 }
 
 function parseTestName(name) {
-  // Format: "js/vercel :: 1-simple"
+  // Format: "js/vercel :: Basic LLM Test (async, streaming)"
   const parts = name.split(" :: ");
+  const fullCaseId = parts[1] || "";
+  // Strip mode suffix: "Basic LLM Test (async, streaming)" -> "Basic LLM Test"
+  const baseCaseId = fullCaseId.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  // Extract mode: "(async, streaming)" -> "async, streaming"
+  const modeMatch = fullCaseId.match(/\(([^)]+)\)$/);
+  const mode = modeMatch ? modeMatch[1] : null;
   return {
     sdk: parts[0] || name,
-    caseId: parts[1] || "",
+    caseId: fullCaseId,
+    baseCaseId,
+    mode,
   };
+}
+
+function getTestType(test) {
+  // Try extra.testType first, then infer from tags
+  if (test.extra && test.extra.testType) return test.extra.testType;
+  if (test.tags) {
+    if (test.tags.includes("llm")) return "llm";
+    if (test.tags.includes("agent")) return "agent";
+    if (test.tags.includes("embeddings")) return "embeddings";
+  }
+  return "unknown";
+}
+
+/**
+ * Natural sort comparison for test case names (e.g., "1-foo" before "2-bar")
+ */
+function naturalSortCompare(a, b) {
+  const aMatch = a.match(/^(\d+)/);
+  const bMatch = b.match(/^(\d+)/);
+  if (aMatch && bMatch) {
+    const diff = parseInt(aMatch[1], 10) - parseInt(bMatch[1], 10);
+    if (diff !== 0) return diff;
+    return a.localeCompare(b);
+  }
+  if (aMatch) return -1;
+  if (bMatch) return 1;
+  return a.localeCompare(b);
 }
 
 // Determine overall status
@@ -247,72 +282,167 @@ These tests existed on main but are not in the PR:
   md += "\n";
 }
 
-// Test matrix
+// Test matrix — split by type with combined variations
 md += `### Test Matrix
 
 `;
 
-// Collect all SDKs and test cases
-const allSdks = new Set();
-const allCases = new Set();
+/**
+ * Build a combined cell for grouped variations of the same base test.
+ * mainVariations/prVariations: arrays of { mode, status } or empty arrays.
+ */
+function buildCombinedCell(mainVariations, prVariations) {
+  // No data at all
+  if (mainVariations.length === 0 && prVariations.length === 0) {
+    return "—";
+  }
 
-for (const test of [...mainReport.results.tests, ...prReport.results.tests]) {
-  const { sdk, caseId } = parseTestName(test.name);
-  allSdks.add(sdk);
-  if (caseId) allCases.add(caseId);
+  // Removed (existed on main, not in PR)
+  if (prVariations.length === 0 && mainVariations.length > 0) {
+    return "🗑️";
+  }
+
+  // Collect all modes from both sides for consistent ordering
+  const allModes = [
+    ...new Set([
+      ...mainVariations.map((v) => v.mode),
+      ...prVariations.map((v) => v.mode),
+    ]),
+  ].sort();
+
+  // Single variation — simple cell
+  if (allModes.length === 1) {
+    const prV = prVariations.find((v) => v.mode === allModes[0]);
+    const mainV = mainVariations.find((v) => v.mode === allModes[0]);
+
+    if (prV && !mainV) {
+      return prV.status === "passed" ? "✅🆕" : "❌🆕";
+    }
+    if (!prV && mainV) {
+      return "🗑️";
+    }
+    const mainPassed = mainV.status === "passed";
+    const prPassed = prV.status === "passed";
+    if (mainPassed && prPassed) return "✅";
+    if (!mainPassed && !prPassed) return "❌";
+    if (mainPassed && !prPassed) return "❌📉";
+    return "✅🔧";
+  }
+
+  // Multiple variations — show one icon per variation with mode label
+  const parts = allModes.map((mode) => {
+    const prV = prVariations.find((v) => v.mode === mode);
+    const mainV = mainVariations.find((v) => v.mode === mode);
+    // Abbreviate mode labels
+    const label = abbreviateMode(mode);
+
+    let icon;
+    if (prV && !mainV) {
+      icon = prV.status === "passed" ? "✅🆕" : "❌🆕";
+    } else if (!prV && mainV) {
+      icon = "🗑️";
+    } else {
+      const mainPassed = mainV.status === "passed";
+      const prPassed = prV.status === "passed";
+      if (mainPassed && prPassed) icon = "✅";
+      else if (!mainPassed && !prPassed) icon = "❌";
+      else if (mainPassed && !prPassed) icon = "❌📉";
+      else icon = "✅🔧";
+    }
+    return `${icon}<sub>${label}</sub>`;
+  });
+
+  return parts.join(" ");
 }
 
-const sortedSdks = [...allSdks].sort();
-const sortedCases = [...allCases].sort();
+function abbreviateMode(mode) {
+  if (!mode) return "";
+  return mode
+    .replace("streaming", "str")
+    .replace("blocking", "blk")
+    .replace("async", "a")
+    .replace("sync", "s");
+}
 
-// Build matrix header
-md += `| SDK | ${sortedCases.join(" | ")} |
+// Group all tests by type, separately for main and PR
+const typeGroups = new Map(); // type -> { sdks: Set, baseCases: Set, mainMap: Map, prMap: Map }
+
+function ensureTypeGroup(testType) {
+  if (!typeGroups.has(testType)) {
+    typeGroups.set(testType, {
+      sdks: new Set(),
+      baseCases: new Set(),
+      mainMap: new Map(), // "sdk::baseCaseId" -> [{ mode, status }]
+      prMap: new Map(),
+    });
+  }
+  return typeGroups.get(testType);
+}
+
+function addTestToGroup(test, targetMapName) {
+  const testType = getTestType(test);
+  const { sdk, baseCaseId, mode } = parseTestName(test.name);
+  const group = ensureTypeGroup(testType);
+
+  group.sdks.add(sdk);
+  if (baseCaseId) group.baseCases.add(baseCaseId);
+
+  const key = `${sdk}::${baseCaseId}`;
+  const variation = { mode: mode || "default", status: test.status };
+  const targetMap = group[targetMapName];
+  if (!targetMap.has(key)) {
+    targetMap.set(key, []);
+  }
+  targetMap.get(key).push(variation);
+}
+
+for (const test of mainReport.results.tests) {
+  addTestToGroup(test, "mainMap");
+}
+for (const test of prReport.results.tests) {
+  addTestToGroup(test, "prMap");
+}
+
+const typeLabels = {
+  llm: "LLM Tests",
+  agent: "Agent Tests",
+  embeddings: "Embedding Tests",
+};
+
+// Render a matrix for each type
+for (const [testType, group] of typeGroups) {
+  const title = typeLabels[testType] || `${testType} Tests`;
+  const sortedSdks = [...group.sdks].sort();
+  const sortedCases = [...group.baseCases].sort(naturalSortCompare);
+
+  if (sortedCases.length === 0) continue;
+
+  md += `#### ${title}
+
+`;
+
+  md += `| SDK | ${sortedCases.join(" | ")} |
 |-----|${sortedCases.map(() => ":---:").join("|")}|
 `;
 
-// Build matrix rows
-for (const sdk of sortedSdks) {
-  md += `| **${sdk}** |`;
+  for (const sdk of sortedSdks) {
+    md += `| **${sdk}** |`;
 
-  for (const caseId of sortedCases) {
-    const testName = `${sdk} :: ${caseId}`;
-    const mainTest = mainTests.get(testName);
-    const prTest = prTests.get(testName);
-
-    let cell = "";
-
-    if (!prTest && !mainTest) {
-      cell = "—";
-    } else if (!prTest && mainTest) {
-      // Removed
-      cell = "🗑️";
-    } else if (prTest && !mainTest) {
-      // New test
-      cell = prTest.status === "passed" ? "✅🆕" : "❌🆕";
-    } else {
-      // Exists in both
-      const mainPassed = mainTest.status === "passed";
-      const prPassed = prTest.status === "passed";
-
-      if (mainPassed && prPassed) {
-        cell = "✅";
-      } else if (!mainPassed && !prPassed) {
-        cell = "❌";
-      } else if (mainPassed && !prPassed) {
-        cell = "❌📉"; // Regression
-      } else {
-        cell = "✅🔧"; // Fixed
-      }
+    for (const baseCaseId of sortedCases) {
+      const key = `${sdk}::${baseCaseId}`;
+      const mainVariations = group.mainMap.get(key) || [];
+      const prVariations = group.prMap.get(key) || [];
+      const cell = buildCombinedCell(mainVariations, prVariations);
+      md += ` ${cell} |`;
     }
 
-    md += ` ${cell} |`;
+    md += "\n";
   }
 
   md += "\n";
 }
 
-md += `
-**Legend:** ✅ Pass | ❌ Fail | ✅🔧 Fixed | ❌📉 Regressed | ✅🆕 New (pass) | ❌🆕 New (fail) | 🗑️ Removed
+md += `**Legend:** ✅ Pass | ❌ Fail | ✅🔧 Fixed | ❌📉 Regressed | ✅🆕 New (pass) | ❌🆕 New (fail) | 🗑️ Removed | <sub>str</sub>=streaming <sub>blk</sub>=blocking <sub>a</sub>=async <sub>s</sub>=sync
 
 ---
 *Generated by [AI SDK Integration Tests](https://github.com/getsentry/testing-ai-sdk-integrations)*
