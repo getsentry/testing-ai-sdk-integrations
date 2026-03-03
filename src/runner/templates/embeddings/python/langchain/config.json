@@ -10,5 +10,5 @@
     { "package": "langchain-openai", "version": "latest" }
   ],
   "versions": ["1.2.8"],
-  "sentryVersions": ["2.51.0", "latest"]
+  "sentryVersions": ["latest"]
 }

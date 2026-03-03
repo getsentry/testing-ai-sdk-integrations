@@ -8,7 +8,7 @@
     { "package": "@google/genai", "version": "framework" }
   ],
   "versions": ["1.38.0"],
-  "sentryVersions": ["10.38.0", "latest"],
+  "sentryVersions": ["latest"],
   "modelOverrides": {
     "request": "models/gemini-embedding-001",
     "response": "models/gemini-embedding-001*"
