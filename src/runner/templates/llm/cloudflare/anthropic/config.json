@@ -1,0 +1,19 @@
+{
+  "name": "anthropic",
+  "displayName": "Anthropic JavaScript SDK (Cloudflare)",
+  "type": "llm-only",
+  "platform": "cloudflare",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "@anthropic-ai/sdk",
+      "version": "framework"
+    }
+  ],
+  "versions": ["0.39.0"],
+  "sentryVersions": ["10.28.0", "latest"],
+  "modelOverrides": {
+    "request": "claude-haiku-4-5",
+    "response": "claude-haiku-4-5*"
+  }
+}

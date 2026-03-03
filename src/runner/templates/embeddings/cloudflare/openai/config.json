@@ -1,0 +1,12 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI JavaScript SDK Embeddings (Cloudflare)",
+  "type": "embeddings",
+  "platform": "cloudflare",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "openai", "version": "framework" }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["10.28.0", "latest"]
+}

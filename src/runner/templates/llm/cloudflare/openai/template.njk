@@ -1,0 +1,67 @@
+{% extends "base.cloudflare.njk" %}
+
+{# Macro to render message content - handles both string and multimodal array #}
+{% macro renderContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+              { type: "text", text: "{{ part.text }}" },
+{% elif part.type == 'image' %}
+              { type: "image_url", image_url: { url: "data:{{ part.mediaType }};base64,{{ part.base64 }}" } },
+{% endif %}
+{% endfor %}
+            ]
+{%- endif %}
+{% endmacro %}
+
+{% block dynamic_imports %}
+      const OpenAI = (await import("openai")).default;
+      const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+      Sentry.instrumentOpenAiClient(client);
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+      // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+
+      try {
+{% if isStreaming %}
+        const stream = await client.chat.completions.create({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          messages: [
+{% for message in input.messages %}
+            { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
+{% endfor %}
+          ],
+          stream: true,
+          stream_options: { include_usage: true },
+        });
+
+        const chunks = [];
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            chunks.push(content);
+          }
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+        const response = await client.chat.completions.create({
+          model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+          messages: [
+{% for message in input.messages %}
+            { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
+{% endfor %}
+          ],
+        });
+        console.log("Response:", response.choices[0].message.content);
+{% endif %}
+      } catch (error) {
+        Sentry.captureException(error);
+        console.error("Error:", error.message);
+      }
+{% endfor %}
+{% endblock %}

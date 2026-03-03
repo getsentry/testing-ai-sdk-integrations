@@ -1,0 +1,38 @@
+/**
+ * Sentry AI SDK Integration Test: {{ testName }}
+ * Framework: {{ frameworkName }}
+ * Platform: Cloudflare Workers
+ *
+ * This test verifies that Sentry correctly instruments {{ frameworkName }} SDK calls
+ * in a Cloudflare Workers environment using the @sentry/cloudflare package.
+ *
+ * Unlike Node.js, Cloudflare Workers use Sentry.withSentry() to wrap the handler
+ * and AI integrations must be added manually to the integrations array.
+ */
+
+import * as Sentry from "@sentry/cloudflare";
+
+{% block setup %}{% endblock %}
+
+export default Sentry.withSentry(
+  (env) => ({
+    dsn: env.SENTRY_DSN,
+    sendDefaultPii: true,
+    tracesSampleRate: 1.0,
+    integrations: [
+{% block sentry_integrations %}{% endblock %}
+    ],
+  }),
+  {
+    async fetch(request, env, ctx) {
+      await Sentry.startSpan(
+        { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
+        async () => {
+{% block dynamic_imports %}{% endblock %}
+{% block test %}{% endblock %}
+        }
+      );
+      return new Response("OK");
+    },
+  }
+);

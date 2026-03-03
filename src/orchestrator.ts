@@ -500,7 +500,8 @@ export class Orchestrator {
           run.framework.platform === "node" ||
           run.framework.platform === "nextjs" ||
           run.framework.platform === "browser" ||
-          run.framework.platform === "php"
+          run.framework.platform === "php" ||
+          run.framework.platform === "cloudflare"
         )
           return false;
         return run.framework.executionMode === "sync";
@@ -511,7 +512,8 @@ export class Orchestrator {
           run.framework.platform === "node" ||
           run.framework.platform === "nextjs" ||
           run.framework.platform === "browser" ||
-          run.framework.platform === "php"
+          run.framework.platform === "php" ||
+          run.framework.platform === "cloudflare"
         )
           return false;
         return run.framework.executionMode === "async";
