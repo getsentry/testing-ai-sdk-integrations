@@ -1412,6 +1412,85 @@ export const checkResponseModel: Check = {
   },
 };
 
+// =============================================================================
+// Conversation ID Checks
+// =============================================================================
+
+/**
+ * Factory function to create a check that validates conversation IDs on chat spans.
+ *
+ * Each entry in `expectedIds` corresponds to one chat span (ordered by timestamp).
+ * Validates:
+ * 1. Each chat span has gen_ai.conversation.id matching the expected value
+ * 2. All gen_ai spans have gen_ai.conversation.id set
+ *
+ * @param expectedIds - The expected conversation ID sequence, e.g. ["conv-a", "conv-b", "conv-a", "conv-b"]
+ *
+ * @example
+ * checkConversationIds(["conv-a", "conv-b", "conv-a", "conv-b"])
+ */
+export function checkConversationIds(expectedIds: string[]): Check {
+  return {
+    name: `checkConversationIds([${[...new Set(expectedIds)].join(", ")}])`,
+    fn: (spans) => {
+      const aiSpans = extractGenAISpans(spans);
+      if (aiSpans.length === 0) {
+        throw new CheckError("Should have at least one AI span");
+      }
+
+      const chatSpans = findChatSpans(aiSpans).sort(
+        (a, b) => a.start_timestamp - b.start_timestamp,
+      );
+
+      if (chatSpans.length < expectedIds.length) {
+        throw new CheckError(
+          `Expected at least ${expectedIds.length} chat spans for conversation ID validation, got ${chatSpans.length}`,
+        );
+      }
+
+      const errors: string[] = [];
+      const locations: ErrorLocation[] = [];
+
+      // Check that chat spans match the expected sequence
+      for (let i = 0; i < expectedIds.length; i++) {
+        const actualId = chatSpans[i].data?.["gen_ai.conversation.id"];
+
+        if (actualId !== expectedIds[i]) {
+          const msg = `Chat span ${i} gen_ai.conversation.id should be "${expectedIds[i]}" but is "${actualId}"`;
+          errors.push(msg);
+          locations.push({
+            spanId: chatSpans[i].span_id,
+            attribute: "gen_ai.conversation.id",
+            message: msg,
+          });
+        }
+      }
+
+      // Check that ALL gen_ai spans have a conversation ID
+      for (const span of aiSpans) {
+        const convId = span.data?.["gen_ai.conversation.id"];
+        if (convId === undefined || convId === null) {
+          const msg = `Span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.conversation.id attribute`;
+          errors.push(msg);
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.conversation.id",
+            message: msg,
+          });
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new CheckError(errors.join("\n"), locations);
+      }
+    },
+  };
+}
+
+// =============================================================================
+// Embedding Checks
+// =============================================================================
+
 /**
  * Check token usage on embedding spans
  *
