@@ -76,7 +76,7 @@ Framework configurations define test matrices:
 ```json
 {
   "versions": ["1.57.0", "1.58.1"],
-  "sentryVersions": ["2.19.2", "latest"]
+  "sentryVersions": ["latest"]
 }
 ```
 

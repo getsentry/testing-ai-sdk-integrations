@@ -8,5 +8,5 @@
     { "package": "openai", "version": "framework" }
   ],
   "versions": ["4.96.0"],
-  "sentryVersions": ["10.28.0", "latest"]
+  "sentryVersions": ["latest"]
 }

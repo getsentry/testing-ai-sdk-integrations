@@ -16,7 +16,7 @@
     }
   ],
   "versions": ["2.16.0"],
-  "sentryVersions": ["2.51.0", "latest"],
+  "sentryVersions": ["latest"],
   "matrix": {
     "modelProviders": ["openai"]
   }
