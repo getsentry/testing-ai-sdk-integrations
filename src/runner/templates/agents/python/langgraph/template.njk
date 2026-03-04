@@ -49,7 +49,7 @@ tools = []
 {% endif %}
 
 # Create react agent
-agent = create_react_agent(llm, tools=tools)
+agent = create_react_agent(llm, tools=tools, name="{{ agent.name }}")
 {% endblock %}
 
 {% block test %}
