@@ -536,10 +536,15 @@ export function findEmbeddingSpans(spans: CapturedSpan[]): CapturedSpan[] {
 // =============================================================================
 
 /**
- * Extract all MCP spans (op starts with "mcp.")
+ * Extract MCP operation spans (tools/call, resources/read, prompts/get)
+ * Excludes protocol spans like initialize and notification spans
  */
+const MCP_OPERATION_METHODS = new Set(["tools/call", "resources/read", "prompts/get"]);
+
 export function extractMCPSpans(spans: CapturedSpan[]): CapturedSpan[] {
-  return spans.filter((s) => s.op && s.op.startsWith("mcp."));
+  return spans.filter((s) =>
+    s.op === "mcp.server" && MCP_OPERATION_METHODS.has(s.data?.["mcp.method.name"]),
+  );
 }
 
 /**
@@ -547,7 +552,7 @@ export function extractMCPSpans(spans: CapturedSpan[]): CapturedSpan[] {
  */
 export function findMCPToolSpans(spans: CapturedSpan[]): CapturedSpan[] {
   return spans.filter((s) => {
-    return s.op?.startsWith("mcp.") && s.data?.["mcp.method.name"] === "tools/call";
+    return s.op === "mcp.server" && s.data?.["mcp.method.name"] === "tools/call";
   });
 }
 
@@ -556,7 +561,7 @@ export function findMCPToolSpans(spans: CapturedSpan[]): CapturedSpan[] {
  */
 export function findMCPResourceSpans(spans: CapturedSpan[]): CapturedSpan[] {
   return spans.filter((s) => {
-    return s.op?.startsWith("mcp.") && s.data?.["mcp.method.name"] === "resources/read";
+    return s.op === "mcp.server" && s.data?.["mcp.method.name"] === "resources/read";
   });
 }
 
@@ -565,7 +570,7 @@ export function findMCPResourceSpans(spans: CapturedSpan[]): CapturedSpan[] {
  */
 export function findMCPPromptSpans(spans: CapturedSpan[]): CapturedSpan[] {
   return spans.filter((s) => {
-    return s.op?.startsWith("mcp.") && s.data?.["mcp.method.name"] === "prompts/get";
+    return s.op === "mcp.server" && s.data?.["mcp.method.name"] === "prompts/get";
   });
 }
 

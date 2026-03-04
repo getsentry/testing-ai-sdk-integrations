@@ -119,13 +119,29 @@ export class SpanCollector {
         const itemBody = JSON.parse(lines[i + 1]);
 
         if (itemHeader.type === 'transaction' || itemHeader.type === 'span') {
-          // Transaction contains spans
+          // Transaction contains child spans
           if (itemBody.spans) {
             spans.push(...itemBody.spans);
           }
           // The transaction itself is also a span
           if (itemBody.span_id) {
             spans.push(itemBody);
+          } else if (itemBody.contexts?.trace?.span_id) {
+            // Sentry JS SDK v10 sends some transactions (e.g. MCP spans) with
+            // span_id nested in contexts.trace instead of at the root level.
+            // Extract a CapturedSpan from the transaction + contexts.trace.
+            const trace = itemBody.contexts.trace;
+            spans.push({
+              span_id: trace.span_id,
+              trace_id: trace.trace_id,
+              parent_span_id: trace.parent_span_id,
+              op: trace.op || itemBody.op,
+              description: itemBody.transaction || trace.description,
+              start_timestamp: itemBody.start_timestamp,
+              timestamp: itemBody.timestamp,
+              data: trace.data || {},
+              status: trace.status,
+            });
           }
         }
       } catch (error) {

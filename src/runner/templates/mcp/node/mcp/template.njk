@@ -1,0 +1,164 @@
+{% extends "base.node.njk" %}
+
+{# Macro to convert parameter type to Zod schema #}
+{% macro zodType(type_str) -%}
+{% if type_str == 'number' %}z.number(){% elif type_str == 'integer' %}z.number().int(){% elif type_str == 'boolean' %}z.boolean(){% else %}z.string(){% endif %}
+{%- endmacro %}
+
+{% block setup %}
+// Variables initialized after dynamic import
+let McpServer, InMemoryTransport, Client, z, Sentry_wrapMcp;
+{% if isSse %}
+let SSEServerTransport, SSEClientTransport, http;
+{% endif %}
+{% endblock %}
+
+{% block dynamic_imports %}
+      const mcpServerMod = await import("@modelcontextprotocol/sdk/server/mcp.js");
+      const inMemoryMod = await import("@modelcontextprotocol/sdk/inMemory.js");
+      const clientMod = await import("@modelcontextprotocol/sdk/client/index.js");
+      const zodMod = await import("zod");
+      McpServer = mcpServerMod.McpServer;
+      InMemoryTransport = inMemoryMod.InMemoryTransport;
+      Client = clientMod.Client;
+      z = zodMod.z;
+      Sentry_wrapMcp = Sentry.wrapMcpServerWithSentry;
+{% if isSse %}
+      const sseMod = await import("@modelcontextprotocol/sdk/server/sse.js");
+      const sseClientMod = await import("@modelcontextprotocol/sdk/client/sse.js");
+      const httpMod = await import("node:http");
+      SSEServerTransport = sseMod.SSEServerTransport;
+      SSEClientTransport = sseClientMod.SSEClientTransport;
+      http = httpMod.default;
+{% endif %}
+{% endblock %}
+
+{% block test %}
+      // Create and instrument MCP server
+      const mcpServer = Sentry_wrapMcp(new McpServer(
+        { name: "{{ mcpServer.name }}", version: "1.0.0" },
+      ), { recordInputs: true, recordOutputs: true });
+
+{% if mcpServer.tools %}
+      // Register tools
+{% for tool in mcpServer.tools %}
+      mcpServer.tool(
+        "{{ tool.name }}",
+        "{{ tool.description }}",
+        {
+{% for pname, pdef in tool.parameters %}
+          {{ pname }}: {{ zodType(pdef.type) }}{% if pdef.description %}.describe("{{ pdef.description }}"){% endif %},
+{% endfor %}
+        },
+        async ({{ '{' }}{% for pname, pdef in tool.parameters %}{{ pname }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }}) => {
+{% if tool.error %}
+          throw new Error("{{ tool.error }}");
+{% else %}
+          return { content: [{ type: "text", text: JSON.stringify({{ tool.result | tojson }}) }] };
+{% endif %}
+        }
+      );
+{% endfor %}
+{% endif %}
+
+{% if mcpServer.resources %}
+      // Register resources
+{% for resource in mcpServer.resources %}
+      mcpServer.resource(
+        "{{ resource.name }}",
+        "{{ resource.uri }}",
+        async () => ({
+          contents: [{
+            uri: "{{ resource.uri }}",
+            text: {{ resource.content | tojson }},
+          }],
+        })
+      );
+{% endfor %}
+{% endif %}
+
+{% if mcpServer.prompts %}
+      // Register prompts
+{% for prompt in mcpServer.prompts %}
+      mcpServer.prompt(
+        "{{ prompt.name }}",
+        "{{ prompt.description }}",
+{% if prompt.parameters %}
+        {
+{% for pname, pdef in prompt.parameters %}
+          {{ pname }}: {{ zodType(pdef.type) }}{% if pdef.description %}.describe("{{ pdef.description }}"){% endif %},
+{% endfor %}
+        },
+{% endif %}
+        async ({% if prompt.parameters %}{{ '{' }}{% for pname, pdef in prompt.parameters %}{{ pname }}{% if not loop.last %}, {% endif %}{% endfor %}{{ '}' }}{% endif %}) => ({
+          messages: [{
+            role: "user",
+            content: { type: "text", text: {{ prompt.template | tojson }} },
+          }],
+        })
+      );
+{% endfor %}
+{% endif %}
+
+{% if isSse %}
+      // Set up SSE server using raw http (no body-parsing middleware)
+      let sseTransport;
+      const server = http.createServer(async (req, res) => {
+        const url = new URL(req.url, `http://127.0.0.1`);
+        if (req.method === "GET" && url.pathname === "/sse") {
+          sseTransport = new SSEServerTransport("/messages", res);
+          await mcpServer.connect(sseTransport);
+        } else if (req.method === "POST" && url.pathname === "/messages") {
+          if (sseTransport) {
+            await sseTransport.handlePostMessage(req, res);
+          } else {
+            res.writeHead(503).end();
+          }
+        } else {
+          res.writeHead(404).end();
+        }
+      });
+
+      const port = await new Promise((resolve) => {
+        server.listen(0, "127.0.0.1", () => resolve(server.address().port));
+      });
+
+      // Connect SSE client
+      const sseClientTransport = new SSEClientTransport(
+        new URL(`http://127.0.0.1:${port}/sse`)
+      );
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      await client.connect(sseClientTransport);
+{% else %}
+      // Connect client and server via in-memory transport
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      await Promise.all([
+        client.connect(clientTransport),
+        mcpServer.connect(serverTransport),
+      ]);
+{% endif %}
+
+{% for input in inputs %}
+{% if input.action == 'call_tool' %}
+      try {
+        const result = await client.callTool({ name: "{{ input.tool }}", arguments: {{ input.arguments | dump }} });
+        console.log("Tool result:", JSON.stringify(result));
+      } catch (error) {
+        console.log("Tool error (expected):", error.message);
+      }
+{% elif input.action == 'read_resource' %}
+      const result{{ loop.index }} = await client.readResource({ uri: "{{ input.uri }}" });
+      console.log("Resource:", JSON.stringify(result{{ loop.index }}));
+{% elif input.action == 'get_prompt' %}
+      const result{{ loop.index }} = await client.getPrompt({ name: "{{ input.prompt }}", arguments: {{ input.arguments | dump }} });
+      console.log("Prompt:", JSON.stringify(result{{ loop.index }}));
+{% endif %}
+{% endfor %}
+
+      // Clean up
+      await client.close();
+{% if isSse %}
+      server.close();
+{% endif %}
+{% endblock %}
