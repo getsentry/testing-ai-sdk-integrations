@@ -214,6 +214,7 @@ export function buildModeParts(
   isAsync?: boolean,
   isStreaming?: boolean,
   transportMode?: "stdio" | "sse",
+  resolvedOptions?: Record<string, string>,
 ): string[] {
   const parts: string[] = [];
 
@@ -232,6 +233,13 @@ export function buildModeParts(
     parts.push(transportMode);
   }
 
+  // Add resolved options (sorted by key for deterministic filenames)
+  if (resolvedOptions) {
+    for (const key of Object.keys(resolvedOptions).sort()) {
+      parts.push(resolvedOptions[key]);
+    }
+  }
+
   return parts;
 }
 
@@ -243,7 +251,8 @@ export function buildModeSuffix(
   isAsync?: boolean,
   isStreaming?: boolean,
   transportMode?: "stdio" | "sse",
+  resolvedOptions?: Record<string, string>,
 ): string {
-  const parts = buildModeParts(framework, isAsync, isStreaming, transportMode);
+  const parts = buildModeParts(framework, isAsync, isStreaming, transportMode, resolvedOptions);
   return parts.length > 0 ? `-${parts.join("-")}` : "";
 }

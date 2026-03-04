@@ -48,6 +48,7 @@ export class Orchestrator {
   private asyncFilter?: boolean;
   private streamingFilter?: boolean;
   private blockingFilter?: boolean;
+  private optionFilters?: Record<string, string>;
 
   constructor(
     options: {
@@ -59,6 +60,7 @@ export class Orchestrator {
       blocking?: boolean;
       parallel?: number;
       openReport?: boolean;
+      optionFilters?: Record<string, string>;
     } = {},
   ) {
     this.spanCollector = new SpanCollector();
@@ -75,6 +77,7 @@ export class Orchestrator {
     this.asyncFilter = options.async;
     this.streamingFilter = options.streaming;
     this.blockingFilter = options.blocking;
+    this.optionFilters = options.optionFilters;
     this.openReport = options.openReport === true;
 
     // Set verbose on validator
@@ -229,6 +232,7 @@ export class Orchestrator {
           isAsync,
           isStreaming,
           transportMode: firstRun.framework.transportMode as "stdio" | "sse" | undefined,
+          resolvedOptions: firstRun.framework.resolvedOptions,
           timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
         });
@@ -273,6 +277,7 @@ export class Orchestrator {
             isAsync: testIsAsync,
             isStreaming: testIsStreaming,
             transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
+            resolvedOptions: testRun.framework.resolvedOptions,
             timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
           });
@@ -479,6 +484,7 @@ export class Orchestrator {
         isAsync,
         isStreaming,
         transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
+        resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
       });
@@ -530,6 +536,17 @@ export class Orchestrator {
       testMatrix = testMatrix.filter(
         (run) => run.framework.streamingMode === "blocking",
       );
+    }
+
+    // Filter by generic options (--option key=value)
+    if (this.optionFilters && Object.keys(this.optionFilters).length > 0) {
+      testMatrix = testMatrix.filter((run) => {
+        for (const [key, value] of Object.entries(this.optionFilters!)) {
+          const resolved = run.framework.resolvedOptions?.[key];
+          if (resolved !== value) return false;
+        }
+        return true;
+      });
     }
 
     return testMatrix;
@@ -627,27 +644,31 @@ export class Orchestrator {
           continue;
         }
 
-        // Generate test runs for all combinations of execution mode, streaming mode, and transport mode
+        // Generate test runs for all combinations of execution mode, streaming mode, transport mode, and API style
         const executionModes = this.getExecutionModes(framework);
         const streamingModes = this.getStreamingModes(framework);
         const transportModes = this.getTransportModes(framework);
+        const optionCombinations = this.getOptionCombinations(framework);
 
         for (const execMode of executionModes) {
           for (const streamMode of streamingModes) {
             for (const transportMode of transportModes) {
-              const runId = this.generateRunId();
-              matrix.push({
-                id: runId,
-                index: matrix.length, // Track original order for consistent reporting
-                framework: {
-                  ...framework,
-                  executionMode: execMode,
-                  streamingMode: streamMode,
-                  transportMode: transportMode,
-                },
-                testDefinition,
-                status: "pending",
-              });
+              for (const resolvedOptions of optionCombinations) {
+                const runId = this.generateRunId();
+                matrix.push({
+                  id: runId,
+                  index: matrix.length, // Track original order for consistent reporting
+                  framework: {
+                    ...framework,
+                    executionMode: execMode,
+                    streamingMode: streamMode,
+                    transportMode: transportMode,
+                    resolvedOptions,
+                  },
+                  testDefinition,
+                  status: "pending",
+                });
+              }
             }
           }
         }
@@ -714,7 +735,7 @@ export class Orchestrator {
           const testPrefix = isLastFramework ? "      " : "   │  ";
           const testBranch = isLast ? "└─" : "├─";
 
-          // Build mode string with execution mode, streaming mode, and transport mode
+          // Build mode string with execution mode, streaming mode, transport mode, and resolved options
           const modeParts: string[] = [];
           if (run.framework.executionMode) {
             modeParts.push(run.framework.executionMode);
@@ -724,6 +745,11 @@ export class Orchestrator {
           }
           if (run.framework.transportMode) {
             modeParts.push(run.framework.transportMode);
+          }
+          if (run.framework.resolvedOptions) {
+            for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+              modeParts.push(run.framework.resolvedOptions[key]);
+            }
           }
           const mode =
             modeParts.length > 0
@@ -834,6 +860,38 @@ export class Orchestrator {
   }
 
   /**
+   * Get all combinations of generic options for a framework.
+   * Returns an array of resolved option objects (cartesian product of all option values).
+   * If no options are defined, returns [undefined] so the loop runs once.
+   */
+  private getOptionCombinations(
+    framework: FrameworkConfig,
+  ): Array<Record<string, string> | undefined> {
+    if (!framework.options || Object.keys(framework.options).length === 0) {
+      return [undefined];
+    }
+
+    const keys = Object.keys(framework.options).sort();
+    const valueSets = keys.map((k) => framework.options![k]);
+
+    // Compute cartesian product
+    let combinations: Record<string, string>[] = [{}];
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const values = valueSets[i];
+      const expanded: Record<string, string>[] = [];
+      for (const combo of combinations) {
+        for (const value of values) {
+          expanded.push({ ...combo, [key]: value });
+        }
+      }
+      combinations = expanded;
+    }
+
+    return combinations;
+  }
+
+  /**
    * Execute a single test
    */
   private async executeTest(testRun: TestRun): Promise<void> {
@@ -879,6 +937,7 @@ export class Orchestrator {
         isAsync,
         isStreaming,
         transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
+        resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
@@ -1065,6 +1124,13 @@ export class Orchestrator {
       modeParts.push(testRun.framework.transportMode);
     }
 
+    // Add resolved options
+    if (testRun.framework.resolvedOptions) {
+      for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+        modeParts.push(testRun.framework.resolvedOptions[key]);
+      }
+    }
+
     if (modeParts.length > 0) {
       return `${testRun.testDefinition.name} (${modeParts.join(", ")})`;
     }
@@ -1095,6 +1161,11 @@ export class Orchestrator {
       }
       if (testRun.framework.transportMode) {
         modeParts.push(testRun.framework.transportMode);
+      }
+      if (testRun.framework.resolvedOptions) {
+        for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+          modeParts.push(testRun.framework.resolvedOptions[key]);
+        }
       }
       const modeSuffix = modeParts.length > 0 ? modeParts.join("-") : "default";
       const logFile = path.join(
@@ -1185,7 +1256,7 @@ export class Orchestrator {
     console.log(colors.gray + "─".repeat(70) + colors.reset);
 
     for (const run of report.runs) {
-      // Build mode string with execution mode (Python), streaming mode, and transport mode
+      // Build mode string with execution mode (Python), streaming mode, transport mode, and resolved options
       const modeParts: string[] = [];
       if (run.framework.platform === "python" && run.framework.executionMode) {
         modeParts.push(run.framework.executionMode);
@@ -1195,6 +1266,11 @@ export class Orchestrator {
       }
       if (run.framework.transportMode) {
         modeParts.push(run.framework.transportMode);
+      }
+      if (run.framework.resolvedOptions) {
+        for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+          modeParts.push(run.framework.resolvedOptions[key]);
+        }
       }
       const modeStr =
         modeParts.length > 0

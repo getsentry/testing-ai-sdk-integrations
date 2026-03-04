@@ -40,6 +40,7 @@ Options:
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
+  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
   --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
   --help, -h                 Show this help message
@@ -78,6 +79,7 @@ function parseCliArgs() {
       verbose: { type: "boolean", short: "v", default: false },
       "live-status": { type: "boolean", default: false },
       open: { type: "boolean", default: false },
+      option: { type: "string", multiple: true },
       "sentry-python": { type: "string" },
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
@@ -136,6 +138,21 @@ function parseCliArgs() {
     process.exit(1);
   }
 
+  // Parse --option key=value pairs into a map
+  const optionFilters: Record<string, string> = {};
+  if (values.option) {
+    for (const opt of values.option) {
+      const eqIdx = opt.indexOf("=");
+      if (eqIdx <= 0) {
+        console.error(
+          `Error: --option must be in key=value format, got: ${opt}`,
+        );
+        process.exit(1);
+      }
+      optionFilters[opt.substring(0, eqIdx)] = opt.substring(eqIdx + 1);
+    }
+  }
+
   return {
     command,
     framework: values.framework,
@@ -150,6 +167,7 @@ function parseCliArgs() {
     verbose: values.verbose,
     liveStatus: values["live-status"],
     open: values.open,
+    optionFilters,
     sentryPythonPath: values["sentry-python"],
     sentryJavaScriptPath: values["sentry-javascript"],
     sentryPhpPath: values["sentry-php"],
@@ -186,6 +204,7 @@ async function main() {
     blocking: options.blocking,
     parallel: options.parallel,
     openReport: options.open,
+    optionFilters: options.optionFilters,
   });
 
   try {
@@ -303,6 +322,7 @@ async function main() {
           executionMode: df.executionMode,
           streamingMode: df.streamingMode,
           transportMode: df.transportMode,
+          options: df.options,
           modelOverrides: df.modelOverrides,
           toolNameMapping: df.toolNameMapping,
           minimumPlatformVersion: df.minimumPlatformVersion,

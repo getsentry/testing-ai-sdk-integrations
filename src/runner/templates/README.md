@@ -55,7 +55,10 @@ templates/
 │           └── tool.php.njk       # Tool class
 └── mcp/                     # MCP server framework templates
     └── python/
-        └── fastmcp/
+        ├── fastmcp/         # FastMCP high-level SDK
+        │   ├── template.njk
+        │   └── config.json
+        └── mcp/             # MCP Python SDK (highlevel + lowlevel via options)
             ├── template.njk
             └── config.json
 ```
@@ -209,6 +212,28 @@ print(response.choices[0].message.content)
 {% endblock %}
 ```
 
+### Example: MCP Python Template
+
+**File:** `mcp/python/mcp/template.njk`
+
+The MCP template uses the generic **options** system to support two API styles (`highlevel` and `lowlevel`) from a single template. The `config.json` declares:
+
+```json
+{
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+This expands the test matrix so each test runs with both `apiStyle=highlevel` and `apiStyle=lowlevel`. The resolved option value is available as a top-level template variable (`{{ apiStyle }}`).
+
+The template conditionally renders different server setup code:
+- **highlevel**: Uses `FastMCP` with decorator-based tool/resource/prompt registration
+- **lowlevel**: Uses `Server` with manual handler registration (`@server.list_tools()`, `@server.call_tool()`, etc.)
+
+Both styles use `ClientSession` from `mcp.client.session` with `anyio` memory streams for in-process communication (stdio mode) or `sse_client` for SSE transport.
+
 ### Template Context Variables
 
 Framework templates receive:
@@ -217,9 +242,14 @@ Framework templates receive:
 - `frameworkName` - Framework identifier
 - `system` - System message (LLM tests only)
 - `agent` - Agent config with tools (agent tests only)
-- `input` - Test input with model, prompt, etc.
+- `mcpServer` - MCP server definition with tools, resources, prompts (MCP tests only)
+- `input` / `inputs` - Test input(s) with model, prompt, action, etc.
 - `input.model` - Model identifier
 - `input.prompt` - User prompt
+- `isStreaming` - Whether the test runs in streaming mode
+- `isAsync` - Whether the test runs in async mode (Python)
+- `isSse` - Whether the test uses SSE transport (MCP tests)
+- Resolved options from `config.json` `options` field are spread as top-level variables (e.g., `apiStyle`)
 
 ### Creating Framework Templates
 
@@ -238,6 +268,23 @@ All templates receive a context object with:
 - `testName` - Name of the test
 - `frameworkName` - Name of the framework being tested
 - Additional variables can be passed as needed
+
+## Generic Options System
+
+Frameworks can declare `options` in their `config.json` to expand the test matrix with additional dimensions beyond the built-in ones (streaming/blocking, sync/async, transport mode).
+
+```json
+{
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+- Each option key/value combination is expanded via cartesian product into the test matrix
+- Resolved option values are passed as top-level Nunjucks template variables
+- Filter from the CLI with `--option apiStyle=highlevel`
+- Multiple options can be declared; they multiply the matrix accordingly
 
 ## Notes
 

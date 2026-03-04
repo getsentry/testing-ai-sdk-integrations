@@ -247,7 +247,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    * Execute Python test
    */
   async executeTest(context: RunnerContext): Promise<void> {
-    const { workDir, sentryDsn, runId, isAsync, isStreaming, transportMode, testDefinition, framework } = context;
+    const { workDir, sentryDsn, runId, isAsync, isStreaming, transportMode, resolvedOptions, testDefinition, framework } = context;
     const verbose = context.verbose === true;
 
     if (verbose) {
@@ -265,6 +265,11 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
     }
     if (transportMode) {
       modeParts.push(transportMode);
+    }
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.join('-');
     const testFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.py`);

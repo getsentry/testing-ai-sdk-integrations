@@ -208,14 +208,14 @@ export class Runner {
       console.log(`  Rendering template for ${context.framework.name}...`);
     }
 
-    const { workDir, framework, testDefinition, isAsync, isStreaming, transportMode } =
+    const { workDir, framework, testDefinition, isAsync, isStreaming, transportMode, resolvedOptions } =
       context;
 
     // Generate test case ID from test name
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix for filename
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, transportMode);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, transportMode, resolvedOptions);
 
     // Determine test filename based on platform and modes
     const extension = getFileExtension(framework.platform);
@@ -256,6 +256,8 @@ export class Runner {
       isStdio: transportMode === "stdio", // Boolean flag for stdio transport
       isSse: transportMode === "sse", // Boolean flag for SSE transport
       transportMode: transportMode || undefined, // Transport mode string
+      // Spread resolved options as top-level template variables
+      ...(resolvedOptions || {}),
       causeAPIError: testDefinition.causeAPIError || false, // Flag to intentionally cause API errors
       ...(testDefinition.agent && { agent: testDefinition.agent }),
       ...(testDefinition.mcpServer && { mcpServer: testDefinition.mcpServer }),

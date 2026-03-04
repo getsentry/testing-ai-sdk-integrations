@@ -30,6 +30,11 @@ export function generateCTRFReport(testReport: TestReport): Report {
     if (run.framework.transportMode) {
       modeParts.push(run.framework.transportMode);
     }
+    if (run.framework.resolvedOptions) {
+      for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+        modeParts.push(run.framework.resolvedOptions[key]);
+      }
+    }
     const modeStr = modeParts.length > 0 ? ` (${modeParts.join(", ")})` : "";
     const testName = `${frameworkName} :: ${run.testDefinition.name}${modeStr}`;
 
@@ -57,6 +62,11 @@ export function generateCTRFReport(testReport: TestReport): Report {
     }
     if (run.framework.transportMode) {
       tags.push(run.framework.transportMode); // 'stdio' or 'sse'
+    }
+    if (run.framework.resolvedOptions) {
+      for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+        tags.push(run.framework.resolvedOptions[key]);
+      }
     }
 
     test.tags = tags;
@@ -86,6 +96,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       }),
       ...(run.framework.transportMode && {
         transportMode: run.framework.transportMode,
+      }),
+      ...(run.framework.resolvedOptions && {
+        resolvedOptions: run.framework.resolvedOptions,
       }),
       ...(run.spans && {
         spanCount: run.spans.length,

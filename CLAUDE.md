@@ -152,7 +152,7 @@ src/runner/templates/
 │       └── laravel/
 └── mcp/                              # MCP server frameworks
     └── python/
-        └── fastmcp/                  # FastMCP Python SDK
+        └── mcp/                      # MCP Python SDK (highlevel + lowlevel)
 ```
 
 ## Quick Start
@@ -184,6 +184,9 @@ npm run test -- --platform js                         # all JS platforms (node +
 npm run test -- --type embeddings
 npm run test -- --type mcp
 npm run test -- --type llm --platform python
+
+# Filter by framework option (for frameworks with generic options)
+npm run test -- --framework mcp --option apiStyle=highlevel
 
 # Run with verbose output
 npm run test -- --framework openai --verbose
@@ -225,6 +228,7 @@ Options:
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
   --open                     Open HTML report in browser after test run
+  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
@@ -306,7 +310,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `langchain`     | embeddings | embeddings | -      | sync/async      |
 | Python            | `google-genai`  | embeddings | embeddings | -      | sync/async      |
 | PHP (Laravel)     | `laravel`       | embeddings | embeddings | -      | -               |
-| Python            | `fastmcp`       | mcp        | mcp-server | -      | async           |
+| Python            | `mcp`           | mcp        | mcp-server | -      | async           |
 
 ## Test Cases
 
@@ -503,8 +507,31 @@ Each framework has a `config.json` file that defines its capabilities:
 | `dependencies`   | NPM/pip packages to install                                                                             |
 | `versions`       | Framework versions to test                                                                              |
 | `sentryVersions` | Sentry SDK versions to test against                                                                     |
+| `options`        | Generic options expanding the test matrix (e.g., `{ "apiStyle": ["highlevel", "lowlevel"] }`)           |
 | `modelOverrides` | Override model names for request/response validation                                                    |
 | `skip`           | Tests or checks to skip for this framework                                                              |
+
+### Generic Options System
+
+Frameworks can define `options` in their `config.json` to create additional test matrix dimensions. Each option key maps to an array of possible values. The cartesian product of all option values expands the test count.
+
+```json
+{
+  "name": "mcp",
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+This doubles the test count — each test runs once per `apiStyle` value. Multiple options multiply further (e.g., 2 x 3 = 6x tests).
+
+- **In templates**: Resolved option values are available as top-level template variables (e.g., `{{ apiStyle }}`)
+- **In filenames**: Option values are appended to the test filename (e.g., `test-basic-...-highlevel.py`)
+- **CLI filtering**: Use `--option key=value` (repeatable) to run only specific option values:
+  ```bash
+  npm run test -- --framework mcp --option apiStyle=highlevel
+  ```
 
 ## Test Utilities
 
@@ -679,6 +706,8 @@ interface FrameworkConfig {
   executionMode?: "sync" | "async" | "both";
   streamingMode?: "streaming" | "blocking" | "both";
   transportMode?: "stdio" | "sse" | "both";
+  options?: Record<string, string[]>; // Generic options expanding test matrix
+  resolvedOptions?: Record<string, string>; // Single values after matrix expansion
   modelOverrides?: { request?: string; response?: string };
   skip?: { tests?: string[]; checks?: { [testName: string]: string[] } };
 }
@@ -784,16 +813,20 @@ Laravel uses a split-file template setup unique among the platforms:
 - Tests are executed via `php artisan test:<test-case-id>` rather than running a script file directly
 - The `PhpRunner` handles Composer project creation, dependency installation, and artisan command execution
 
-### FastMCP
+### MCP (Model Context Protocol)
 
-FastMCP is used for MCP (Model Context Protocol) server testing. Key differences from LLM/agent frameworks:
+The `mcp` framework tests Sentry's MCP server instrumentation using the official `mcp` Python package. Key differences from LLM/agent frameworks:
 
 - Uses `sentry_sdk.integrations.mcp.MCPIntegration` instead of auto-enabled AI integrations
 - Spans use `op: "mcp.server"` with `mcp.*` attributes (not `gen_ai.*`)
 - No LLM API keys needed — tests are self-contained with in-process or local SSE servers
-- Supports two transport modes: `stdio` (in-process via `Client(mcp_server)`) and `sse` (HTTP via `SSETransport`)
-- FastMCP 2.3.0+ requires explicit `SSETransport` class for SSE connections (HTTP URLs default to Streamable HTTP)
-- Requires `pydantic<2.12` for compatibility with FastMCP 2.3.4
+- Supports two transport modes: `stdio` (in-process via memory streams) and `sse` (HTTP via uvicorn)
+- Uses the generic `options` system with `apiStyle: ["highlevel", "lowlevel"]`:
+  - **highlevel**: Uses `mcp.server.fastmcp.FastMCP` with decorator-based tool/resource/prompt registration
+  - **lowlevel**: Uses `mcp.server.lowlevel.Server` with manual handler registration (`@server.list_tools()`, `@server.call_tool()`, etc.)
+- Client uses `mcp.client.session.ClientSession` for all modes
+- In-process (stdio) mode uses `anyio.create_memory_object_stream()` for client-server communication
+- Resolved options (e.g., `apiStyle`) are exposed as top-level template variables (e.g., `{{ apiStyle }}`)
 
 ## References
 
@@ -802,5 +835,5 @@ FastMCP is used for MCP (Model Context Protocol) server testing. Key differences
 - **Vercel AI SDK:** https://sdk.vercel.ai/docs
 - **OpenAI Python SDK:** https://github.com/openai/openai-python
 - **Mastra AI Framework:** https://mastra.ai/docs
-- **FastMCP:** https://github.com/jlowin/fastmcp
+- **MCP Python SDK:** https://github.com/modelcontextprotocol/python-sdk
 - **Sentry MCP Integration:** https://docs.sentry.io/platforms/python/integrations/mcp/

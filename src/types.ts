@@ -161,6 +161,10 @@ export interface FrameworkConfig {
   streamingMode?: "streaming" | "blocking" | "both";
   // MCP only: transport mode for server communication
   transportMode?: "stdio" | "sse" | "both";
+  // Generic options that expand the test matrix (config-level: arrays of values)
+  options?: Record<string, string[]>;
+  // Resolved option values after matrix expansion (runtime: single values per key)
+  resolvedOptions?: Record<string, string>;
   // Model overrides: Some frameworks use different models than requested
   modelOverrides?: {
     request?: string;
@@ -289,6 +293,8 @@ export interface RunnerContext {
   isStreaming?: boolean;
   // MCP only: transport mode for the test
   transportMode?: "stdio" | "sse";
+  // Resolved generic options for the test (single values per key)
+  resolvedOptions?: Record<string, string>;
   // Execution timeout in milliseconds
   timeoutMs: number;
   // Controls whether to print verbose console output (default: true)

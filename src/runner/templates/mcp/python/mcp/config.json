@@ -1,0 +1,19 @@
+{
+  "name": "mcp",
+  "displayName": "MCP Python SDK",
+  "type": "mcp-server",
+  "platform": "python",
+  "executionMode": "async",
+  "streamingMode": "blocking",
+  "transportMode": "both",
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  },
+  "dependencies": [
+    { "package": "mcp", "version": "framework" },
+    { "package": "uvicorn", "version": "latest" }
+  ],
+  "versions": ["1.9.4"],
+  "sentryVersions": ["latest"],
+  "minimumPlatformVersion": "3.10"
+}
