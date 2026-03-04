@@ -213,6 +213,7 @@ export function buildModeParts(
   framework: FrameworkConfig,
   isAsync?: boolean,
   isStreaming?: boolean,
+  transportMode?: "stdio" | "sse",
 ): string[] {
   const parts: string[] = [];
 
@@ -226,6 +227,11 @@ export function buildModeParts(
     parts.push(isStreaming ? "streaming" : "blocking");
   }
 
+  // Add transport mode if applicable
+  if (transportMode) {
+    parts.push(transportMode);
+  }
+
   return parts;
 }
 
@@ -236,7 +242,8 @@ export function buildModeSuffix(
   framework: FrameworkConfig,
   isAsync?: boolean,
   isStreaming?: boolean,
+  transportMode?: "stdio" | "sse",
 ): string {
-  const parts = buildModeParts(framework, isAsync, isStreaming);
+  const parts = buildModeParts(framework, isAsync, isStreaming, transportMode);
   return parts.length > 0 ? `-${parts.join("-")}` : "";
 }

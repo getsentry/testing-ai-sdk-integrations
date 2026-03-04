@@ -9,8 +9,8 @@ export interface FrameworkConfig {
   /** Human-readable display name */
   displayName: string;
 
-  /** Framework type: llm-only, agentic, or embeddings */
-  type: "llm-only" | "agentic" | "embeddings";
+  /** Framework type: llm-only, agentic, embeddings, or mcp-server */
+  type: "llm-only" | "agentic" | "embeddings" | "mcp-server";
 
   /** Platform: Node.js, Browser, Next.js, Python, or PHP */
   platform: "node" | "python" | "browser" | "nextjs" | "php";
@@ -29,6 +29,9 @@ export interface FrameworkConfig {
 
   /** Streaming mode: whether the framework supports streaming responses */
   streamingMode?: "streaming" | "blocking" | "both";
+
+  /** MCP only: transport mode for server communication */
+  transportMode?: "stdio" | "sse" | "both";
 
   /** Model overrides: Some frameworks use different models than requested */
   modelOverrides?: {
@@ -102,9 +105,9 @@ export function loadFrameworkConfig(configPath: string): FrameworkConfig {
     }
 
     // Validate type field
-    if (config.type !== "llm-only" && config.type !== "agentic" && config.type !== "embeddings") {
+    if (config.type !== "llm-only" && config.type !== "agentic" && config.type !== "embeddings" && config.type !== "mcp-server") {
       throw new Error(
-        `Invalid type: ${config.type}. Must be 'llm-only', 'agentic', or 'embeddings'`,
+        `Invalid type: ${config.type}. Must be 'llm-only', 'agentic', 'embeddings', or 'mcp-server'`,
       );
     }
 

@@ -38,7 +38,7 @@ HTTP server that mimics Sentry's envelope endpoint. Creates dynamic DSN endpoint
 
 ### Test Cases (`src/test-cases/`)
 
-TypeScript test definitions shared across all frameworks. Each test has a `type` ("llm" or "agent") that determines which frameworks can run it.
+TypeScript test definitions shared across all frameworks. Each test has a `type` ("llm", "agent", "embeddings", or "mcp") that determines which frameworks can run it.
 
 ### Runner (`src/runner/`)
 
@@ -154,12 +154,14 @@ export const toolCallAgentTest: TestDefinition = {
 
 ## Framework Classification
 
-| Type         | Test Type | Supports           | Examples                                    |
-| ------------ | --------- | ------------------ | ------------------------------------------- |
-| **llm-only** | `llm`     | Simple completions | OpenAI SDK, Anthropic SDK, LangChain        |
-| **agentic**  | `agent`   | Agents with tools  | Vercel AI, LangGraph, Mastra, OpenAI Agents |
+| Type           | Test Type    | Supports            | Examples                                    |
+| -------------- | ------------ | ------------------- | ------------------------------------------- |
+| **llm-only**   | `llm`        | Simple completions  | OpenAI SDK, Anthropic SDK, LangChain        |
+| **agentic**    | `agent`      | Agents with tools   | Vercel AI, LangGraph, Mastra, OpenAI Agents |
+| **embeddings** | `embeddings` | Embedding calls     | OpenAI, LangChain, Google GenAI             |
+| **mcp-server** | `mcp`        | MCP server testing  | FastMCP                                     |
 
-Frameworks with type `agentic` run agent tests. Frameworks with type `llm-only` run LLM tests.
+Frameworks with type `agentic` run agent tests. Frameworks with type `llm-only` run LLM tests. Frameworks with type `mcp-server` run MCP tests.
 
 ## Framework Templates
 
@@ -190,18 +192,21 @@ src/runner/templates/
 │       ├── anthropic/
 │       ├── langchain/
 │       └── litellm/
-└── agents/                           # Agentic frameworks
-    ├── node/
-    │   ├── vercel/
-    │   ├── langgraph/
-    │   └── mastra/
-    ├── python/
-    │   ├── openai-agents/
-    │   ├── langgraph/
-    │   ├── pydantic-ai/
-    │   └── google-genai/
-    └── php/
-        └── laravel/
+├── agents/                           # Agentic frameworks
+│   ├── node/
+│   │   ├── vercel/
+│   │   ├── langgraph/
+│   │   └── mastra/
+│   ├── python/
+│   │   ├── openai-agents/
+│   │   ├── langgraph/
+│   │   ├── pydantic-ai/
+│   │   └── google-genai/
+│   └── php/
+│       └── laravel/
+└── mcp/                              # MCP server frameworks
+    └── python/
+        └── fastmcp/
 ```
 
 ### Framework Configuration (`config.json`)
@@ -235,10 +240,11 @@ src/runner/templates/
 | ---------------- | ----------------------------------------------------- |
 | `name`           | Framework identifier                                  |
 | `displayName`    | Human-readable name                                   |
-| `type`           | `"llm-only"` or `"agentic"`                           |
+| `type`           | `"llm-only"`, `"agentic"`, `"embeddings"`, or `"mcp-server"` |
 | `platform`       | `"node"`, `"python"`, `"browser"`, `"nextjs"`, or `"php"` |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`              |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`         |
+| `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`              |
 | `dependencies`   | NPM/pip packages to install                           |
 | `versions`       | Framework versions to test                            |
 | `sentryVersions` | Sentry SDK versions to test against                   |
@@ -272,12 +278,18 @@ testing-ai-sdk-integrations/
 │   │   │   ├── basic-error.ts
 │   │   │   ├── vision.ts
 │   │   │   └── long-input.ts
-│   │   └── agents/             # Agent test cases
-│   │       ├── basic.ts
-│   │       ├── tool-call.ts
+│   │   ├── agents/             # Agent test cases
+│   │   │   ├── basic.ts
+│   │   │   ├── tool-call.ts
+│   │   │   ├── tool-error.ts
+│   │   │   ├── vision.ts
+│   │   │   └── long-input.ts
+│   │   └── mcp/               # MCP server test cases
+│   │       ├── basic-tool.ts
 │   │       ├── tool-error.ts
-│   │       ├── vision.ts
-│   │       └── long-input.ts
+│   │       ├── multi-tool.ts
+│   │       ├── resource-read.ts
+│   │       └── prompt-get.ts
 │   │
 │   ├── runner/                 # Test execution
 │   │   ├── runner.ts
@@ -333,7 +345,7 @@ testing-ai-sdk-integrations/
 1. **CLI** parses arguments, creates Orchestrator
 2. **Discovery** scans `templates/` for framework `config.json` files
 3. **Matrix Generation** creates test combinations:
-   - Framework × Test Definition × Execution Modes (sync/async, streaming/blocking)
+   - Framework × Test Definition × Execution Modes (sync/async, streaming/blocking, transport: stdio/sse)
 4. **For each test run:**
    - Check/create environment cache (`runs/{platform}/{framework}-{version}/`)
    - Install dependencies if needed (npm install / uv sync)
@@ -353,6 +365,7 @@ Templates receive this context when rendering:
   testName: "Basic LLM Test",
   inputs: [{ model: "gpt-4o-mini", messages: [...] }],
   agent: { name: "...", tools: [...] },  // For agent tests
+  mcpServer: { name: "...", tools: [...] },  // For MCP tests
   causeAPIError: false,
 
   // From framework config
@@ -364,6 +377,9 @@ Templates receive this context when rendering:
   // Execution mode flags
   isAsync: true,      // Python only
   isStreaming: false,
+  isStdio: true,      // MCP only
+  isSse: false,       // MCP only
+  transportMode: "stdio",  // MCP only
 }
 ```
 
@@ -414,6 +430,17 @@ interface Check {
 
 - `checkAgentHierarchy` - Agent span hierarchy and name propagation
 
+**MCP:**
+
+- `checkMCPSpanCount(n)` - Validate MCP span count
+- `checkMCPToolSpanAttributes` - Validate MCP tool spans (op, description, attributes)
+- `checkMCPToolResult` - Tool result content exists, is_error=false
+- `checkMCPToolError` - Tool result is_error=true, span status=error
+- `checkMCPResourceSpanAttributes` - Resource spans with URI and protocol
+- `checkMCPPromptSpanAttributes` - Prompt spans with name and message count
+- `checkMCPServerAttributes` - Common MCP attributes (transport, session.id)
+- `checkMCPMultipleTools([...])` - Validate multiple tool spans with names
+
 ## Supported Frameworks
 
 ### Node.js
@@ -458,6 +485,12 @@ interface Check {
 | Type   | Framework | Streaming | Notes                         |
 | ------ | --------- | --------- | ----------------------------- |
 | agents | laravel   | -         | Laravel AI via sentry-laravel |
+
+### MCP (Python)
+
+| Type       | Framework | Transport  | Execution | Notes                           |
+| ---------- | --------- | ---------- | --------- | ------------------------------- |
+| mcp-server | fastmcp   | stdio/sse  | async     | FastMCP via sentry MCPIntegration |
 
 ## CLI Commands
 

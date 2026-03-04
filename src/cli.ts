@@ -28,7 +28,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --type <type>              Filter by framework type (llm, agents, embeddings)
+  --type <type>              Filter by framework type (llm, agents, embeddings, mcp)
   --platform <node|python|browser|php|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
@@ -112,10 +112,11 @@ function parseCliArgs() {
 
   // Validate and resolve type
   const typeArg = values.type;
-  const typeMap: Record<string, "llm-only" | "agentic" | "embeddings"> = {
+  const typeMap: Record<string, "llm-only" | "agentic" | "embeddings" | "mcp-server"> = {
     "llm": "llm-only",
     "agents": "agentic",
     "embeddings": "embeddings",
+    "mcp": "mcp-server",
   };
   if (typeArg && !(typeArg in typeMap)) {
     console.error(
@@ -301,6 +302,7 @@ async function main() {
           dependencies: df.dependencies,
           executionMode: df.executionMode,
           streamingMode: df.streamingMode,
+          transportMode: df.transportMode,
           modelOverrides: df.modelOverrides,
           toolNameMapping: df.toolNameMapping,
           minimumPlatformVersion: df.minimumPlatformVersion,

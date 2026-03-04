@@ -531,6 +531,48 @@ export function findEmbeddingSpans(spans: CapturedSpan[]): CapturedSpan[] {
   });
 }
 
+// =============================================================================
+// MCP Span Filtering Helpers
+// =============================================================================
+
+/**
+ * Extract all MCP spans (op starts with "mcp.")
+ */
+export function extractMCPSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => s.op && s.op.startsWith("mcp."));
+}
+
+/**
+ * Find MCP tool call spans (mcp.method.name === "tools/call")
+ */
+export function findMCPToolSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    return s.op?.startsWith("mcp.") && s.data?.["mcp.method.name"] === "tools/call";
+  });
+}
+
+/**
+ * Find MCP resource read spans (mcp.method.name === "resources/read")
+ */
+export function findMCPResourceSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    return s.op?.startsWith("mcp.") && s.data?.["mcp.method.name"] === "resources/read";
+  });
+}
+
+/**
+ * Find MCP prompt get spans (mcp.method.name === "prompts/get")
+ */
+export function findMCPPromptSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    return s.op?.startsWith("mcp.") && s.data?.["mcp.method.name"] === "prompts/get";
+  });
+}
+
+// =============================================================================
+// Gen AI Tool Input Helpers
+// =============================================================================
+
 /**
  * Schema for tool input validation
  * - true: argument must exist (any value)

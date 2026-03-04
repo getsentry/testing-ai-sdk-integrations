@@ -162,6 +162,9 @@ export class JavaScriptRunner {
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? "streaming" : "blocking");
     }
+    if (context.transportMode) {
+      modeParts.push(context.transportMode);
+    }
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.js`);
     const logFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.log`);

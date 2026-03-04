@@ -1,0 +1,113 @@
+{% extends "base.python.njk" %}
+
+{# Macro to convert parameter type to Python type annotation #}
+{% macro pytype(type_str) -%}
+{% if type_str == 'number' %}float{% elif type_str == 'integer' %}int{% elif type_str == 'boolean' %}bool{% else %}str{% endif %}
+{%- endmacro %}
+
+{# Macro to render function parameters from MCP parameter definitions #}
+{% macro render_params(params) -%}
+{% for name, def in params %}{{ name }}: {{ pytype(def.type) }}{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endmacro %}
+
+{% block imports %}
+{{ super() }}
+{% if isSse %}
+import socket
+import threading
+import time
+{% endif %}
+from sentry_sdk.integrations.mcp import MCPIntegration
+from fastmcp import FastMCP, Client
+{% if isSse %}
+from fastmcp.client.transports import SSETransport
+{% endif %}
+{% endblock %}
+
+{% block sdk_setup %}
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    traces_sample_rate=1.0,
+    send_default_pii=True,
+    integrations=[MCPIntegration()],
+)
+{% endblock %}
+
+{% block setup %}
+mcp_server = FastMCP("{{ mcpServer.name }}")
+
+{% if mcpServer.tools %}
+# Define MCP tools
+{% for tool in mcpServer.tools %}
+@mcp_server.tool()
+def {{ tool.name }}({{ render_params(tool.parameters) }}) -> str:
+    """{{ tool.description }}"""
+{% if tool.error %}
+    raise Exception("{{ tool.error }}")
+{% else %}
+    return {{ tool.result | tojson }}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+{% if mcpServer.resources %}
+# Define MCP resources
+{% for resource in mcpServer.resources %}
+@mcp_server.resource("{{ resource.uri }}")
+def {{ resource.name }}() -> str:
+    """{{ resource.description or resource.name }}"""
+    return {{ resource.content | tojson }}
+
+{% endfor %}
+{% endif %}
+{% if mcpServer.prompts %}
+# Define MCP prompts
+{% for prompt in mcpServer.prompts %}
+@mcp_server.prompt()
+def {{ prompt.name }}({% if prompt.parameters %}{{ render_params(prompt.parameters) }}{% endif %}) -> str:
+    """{{ prompt.description }}"""
+    return {{ prompt.template | tojson }}
+
+{% endfor %}
+{% endif %}
+{% if isSse %}
+def _get_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+SSE_PORT = _get_free_port()
+
+def run_sse_server():
+    """Run the MCP server with SSE transport in a background thread."""
+    mcp_server.run(transport="sse", host="127.0.0.1", port=SSE_PORT)
+{% endif %}
+{% endblock %}
+
+{% block test %}
+{% if isSse %}
+    # Start MCP server with SSE transport in background thread
+    server_thread = threading.Thread(target=run_sse_server, daemon=True)
+    server_thread.start()
+    time.sleep(1)  # Wait for server to start
+
+    async with Client(SSETransport(f"http://127.0.0.1:{SSE_PORT}/sse")) as client:
+{% else %}
+    async with Client(mcp_server) as client:
+{% endif %}
+{% for input in inputs %}
+{% if input.action == 'call_tool' %}
+        try:
+            result = await client.call_tool("{{ input.tool }}", {{ input.arguments | dump }})
+            print(f"Tool result: {result}")
+        except Exception as e:
+            print(f"Tool error (expected): {type(e).__name__}: {e}")
+{% elif input.action == 'read_resource' %}
+        result = await client.read_resource("{{ input.uri }}")
+        print(f"Resource: {result}")
+{% elif input.action == 'get_prompt' %}
+        result = await client.get_prompt("{{ input.prompt }}", {{ input.arguments | dump }})
+        print(f"Prompt: {result}")
+{% endif %}
+{% endfor %}
+{% endblock %}

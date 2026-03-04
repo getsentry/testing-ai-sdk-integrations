@@ -228,6 +228,7 @@ export class Orchestrator {
           workDir,
           isAsync,
           isStreaming,
+          transportMode: firstRun.framework.transportMode as "stdio" | "sse" | undefined,
           timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
         });
@@ -271,6 +272,7 @@ export class Orchestrator {
             workDir,
             isAsync: testIsAsync,
             isStreaming: testIsStreaming,
+            transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
             timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
           });
@@ -476,6 +478,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
         timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
       });
@@ -624,24 +627,28 @@ export class Orchestrator {
           continue;
         }
 
-        // Generate test runs for all combinations of execution mode and streaming mode
+        // Generate test runs for all combinations of execution mode, streaming mode, and transport mode
         const executionModes = this.getExecutionModes(framework);
         const streamingModes = this.getStreamingModes(framework);
+        const transportModes = this.getTransportModes(framework);
 
         for (const execMode of executionModes) {
           for (const streamMode of streamingModes) {
-            const runId = this.generateRunId();
-            matrix.push({
-              id: runId,
-              index: matrix.length, // Track original order for consistent reporting
-              framework: {
-                ...framework,
-                executionMode: execMode,
-                streamingMode: streamMode,
-              },
-              testDefinition,
-              status: "pending",
-            });
+            for (const transportMode of transportModes) {
+              const runId = this.generateRunId();
+              matrix.push({
+                id: runId,
+                index: matrix.length, // Track original order for consistent reporting
+                framework: {
+                  ...framework,
+                  executionMode: execMode,
+                  streamingMode: streamMode,
+                  transportMode: transportMode,
+                },
+                testDefinition,
+                status: "pending",
+              });
+            }
           }
         }
       }
@@ -707,13 +714,16 @@ export class Orchestrator {
           const testPrefix = isLastFramework ? "      " : "   │  ";
           const testBranch = isLast ? "└─" : "├─";
 
-          // Build mode string with execution mode and streaming mode
+          // Build mode string with execution mode, streaming mode, and transport mode
           const modeParts: string[] = [];
           if (run.framework.executionMode) {
             modeParts.push(run.framework.executionMode);
           }
           if (run.framework.streamingMode) {
             modeParts.push(run.framework.streamingMode);
+          }
+          if (run.framework.transportMode) {
+            modeParts.push(run.framework.transportMode);
           }
           const mode =
             modeParts.length > 0
@@ -763,6 +773,14 @@ export class Orchestrator {
       };
     }
 
+    // MCP tests can only run on mcp-server frameworks
+    if (test.type === "mcp" && framework.type !== "mcp-server") {
+      return {
+        compatible: false,
+        reason: "MCP test requires mcp-server framework",
+      };
+    }
+
     return { compatible: true };
   }
 
@@ -798,6 +816,21 @@ export class Orchestrator {
 
     // Return single mode or undefined (for frameworks that don't specify streaming)
     return [framework.streamingMode];
+  }
+
+  /**
+   * Get transport modes to test for a framework
+   */
+  private getTransportModes(
+    framework: FrameworkConfig,
+  ): Array<"stdio" | "sse" | undefined> {
+    // If transport mode is "both", expand to both variants
+    if (framework.transportMode === "both") {
+      return ["stdio", "sse"];
+    }
+
+    // Return single mode or undefined (for frameworks that don't specify transport)
+    return [framework.transportMode];
   }
 
   /**
@@ -845,6 +878,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
         timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
@@ -1026,6 +1060,11 @@ export class Orchestrator {
       modeParts.push(testRun.framework.streamingMode);
     }
 
+    // Add transport mode if specified
+    if (testRun.framework.transportMode) {
+      modeParts.push(testRun.framework.transportMode);
+    }
+
     if (modeParts.length > 0) {
       return `${testRun.testDefinition.name} (${modeParts.join(", ")})`;
     }
@@ -1053,6 +1092,9 @@ export class Orchestrator {
       }
       if (testRun.framework.streamingMode) {
         modeParts.push(testRun.framework.streamingMode);
+      }
+      if (testRun.framework.transportMode) {
+        modeParts.push(testRun.framework.transportMode);
       }
       const modeSuffix = modeParts.length > 0 ? modeParts.join("-") : "default";
       const logFile = path.join(
@@ -1143,13 +1185,16 @@ export class Orchestrator {
     console.log(colors.gray + "─".repeat(70) + colors.reset);
 
     for (const run of report.runs) {
-      // Build mode string with execution mode (Python) and streaming mode
+      // Build mode string with execution mode (Python), streaming mode, and transport mode
       const modeParts: string[] = [];
       if (run.framework.platform === "python" && run.framework.executionMode) {
         modeParts.push(run.framework.executionMode);
       }
       if (run.framework.streamingMode) {
         modeParts.push(run.framework.streamingMode);
+      }
+      if (run.framework.transportMode) {
+        modeParts.push(run.framework.transportMode);
       }
       const modeStr =
         modeParts.length > 0

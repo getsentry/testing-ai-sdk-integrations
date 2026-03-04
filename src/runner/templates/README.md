@@ -23,36 +23,41 @@ templates/
 │       └── anthropic/
 │           ├── template.njk
 │           └── config.json
-└── agents/                  # Agentic framework templates
-    ├── node/
-    │   ├── vercel/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   ├── langgraph/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   └── mastra/
-    │       ├── template.njk
-    │       └── config.json
-    ├── python/
-    │   ├── openai-agents/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   ├── langgraph/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   ├── pydantic-ai/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   └── google-genai/
-    │       ├── template.njk
-    │       └── config.json
-    └── php/
-        └── laravel/
-            ├── config.json
-            ├── template.njk       # Artisan command
-            ├── agent.php.njk      # Agent class
-            └── tool.php.njk       # Tool class
+├── agents/                  # Agentic framework templates
+│   ├── node/
+│   │   ├── vercel/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   ├── langgraph/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   └── mastra/
+│   │       ├── template.njk
+│   │       └── config.json
+│   ├── python/
+│   │   ├── openai-agents/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   ├── langgraph/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   ├── pydantic-ai/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   └── google-genai/
+│   │       ├── template.njk
+│   │       └── config.json
+│   └── php/
+│       └── laravel/
+│           ├── config.json
+│           ├── template.njk       # Artisan command
+│           ├── agent.php.njk      # Agent class
+│           └── tool.php.njk       # Tool class
+└── mcp/                     # MCP server framework templates
+    └── python/
+        └── fastmcp/
+            ├── template.njk
+            └── config.json
 ```
 
 ## Base Templates
@@ -132,6 +137,7 @@ Framework-specific templates extend base templates and implement SDK-specific co
 
 - **LLM frameworks:** `llm/{node,python}/{framework}.njk`
 - **Agent frameworks:** `agents/{node,python}/{framework}.njk`
+- **MCP frameworks:** `mcp/{python}/{framework}.njk`
 
 ### Example: OpenAI Python LLM Template
 
@@ -219,7 +225,7 @@ Framework templates receive:
 
 1. Determine framework type (LLM or agent)
 2. Choose platform (node, python, browser, nextjs, or php)
-3. Create framework directory: `{llm,agents}/{node,python,browser,nextjs,php}/{framework}/`
+3. Create framework directory: `{llm,agents,mcp}/{node,python,browser,nextjs,php}/{framework}/`
 4. Create template file: `template.njk`
 5. Create config file: `config.json`
 6. Extend appropriate base template

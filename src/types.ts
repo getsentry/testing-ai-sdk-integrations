@@ -34,8 +34,9 @@ export interface TestDefinition {
   name: string;
   description: string;
   /** Test type: determines which frameworks this test can run on */
-  type: "llm" | "agent" | "embeddings";
+  type: "llm" | "agent" | "embeddings" | "mcp";
   agent?: AgentDefinition;
+  mcpServer?: MCPServerDefinition;
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
   causeAPIError?: boolean;
@@ -91,11 +92,45 @@ export interface Message {
 }
 
 export interface TestInput {
-  model: string;
+  model?: string;
   messages?: Message[];
   /** Embedding input text (for embeddings tests) */
   input?: string;
   [key: string]: any;
+}
+
+// =============================================================================
+// MCP Server Definitions
+// =============================================================================
+
+export interface MCPServerDefinition {
+  name: string;
+  tools?: MCPToolDefinition[];
+  resources?: MCPResourceDefinition[];
+  prompts?: MCPPromptDefinition[];
+}
+
+export interface MCPToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, { type: string; description?: string }>;
+  result?: any;
+  /** If set, the tool raises this error instead of returning a result */
+  error?: string;
+}
+
+export interface MCPResourceDefinition {
+  uri: string;
+  name: string;
+  description?: string;
+  content: string;
+}
+
+export interface MCPPromptDefinition {
+  name: string;
+  description: string;
+  parameters?: Record<string, { type: string; description?: string }>;
+  template: string;
 }
 
 export interface CapturedSpan {
@@ -113,7 +148,7 @@ export interface CapturedSpan {
 export interface FrameworkConfig {
   name: string;
   platform: "node" | "python" | "browser" | "nextjs" | "php";
-  type: "llm-only" | "agentic" | "embeddings";
+  type: "llm-only" | "agentic" | "embeddings" | "mcp-server";
   version: string;
   sentryVersion: string;
   // Optional: Path to template file (set when using discovered frameworks)
@@ -124,6 +159,8 @@ export interface FrameworkConfig {
   executionMode?: "sync" | "async" | "both";
   // Streaming mode: whether the framework supports streaming responses
   streamingMode?: "streaming" | "blocking" | "both";
+  // MCP only: transport mode for server communication
+  transportMode?: "stdio" | "sse" | "both";
   // Model overrides: Some frameworks use different models than requested
   modelOverrides?: {
     request?: string;
@@ -250,6 +287,8 @@ export interface RunnerContext {
   isAsync?: boolean;
   // If true, render streaming version; if false, render non-streaming version
   isStreaming?: boolean;
+  // MCP only: transport mode for the test
+  transportMode?: "stdio" | "sse";
   // Execution timeout in milliseconds
   timeoutMs: number;
   // Controls whether to print verbose console output (default: true)

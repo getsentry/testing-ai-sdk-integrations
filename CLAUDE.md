@@ -33,7 +33,8 @@ testing-ai-sdk-integrations/
 │   ├── concurrency.ts                # Parallel execution support
 │   ├── test-cases/                   # Test definitions
 │   │   ├── index.ts                  # Test registry
-│   │   ├── checks.ts                 # Reusable check functions
+│   │   ├── checks.ts                 # Reusable check functions (LLM/agent/embeddings)
+│   │   ├── mcp-checks.ts             # MCP-specific check functions
 │   │   ├── utils.ts                  # Test utilities (skip, assertions)
 │   │   ├── llm/                      # LLM test cases
 │   │   │   ├── basic.ts              # Basic single completion test
@@ -47,8 +48,14 @@ testing-ai-sdk-integrations/
 │   │   │   ├── tool-error.ts         # Tool error handling
 │   │   │   ├── vision.ts             # Vision agent test
 │   │   │   └── long-input.ts         # Long input agent test
-│   │   └── embeddings/               # Embeddings test cases
-│   │       └── basic.ts              # Basic embedding test
+│   │   ├── embeddings/               # Embeddings test cases
+│   │   │   └── basic.ts              # Basic embedding test
+│   │   └── mcp/                      # MCP server test cases
+│   │       ├── basic-tool.ts         # Basic tool call test
+│   │       ├── tool-error.ts         # Tool error handling test
+│   │       ├── multi-tool.ts         # Multiple tool calls test
+│   │       ├── resource-read.ts      # Resource read test
+│   │       └── prompt-get.ts         # Prompt retrieval test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
 │   │   ├── javascript-runner.ts      # JS (Node) execution
@@ -120,29 +127,32 @@ src/runner/templates/
 │   │   └── vercel/
 │   └── php/
 │       └── laravel/                  # config.json + template.njk + agent.php.njk + tool.php.njk
-└── embeddings/                       # Embedding frameworks
-    ├── node/
-    │   ├── google-genai/
-    │   ├── langchain/
-    │   ├── openai/
-    │   └── vercel/
-    ├── browser/
-    │   ├── google-genai/
-    │   ├── langchain/
-    │   └── openai/
-    ├── nextjs/
-    │   ├── google-genai/
-    │   ├── langchain/
-    │   ├── openai/
-    │   └── vercel/
-    ├── python/
-    │   ├── google-genai/
-    │   ├── langchain/
-    │   ├── litellm/
-    │   ├── manual/                   # Manual instrumentation (no SDK dependency)
-    │   └── openai/
-    └── php/
-        └── laravel/
+├── embeddings/                       # Embedding frameworks
+│   ├── node/
+│   │   ├── google-genai/
+│   │   ├── langchain/
+│   │   ├── openai/
+│   │   └── vercel/
+│   ├── browser/
+│   │   ├── google-genai/
+│   │   ├── langchain/
+│   │   └── openai/
+│   ├── nextjs/
+│   │   ├── google-genai/
+│   │   ├── langchain/
+│   │   ├── openai/
+│   │   └── vercel/
+│   ├── python/
+│   │   ├── google-genai/
+│   │   ├── langchain/
+│   │   ├── litellm/
+│   │   ├── manual/                   # Manual instrumentation (no SDK dependency)
+│   │   └── openai/
+│   └── php/
+│       └── laravel/
+└── mcp/                              # MCP server frameworks
+    └── python/
+        └── fastmcp/                  # FastMCP Python SDK
 ```
 
 ## Quick Start
@@ -170,8 +180,9 @@ npm run test -- --platform nextjs
 npm run test -- --platform php                        # PHP platform (Laravel)
 npm run test -- --platform js                         # all JS platforms (node + browser)
 
-# Run tests for a specific type (llm, agents, embeddings)
+# Run tests for a specific type (llm, agents, embeddings, mcp)
 npm run test -- --type embeddings
+npm run test -- --type mcp
 npm run test -- --type llm --platform python
 
 # Run with verbose output
@@ -204,7 +215,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
-  --type <type>              Filter by framework type (llm, agents, embeddings)
+  --type <type>              Filter by framework type (llm, agents, embeddings, mcp)
   --platform <node|python|browser|nextjs|php|js>  Filter by platform (js = node + browser)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
@@ -295,6 +306,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `langchain`     | embeddings | embeddings | -      | sync/async      |
 | Python            | `google-genai`  | embeddings | embeddings | -      | sync/async      |
 | PHP (Laravel)     | `laravel`       | embeddings | embeddings | -      | -               |
+| Python            | `fastmcp`       | mcp        | mcp-server | -      | async           |
 
 ## Test Cases
 
@@ -302,7 +314,7 @@ Test cases are TypeScript files in `src/test-cases/` that define:
 
 - **name**: Human-readable test name
 - **description**: What the test validates
-- **type**: `"llm"`, `"agent"`, or `"embeddings"` (determines which frameworks can run it)
+- **type**: `"llm"`, `"agent"`, `"embeddings"`, or `"mcp"` (determines which frameworks can run it)
 - **inputs**: Test input data (model, messages or input text)
 - **checks**: Array of check functions that validate captured spans
 
@@ -331,6 +343,16 @@ Test cases are TypeScript files in `src/test-cases/` that define:
 | Test                     | Description                          |
 | ------------------------ | ------------------------------------ |
 | `Basic Embeddings Test`  | Single embedding call with text input |
+
+### MCP Test Cases
+
+| Test                          | Description                                    | Transport |
+| ----------------------------- | ---------------------------------------------- | --------- |
+| `Basic MCP Tool Call Test`    | Single tool call with parameters               | stdio/sse |
+| `MCP Tool Error Test`         | Tool that raises an exception                  | stdio/sse |
+| `MCP Multiple Tool Calls Test`| Multiple tools called in sequence              | stdio/sse |
+| `MCP Resource Read Test`      | Reading a resource by URI                      | stdio/sse |
+| `MCP Prompt Get Test`         | Retrieving a prompt template                   | stdio/sse |
 
 ### Test Definition Example
 
@@ -406,6 +428,14 @@ interface Check {
 | `checkResponseModel`         | Warns when gen_ai.response.model is missing (warning) |
 | `checkEmbeddingSpanAttributes` | Validates embedding spans (model, input, description) |
 | `checkEmbeddingTokenUsage`   | Embedding token usage (input_tokens, total_tokens)  |
+| `checkMCPSpanCount(n)`        | Factory: correct number of MCP spans                |
+| `checkMCPToolSpanAttributes` | Tool spans have `op=mcp.server`, correct description |
+| `checkMCPToolResult`          | Tool result content exists, `is_error` is false     |
+| `checkMCPToolError`           | Tool result `is_error` is true, span status=error   |
+| `checkMCPResourceSpanAttributes` | Resource spans with URI and protocol             |
+| `checkMCPPromptSpanAttributes`| Prompt spans with name and message count            |
+| `checkMCPServerAttributes`   | Common MCP attributes (transport, session.id)       |
+| `checkMCPMultipleTools(expected)` | Factory: validates N tool spans with names      |
 
 ## Attribute Deprecation System
 
@@ -465,10 +495,11 @@ Each framework has a `config.json` file that defines its capabilities:
 | ---------------- | ------------------------------------------------------------------------------------------------------- |
 | `name`           | Framework identifier                                                                                    |
 | `displayName`    | Human-readable name                                                                                     |
-| `type`           | `"llm-only"`, `"agentic"`, or `"embeddings"`                                                            |
+| `type`           | `"llm-only"`, `"agentic"`, `"embeddings"`, or `"mcp-server"`                                            |
 | `platform`       | `"node"`, `"python"`, `"browser"`, `"php"`, or `"nextjs"` (CLI also accepts `"js"` as meta-platform for node + browser) |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
+| `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`                                                               |
 | `dependencies`   | NPM/pip packages to install                                                                             |
 | `versions`       | Framework versions to test                                                                              |
 | `sentryVersions` | Sentry SDK versions to test against                                                                     |
@@ -488,6 +519,10 @@ Available in `src/test-cases/utils.ts`:
 | `findChatSpans()`      | Find `chat`/`completion` spans         |
 | `findToolSpans()`      | Find tool execution spans              |
 | `findEmbeddingSpans()` | Find `embeddings` spans                |
+| `extractMCPSpans()`    | Filter spans for `mcp.*` operations    |
+| `findMCPToolSpans()`   | Find `tools/call` MCP spans            |
+| `findMCPResourceSpans()` | Find `resources/read` MCP spans      |
+| `findMCPPromptSpans()` | Find `prompts/get` MCP spans           |
 | `assertAttributes()`   | Schema-based attribute validation      |
 | `printSpanSummary()`   | Debug helper to print captured spans   |
 
@@ -514,7 +549,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents}/{node|python|browser|nextjs|php}/your-framework
+mkdir -p src/runner/templates/{llm|agents|mcp}/{node|python|browser|nextjs|php}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -622,9 +657,10 @@ npm run test -- --test "Your Test Name" --verbose
 interface TestDefinition {
   name: string;
   description: string;
-  type: "llm" | "agent" | "embeddings";
+  type: "llm" | "agent" | "embeddings" | "mcp";
   inputs: TestInput[];
   agent?: AgentDefinition; // For agent tests
+  mcpServer?: MCPServerDefinition; // For MCP tests
   causeAPIError?: boolean; // Trigger API errors
   checks: Check[]; // Array of check functions
 }
@@ -636,12 +672,13 @@ interface TestDefinition {
 interface FrameworkConfig {
   name: string;
   platform: "node" | "python" | "browser" | "nextjs" | "php";
-  type: "llm-only" | "agentic" | "embeddings";
+  type: "llm-only" | "agentic" | "embeddings" | "mcp-server";
   version: string;
   sentryVersion: string;
   templatePath?: string;
   executionMode?: "sync" | "async" | "both";
   streamingMode?: "streaming" | "blocking" | "both";
+  transportMode?: "stdio" | "sse" | "both";
   modelOverrides?: { request?: string; response?: string };
   skip?: { tests?: string[]; checks?: { [testName: string]: string[] } };
 }
@@ -747,6 +784,17 @@ Laravel uses a split-file template setup unique among the platforms:
 - Tests are executed via `php artisan test:<test-case-id>` rather than running a script file directly
 - The `PhpRunner` handles Composer project creation, dependency installation, and artisan command execution
 
+### FastMCP
+
+FastMCP is used for MCP (Model Context Protocol) server testing. Key differences from LLM/agent frameworks:
+
+- Uses `sentry_sdk.integrations.mcp.MCPIntegration` instead of auto-enabled AI integrations
+- Spans use `op: "mcp.server"` with `mcp.*` attributes (not `gen_ai.*`)
+- No LLM API keys needed — tests are self-contained with in-process or local SSE servers
+- Supports two transport modes: `stdio` (in-process via `Client(mcp_server)`) and `sse` (HTTP via `SSETransport`)
+- FastMCP 2.3.0+ requires explicit `SSETransport` class for SSE connections (HTTP URLs default to Streamable HTTP)
+- Requires `pydantic<2.12` for compatibility with FastMCP 2.3.4
+
 ## References
 
 - **Sentry JavaScript SDK:** https://github.com/getsentry/sentry-javascript
@@ -754,3 +802,5 @@ Laravel uses a split-file template setup unique among the platforms:
 - **Vercel AI SDK:** https://sdk.vercel.ai/docs
 - **OpenAI Python SDK:** https://github.com/openai/openai-python
 - **Mastra AI Framework:** https://mastra.ai/docs
+- **FastMCP:** https://github.com/jlowin/fastmcp
+- **Sentry MCP Integration:** https://docs.sentry.io/platforms/python/integrations/mcp/
