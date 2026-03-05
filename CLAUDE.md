@@ -111,11 +111,11 @@ src/runner/templates/
 │   │   ├── mastra/
 │   │   └── vercel/
 │   ├── browser/
-│   │   ├── langgraph/                # instrumentLangGraph only; streaming surfaces Bug 3
-│   │   ├── langgraph-langchain/      # createLangChainCallbackHandler only; surfaces Bug 2
-│   │   ├── langgraph-combined/       # both APIs together; surfaces Bug 4
-│   │   ├── langgraph-compiled/       # instrumentLangGraph on compiled graph; surfaces Bug 1
-│   │   └── langgraph-custom-state/   # custom Annotation.Root state; surfaces Bug 5
+│   │   ├── langgraph/                # instrumentLangGraph only; streaming: no invoke_agent span
+│   │   ├── langgraph-langchain/      # createLangChainCallbackHandler only; chain spans previously named unknown_chain
+│   │   ├── langgraph-combined/       # both APIs together; chat spans orphaned, hierarchy broken
+│   │   ├── langgraph-compiled/       # instrumentLangGraph on compiled graph; crashes with TypeError
+│   │   └── langgraph-custom-state/   # custom Annotation.Root state; recordInputs/recordOutputs silently empty
 │   └── python/
 │   │   ├── google-genai/
 │   │   ├── langgraph/
@@ -417,7 +417,7 @@ interface Check {
 | `checkResponseModel`         | Warns when gen_ai.response.model is missing (warning) |
 | `checkEmbeddingSpanAttributes` | Validates embedding spans (model, input, description) |
 | `checkEmbeddingTokenUsage`   | Embedding token usage (input_tokens, total_tokens)  |
-| `checkAgentInputOutputMessages` | Validates `gen_ai.input.messages` + `gen_ai.output.messages` on `invoke_agent` spans; skips for non-`instrumentLangGraph` frameworks; fails for `langgraph-custom-state` (Bug 5) |
+| `checkAgentInputOutputMessages` | Validates `gen_ai.input.messages` + `gen_ai.output.messages` on `invoke_agent` spans; skips for non-`instrumentLangGraph` frameworks; fails for `langgraph-custom-state` (recordInputs/recordOutputs silently empty with custom state) |
 
 ## Attribute Deprecation System
 
@@ -750,15 +750,15 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
 
 ### LangGraph Browser Variants
 
-LangGraph browser tests are split into five framework folders — one per known Sentry SDK bug — so each bug is isolated and independently observable:
+LangGraph browser tests are split into five framework folders — each isolating a specific known instrumentation gap so failures are independently observable:
 
-| Framework | AI Platform | Sentry API Used | Bug surfaced | Purpose |
-|-----------|-------------|-----------------|--------------|---------|
-| `langgraph` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` only | Bug 3 (streaming) | Blocking: produces `invoke_agent` spans; streaming: no span at all |
-| `langgraph-langchain` | LangGraph + OpenAI | `Sentry.createLangChainCallbackHandler()` only | Bug 2 | Chat spans show as `unknown_chain` instead of node name |
-| `langgraph-combined` | LangGraph + OpenAI | Both APIs together | Bug 4 | Combined use drops 4/5 `chat` spans + spurious `invoke_agent` sub-spans |
-| `langgraph-compiled` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` on compiled graph | Bug 1 | Crashes with `TypeError` — mirrors the pattern shown in official docs |
-| `langgraph-custom-state` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` with custom state | Bug 5 | `recordInputs`/`recordOutputs` silently records nothing (no `messages` key) |
+| Framework | AI Platform | Sentry API Used | Known issue |
+|-----------|-------------|-----------------|-------------|
+| `langgraph` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` only | Blocking: produces `invoke_agent` spans; streaming: no span at all |
+| `langgraph-langchain` | LangGraph + OpenAI | `Sentry.createLangChainCallbackHandler()` only | Chain spans previously named `unknown_chain` instead of node name (fixed in sentry-javascript#19554) |
+| `langgraph-combined` | LangGraph + OpenAI | Both APIs together | Combined use orphans `chat` spans and produces spurious `invoke_agent` sub-spans |
+| `langgraph-compiled` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` on compiled graph | Crashes with `TypeError` — mirrors the pattern shown in official docs |
+| `langgraph-custom-state` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` with custom state | `recordInputs`/`recordOutputs` silently records nothing (no `messages` key in custom state) |
 
 `langgraph`, `langgraph-langchain`, and `langgraph-combined` use `StateGraph(MessagesAnnotation)`. `langgraph-compiled` uses `createReactAgent` to reproduce the exact crash. `langgraph-custom-state` uses `Annotation.Root` to reproduce the silent recording failure. Tool Call and Tool Error tests are skipped across all variants (no ReAct loop implemented).
 

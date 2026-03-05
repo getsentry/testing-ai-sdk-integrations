@@ -224,8 +224,8 @@ export const checkAgentSpanAttributes: Check = {
  * Only applies to browser LangGraph frameworks that use instrumentLangGraph.
  * Skips for all other frameworks.
  *
- * Fails for langgraph-custom-state (Bug 5: custom Annotation.Root state
- * means recordInputs/recordOutputs silently records nothing).
+ * Fails for langgraph-custom-state (custom Annotation.Root state means
+ * recordInputs/recordOutputs silently records nothing).
  */
 export const checkAgentInputOutputMessages: Check = {
   name: "checkAgentInputOutputMessages",

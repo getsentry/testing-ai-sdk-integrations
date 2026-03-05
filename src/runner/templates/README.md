@@ -35,19 +35,19 @@ templates/
     │       ├── template.njk
     │       └── config.json
     ├── browser/
-    │   ├── langgraph/              # instrumentLangGraph only; streaming surfaces Bug 3 (no invoke_agent)
+    │   ├── langgraph/              # instrumentLangGraph only; streaming produces no spans
     │   │   ├── template.njk
     │   │   └── config.json
-    │   ├── langgraph-langchain/    # createLangChainCallbackHandler only — surfaces Bug 2 (unknown_chain)
+    │   ├── langgraph-langchain/    # createLangChainCallbackHandler only; chain spans previously named unknown_chain
     │   │   ├── template.njk
     │   │   └── config.json
-    │   ├── langgraph-combined/     # both APIs — surfaces Bug 4 (span dropping)
+    │   ├── langgraph-combined/     # both APIs together; chat spans orphaned, hierarchy broken
     │   │   ├── template.njk
     │   │   └── config.json
-    │   ├── langgraph-compiled/     # instrumentLangGraph on compiled graph — surfaces Bug 1 (crash)
+    │   ├── langgraph-compiled/     # instrumentLangGraph on compiled graph; crashes with TypeError
     │   │   ├── template.njk
     │   │   └── config.json
-    │   └── langgraph-custom-state/ # custom Annotation.Root — surfaces Bug 5 (silent missing input/output)
+    │   └── langgraph-custom-state/ # custom Annotation.Root; recordInputs/recordOutputs silently empty
     │       ├── template.njk
     │       └── config.json
     ├── python/
