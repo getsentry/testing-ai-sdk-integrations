@@ -85,7 +85,7 @@
           try {
 {% if isStreaming %}
             log('Starting streaming request {{ loop.index }}...');
-            // Bug 3: stream() is not patched by instrumentLangGraph — no invoke_agent span will be created
+            // stream() is not patched by instrumentLangGraph — no invoke_agent span will be created
             const stream = await compiledGraph.stream({ messages: messages{{ loop.index }} });
             const chunks = [];
             for await (const chunk of stream) {

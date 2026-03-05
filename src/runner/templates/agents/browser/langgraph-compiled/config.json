@@ -1,6 +1,6 @@
 {
   "name": "langgraph-compiled",
-  "displayName": "LangGraph + OpenAI Browser (instrumentLangGraph on compiled graph — Bug 1)",
+  "displayName": "LangGraph + OpenAI Browser (instrumentLangGraph on compiled graph)",
   "type": "agentic",
   "platform": "browser",
   "dependencies": [

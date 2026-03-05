@@ -1,6 +1,6 @@
 {
   "name": "langgraph-custom-state",
-  "displayName": "LangGraph + OpenAI Browser (custom Annotation.Root — Bug 5)",
+  "displayName": "LangGraph + OpenAI Browser (custom Annotation.Root state)",
   "type": "agentic",
   "platform": "browser",
   "dependencies": [

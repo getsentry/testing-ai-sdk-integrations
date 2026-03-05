@@ -46,12 +46,12 @@
           // createReactAgent returns an already-compiled graph
           agent = langgraphPrebuilt.createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
 
-          // Bug 1: instrumentLangGraph crashes when called on a compiled graph.
+          // instrumentLangGraph crashes when called on a compiled graph.
           // The official docs show this pattern, but it throws:
           //   TypeError: Cannot read properties of undefined (reading 'bind')
           Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
 
-          log('LangGraph initialized with instrumentLangGraph on compiled graph (expects Bug 1 crash)');
+          log('LangGraph initialized with instrumentLangGraph on compiled graph (expected: TypeError crash)');
 {% endblock %}
 
 {% block test %}

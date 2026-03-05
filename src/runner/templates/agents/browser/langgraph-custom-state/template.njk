@@ -1,7 +1,7 @@
 {% extends "base.browser.njk" %}
 
 {#
-  Bug 5: instrumentLangGraph with recordInputs/recordOutputs silently records nothing when
+  instrumentLangGraph with recordInputs/recordOutputs silently records nothing when
   the graph uses a custom Annotation.Root state. It only works with MessagesAnnotation.
 
   This template uses a custom state annotation that wraps user messages under a `userInput`
@@ -36,7 +36,7 @@
             apiKey: OPENAI_API_KEY,
           });
 
-          // Bug 5: custom state annotation uses `userInput` and `response` keys instead of `messages`.
+          // Custom state annotation uses `userInput` and `response` keys instead of `messages`.
           // instrumentLangGraph hardcodes args[0].messages, so recordInputs/recordOutputs silently records nothing.
           const CustomState = Annotation.Root({
             userInput: Annotation(),
@@ -59,7 +59,7 @@
 
           compiledGraph = graph.compile({ name: "{{ agent.name }}" });
 
-          log('LangGraph initialized with custom Annotation.Root state (expects Bug 5: silent missing input/output)');
+          log('LangGraph initialized with custom Annotation.Root state (expected: recordInputs/recordOutputs silently empty)');
 {% endblock %}
 
 {% block test %}
