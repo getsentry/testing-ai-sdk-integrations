@@ -14,6 +14,7 @@ import {
   checkInputMessagesSchema,
   checkBinaryRedaction,
   checkResponseModel,
+  checkLangChainNodeNames,
 } from "../checks.js";
 
 // Small 10x10 red PNG image encoded as base64
@@ -71,6 +72,7 @@ export const visionAgentTest: TestDefinition = {
     checkValidTokenUsage,
     checkInputMessagesSchema,
     checkBinaryRedaction,
+    checkLangChainNodeNames,
   ],
 
   warningChecks: [

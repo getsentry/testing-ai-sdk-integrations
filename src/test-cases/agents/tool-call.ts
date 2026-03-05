@@ -23,6 +23,7 @@ import {
   checkResponseToolCalls,
   checkInputMessagesSchema,
   checkResponseModel,
+  checkLangChainNodeNames,
 } from "../checks.js";
 
 export const toolCallAgentTest: TestDefinition = {
@@ -121,6 +122,7 @@ export const toolCallAgentTest: TestDefinition = {
       },
     ]),
     checkInputMessagesSchema,
+    checkLangChainNodeNames,
   ],
 
   warningChecks: [

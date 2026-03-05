@@ -19,6 +19,7 @@ import {
   checkAgentHierarchy,
   checkInputMessagesSchema,
   checkResponseModel,
+  checkLangChainNodeNames,
 } from "../checks.js";
 
 // Generate a long message that exceeds 20KB
@@ -79,6 +80,7 @@ export const longInputAgentTest: TestDefinition = {
   checks: [
     checkMessageTrimming,
     checkInputMessagesSchema,
+    checkLangChainNodeNames,
   ],
 
   warningChecks: [
