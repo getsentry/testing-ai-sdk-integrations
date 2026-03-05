@@ -110,6 +110,12 @@ src/runner/templates/
 │   │   ├── langgraph/
 │   │   ├── mastra/
 │   │   └── vercel/
+│   ├── browser/
+│   │   ├── langgraph/                # instrumentLangGraph only; streaming surfaces Bug 3
+│   │   ├── langgraph-langchain/      # createLangChainCallbackHandler only; surfaces Bug 2
+│   │   ├── langgraph-combined/       # both APIs together; surfaces Bug 4
+│   │   ├── langgraph-compiled/       # instrumentLangGraph on compiled graph; surfaces Bug 1
+│   │   └── langgraph-custom-state/   # custom Annotation.Root state; surfaces Bug 5
 │   └── python/
 │   │   ├── google-genai/
 │   │   ├── langgraph/
@@ -263,6 +269,11 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Browser           | `anthropic`     | llm      | llm-only | both      | -               |
 | Browser           | `google-genai`  | llm      | llm-only | both      | -               |
 | Browser           | `langchain`     | llm      | llm-only | both      | -               |
+| Browser           | `langgraph`           | agents | agentic | both      | -               |
+| Browser           | `langgraph-langchain` | agents | agentic | -         | -               |
+| Browser           | `langgraph-combined`  | agents | agentic | -         | -               |
+| Browser           | `langgraph-compiled`  | agents | agentic | -         | -               |
+| Browser           | `langgraph-custom-state` | agents | agentic | -      | -               |
 | Next.js           | `openai`        | llm      | llm-only | both      | -               |
 | Next.js           | `anthropic`     | llm      | llm-only | both      | -               |
 | Next.js           | `google-genai`  | llm      | llm-only | both      | -               |
@@ -406,6 +417,7 @@ interface Check {
 | `checkResponseModel`         | Warns when gen_ai.response.model is missing (warning) |
 | `checkEmbeddingSpanAttributes` | Validates embedding spans (model, input, description) |
 | `checkEmbeddingTokenUsage`   | Embedding token usage (input_tokens, total_tokens)  |
+| `checkAgentInputOutputMessages` | Validates `gen_ai.input.messages` + `gen_ai.output.messages` on `invoke_agent` spans; skips for non-`instrumentLangGraph` frameworks; fails for `langgraph-custom-state` (Bug 5) |
 
 ## Attribute Deprecation System
 
@@ -735,6 +747,20 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
 - Template is standalone (does not extend base.node.njk)
+
+### LangGraph Browser Variants
+
+LangGraph browser tests are split into five framework folders — one per known Sentry SDK bug — so each bug is isolated and independently observable:
+
+| Framework | AI Platform | Sentry API Used | Bug surfaced | Purpose |
+|-----------|-------------|-----------------|--------------|---------|
+| `langgraph` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` only | Bug 3 (streaming) | Blocking: produces `invoke_agent` spans; streaming: no span at all |
+| `langgraph-langchain` | LangGraph + OpenAI | `Sentry.createLangChainCallbackHandler()` only | Bug 2 | Chat spans show as `unknown_chain` instead of node name |
+| `langgraph-combined` | LangGraph + OpenAI | Both APIs together | Bug 4 | Combined use drops 4/5 `chat` spans + spurious `invoke_agent` sub-spans |
+| `langgraph-compiled` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` on compiled graph | Bug 1 | Crashes with `TypeError` — mirrors the pattern shown in official docs |
+| `langgraph-custom-state` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` with custom state | Bug 5 | `recordInputs`/`recordOutputs` silently records nothing (no `messages` key) |
+
+`langgraph`, `langgraph-langchain`, and `langgraph-combined` use `StateGraph(MessagesAnnotation)`. `langgraph-compiled` uses `createReactAgent` to reproduce the exact crash. `langgraph-custom-state` uses `Annotation.Root` to reproduce the silent recording failure. Tool Call and Tool Error tests are skipped across all variants (no ReAct loop implemented).
 
 ### Laravel
 

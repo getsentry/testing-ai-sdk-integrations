@@ -1,0 +1,86 @@
+{% extends "base.browser.njk" %}
+
+{#
+  Bug 5: instrumentLangGraph with recordInputs/recordOutputs silently records nothing when
+  the graph uses a custom Annotation.Root state. It only works with MessagesAnnotation.
+
+  This template uses a custom state annotation that wraps user messages under a `userInput`
+  key (not the `messages` key that instrumentLangGraph hardcodes). As a result, the
+  invoke_agent span will have no gen_ai.input.messages / gen_ai.output.messages attributes.
+#}
+
+{% block setup %}
+    // LangGraph classes and compiled graph will be initialized after dynamic import
+    let compiledGraph;
+    let HumanMessage, SystemMessage;
+{% endblock %}
+
+{% block dynamic_imports %}
+          // Import LangGraph and LangChain from local node_modules (bundled by Vite)
+          const langgraphModule = await import("@langchain/langgraph/web");
+          const langchainOpenAI = await import("@langchain/openai");
+          const langchainMessages = await import("@langchain/core/messages");
+
+          const { StateGraph, Annotation, START, END } = langgraphModule;
+          HumanMessage = langchainMessages.HumanMessage;
+          SystemMessage = langchainMessages.SystemMessage;
+
+          // Get API key from window (injected by Playwright)
+          const OPENAI_API_KEY = window.OPENAI_API_KEY;
+          if (!OPENAI_API_KEY) {
+            throw new Error('OPENAI_API_KEY not provided');
+          }
+
+          const llm = new langchainOpenAI.ChatOpenAI({
+            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+            apiKey: OPENAI_API_KEY,
+          });
+
+          // Bug 5: custom state annotation uses `userInput` and `response` keys instead of `messages`.
+          // instrumentLangGraph hardcodes args[0].messages, so recordInputs/recordOutputs silently records nothing.
+          const CustomState = Annotation.Root({
+            userInput: Annotation(),
+            response: Annotation(),
+          });
+
+          async function agentNode(state) {
+            const response = await llm.invoke([new HumanMessage(state.userInput)]);
+            return { response: response.content };
+          }
+
+          const graph = new StateGraph(CustomState)
+            .addNode("agent", agentNode)
+            .addEdge(START, "agent")
+            .addEdge("agent", END);
+
+          // recordInputs/recordOutputs will silently produce no data because the state
+          // does not have a `messages` key
+          Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
+
+          compiledGraph = graph.compile({ name: "{{ agent.name }}" });
+
+          log('LangGraph initialized with custom Annotation.Root state (expects Bug 5: silent missing input/output)');
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+{% if input.conversationId %}
+          if (typeof Sentry.setConversationId === "function") {
+            Sentry.setConversationId("{{ input.conversationId }}");
+          }
+{% endif %}
+          // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+          // Extract the first user message text as a plain string for the custom state
+          const userInput{{ loop.index }} = {% if input.messages[0].content is string %}"{{ input.messages[0].content }}"{% else %}"{{ input.messages[0].content[0].text }}"{% endif %};
+
+          try {
+            log('Starting request {{ loop.index }}...');
+            const result = await compiledGraph.invoke({ userInput: userInput{{ loop.index }} });
+            log('Response {{ loop.index }}:', result.response);
+          } catch (error) {
+            Sentry.captureException(error);
+            log('Error in request {{ loop.index }}:', error.message);
+            console.error("Error:", error);
+          }
+{% endfor %}
+{% endblock %}

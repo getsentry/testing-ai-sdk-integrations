@@ -1,0 +1,87 @@
+{% extends "base.browser.njk" %}
+
+{# Macro to render message content - handles both string and multimodal array #}
+{% macro renderLangChainContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+              { type: "text", text: "{{ part.text }}" },
+{% elif part.type == 'image' %}
+              { type: "image_url", image_url: { url: "data:{{ part.mediaType }};base64,{{ part.base64 }}" } },
+{% endif %}
+{% endfor %}
+            ]
+{%- endif %}
+{% endmacro %}
+
+{% block setup %}
+    // Agent and classes will be initialized after dynamic import
+    let agent;
+    let HumanMessage, SystemMessage;
+{% endblock %}
+
+{% block dynamic_imports %}
+          // Import LangGraph prebuilt and LangChain from local node_modules (bundled by Vite)
+          const langgraphPrebuilt = await import("@langchain/langgraph/prebuilt");
+          const langchainOpenAI = await import("@langchain/openai");
+          const langchainMessages = await import("@langchain/core/messages");
+
+          HumanMessage = langchainMessages.HumanMessage;
+          SystemMessage = langchainMessages.SystemMessage;
+
+          // Get API key from window (injected by Playwright)
+          const OPENAI_API_KEY = window.OPENAI_API_KEY;
+          if (!OPENAI_API_KEY) {
+            throw new Error('OPENAI_API_KEY not provided');
+          }
+
+          const llm = new langchainOpenAI.ChatOpenAI({
+            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+            openAIApiKey: OPENAI_API_KEY,
+          });
+
+          // createReactAgent returns an already-compiled graph
+          agent = langgraphPrebuilt.createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
+
+          // Bug 1: instrumentLangGraph crashes when called on a compiled graph.
+          // The official docs show this pattern, but it throws:
+          //   TypeError: Cannot read properties of undefined (reading 'bind')
+          Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
+
+          log('LangGraph initialized with instrumentLangGraph on compiled graph (expects Bug 1 crash)');
+{% endblock %}
+
+{% block test %}
+{% for input in inputs %}
+{% if input.conversationId %}
+          if (typeof Sentry.setConversationId === "function") {
+            Sentry.setConversationId("{{ input.conversationId }}");
+          }
+{% endif %}
+          // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
+
+          const messages{{ loop.index }} = [
+{% for message in input.messages %}
+{% if message.role == 'system' %}
+            new SystemMessage("{{ message.content }}"),
+{% elif message.role == 'user' %}
+            new HumanMessage({ content: {{ renderLangChainContent(message.content) }} }),
+{% endif %}
+{% endfor %}
+          ];
+
+          try {
+            log('Starting request {{ loop.index }}...');
+            const result = await agent.invoke({ messages: messages{{ loop.index }} });
+            const lastMessage = result.messages[result.messages.length - 1];
+            log('Response {{ loop.index }}:', lastMessage.content);
+          } catch (error) {
+            Sentry.captureException(error);
+            log('Error in request {{ loop.index }}:', error.message);
+            console.error("Error:", error);
+          }
+{% endfor %}
+{% endblock %}

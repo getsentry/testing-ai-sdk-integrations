@@ -1,0 +1,14 @@
+{
+  "name": "langgraph-custom-state",
+  "displayName": "LangGraph + OpenAI Browser (custom Annotation.Root — Bug 5)",
+  "type": "agentic",
+  "platform": "browser",
+  "dependencies": [
+    { "package": "@sentry/browser", "version": "sentry" },
+    { "package": "@langchain/langgraph", "version": "framework" },
+    { "package": "@langchain/openai", "version": "1.2.12" },
+    { "package": "@langchain/core", "version": "1.1.30" }
+  ],
+  "versions": ["1.2.0"],
+  "sentryVersions": ["latest"]
+}

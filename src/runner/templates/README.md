@@ -34,6 +34,22 @@ templates/
     │   └── mastra/
     │       ├── template.njk
     │       └── config.json
+    ├── browser/
+    │   ├── langgraph/              # instrumentLangGraph only; streaming surfaces Bug 3 (no invoke_agent)
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   ├── langgraph-langchain/    # createLangChainCallbackHandler only — surfaces Bug 2 (unknown_chain)
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   ├── langgraph-combined/     # both APIs — surfaces Bug 4 (span dropping)
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   ├── langgraph-compiled/     # instrumentLangGraph on compiled graph — surfaces Bug 1 (crash)
+    │   │   ├── template.njk
+    │   │   └── config.json
+    │   └── langgraph-custom-state/ # custom Annotation.Root — surfaces Bug 5 (silent missing input/output)
+    │       ├── template.njk
+    │       └── config.json
     ├── python/
     │   ├── openai-agents/
     │   │   ├── template.njk
