@@ -35,19 +35,19 @@ templates/
     │       ├── template.njk
     │       └── config.json
     ├── browser/
-    │   ├── langgraph/              # instrumentLangGraph only; streaming produces no spans
+    │   ├── langgraph/
     │   │   ├── template.njk
     │   │   └── config.json
-    │   ├── langgraph-langchain/    # createLangChainCallbackHandler only; chain spans previously named unknown_chain
+    │   ├── langgraph-langchain/
     │   │   ├── template.njk
     │   │   └── config.json
-    │   ├── langgraph-combined/     # both APIs together; chat spans orphaned, hierarchy broken
+    │   ├── langgraph-combined/
     │   │   ├── template.njk
     │   │   └── config.json
-    │   ├── langgraph-compiled/     # instrumentLangGraph on compiled graph; crashes with TypeError
+    │   ├── langgraph-compiled/
     │   │   ├── template.njk
     │   │   └── config.json
-    │   └── langgraph-custom-state/ # custom Annotation.Root; recordInputs/recordOutputs silently empty
+    │   └── langgraph-custom-state/
     │       ├── template.njk
     │       └── config.json
     ├── python/
