@@ -164,10 +164,11 @@ export const checkChatSpanAttributes: Check = {
         "gen_ai.output.messages",
         "gen_ai.response.text"
       );
+      
       if (responseResult.value === undefined) {
-        const hasToolCalls = span.data?.["gen_ai.response.tool_calls"] !== undefined;
+        const hasToolCalls = !!span.data?.["gen_ai.response.tool_calls"];
         if (!hasToolCalls) {
-          errors.push("Should have gen_ai.output.messages or gen_ai.response.text");
+          errors.push("Should have gen_ai.output.messages, gen_ai.response.text, or gen_ai.response.tool_calls");
           locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing response attribute" });
         }
       }
