@@ -10,6 +10,6 @@
     { "package": "@sentry/nextjs", "version": "sentry" },
     { "package": "next", "version": "latest" }
   ],
-  "versions": ["4.3.16"],
+  "versions": ["6.0.116"],
   "sentryVersions": ["latest"]
 }
