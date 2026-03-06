@@ -12,137 +12,548 @@ import { join } from "path";
 
 const html = htm.bind(vhtml);
 
-/**
- * Format duration in milliseconds to human-readable format
- */
+// ---------------------------------------------------------------------------
+// Utility functions
+// ---------------------------------------------------------------------------
+
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60000);
+  const s = Math.round((ms % 60000) / 1000);
+  return `${m}m ${s}s`;
 }
 
-/**
- * Get status icon for test result
- */
 function getStatusIcon(status: string): string {
   switch (status) {
     case "passed":
-      return "✓";
+      return "\u2713";
     case "failed":
-      return "✗";
+      return "\u2717";
     case "timeout":
-      return "⏱";
+      return "\u23F1";
     case "skipped":
-      return "○";
+      return "\u25CB";
     default:
       return "-";
   }
 }
 
-/**
- * Generate summary cards HTML
- */
-function SummaryCards({ summary }: { summary: Report["results"]["summary"] }) {
-  const duration = summary.stop - summary.start;
-
-  return html`
-    <div class="summary">
-      <div class="stat-card">
-        <h3>Total Tests</h3>
-        <p class="stat-value">${summary.tests}</p>
-      </div>
-      <div class="stat-card passed">
-        <h3>✓ Passed</h3>
-        <p class="stat-value">${summary.passed}</p>
-      </div>
-      <div class="stat-card failed">
-        <h3>✗ Failed</h3>
-        <p class="stat-value">${summary.failed}</p>
-      </div>
-      <div class="stat-card">
-        <h3>Duration</h3>
-        <p class="stat-value">${formatDuration(duration)}</p>
-      </div>
-    </div>
-  `;
-}
-
-/**
- * Natural sort comparator that handles numeric prefixes correctly.
- * E.g., "1-simple" < "2-multi" < "10-binary" (not lexical "1" < "10" < "2")
- */
 function naturalSortCompare(a: string, b: string): number {
-  // Extract numeric prefix if present (e.g., "10-binary" -> 10)
   const aMatch = a.match(/^(\d+)/);
   const bMatch = b.match(/^(\d+)/);
-
-  // If both have numeric prefixes, compare numerically
   if (aMatch && bMatch) {
     const aNum = parseInt(aMatch[1], 10);
     const bNum = parseInt(bMatch[1], 10);
-    if (aNum !== bNum) {
-      return aNum - bNum;
-    }
-    // If numeric prefixes are equal, compare the rest lexically
+    if (aNum !== bNum) return aNum - bNum;
     return a.localeCompare(b);
   }
-
-  // If only one has a numeric prefix, it comes first
   if (aMatch) return -1;
   if (bMatch) return 1;
-
-  // Neither has a numeric prefix, compare lexically
   return a.localeCompare(b);
 }
 
-/**
- * Extract base test name without mode suffixes
- * e.g., "Basic LLM Test (async, streaming)" -> "Basic LLM Test"
- */
 function getBaseTestName(testName: string): string {
-  // Remove the mode suffix in parentheses
   return testName.replace(/\s*\([^)]*\)\s*$/, "").trim();
 }
 
-/**
- * Combined status for multiple test variations
- */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
+
 interface CombinedTestResult {
   passed: number;
   failed: number;
   skipped: number;
   other: number;
   total: number;
-  variations: Array<{
-    mode: string;
-    status: string;
+  variations: Array<{ mode: string; status: string }>;
+}
+
+interface ReportCheckResult {
+  name: string;
+  status: "passed" | "failed" | "skipped";
+  severity?: "critical" | "normal" | "warning";
+  error?: string;
+  skipReason?: string;
+  errorLocations?: Array<{
+    spanId: string;
+    attribute?: string;
+    message: string;
   }>;
 }
 
+interface ReportAuditedAttribute {
+  attribute: string;
+  status: "known" | "deprecated" | "unknown";
+  replacement?: string;
+  message: string;
+  spanIds: string[];
+}
+
+interface ReportAttributeAudit {
+  totalAttributes: number;
+  knownAttributes: ReportAuditedAttribute[];
+  deprecatedAttributes: ReportAuditedAttribute[];
+  unknownAttributes: ReportAuditedAttribute[];
+}
+
+// ---------------------------------------------------------------------------
+// CSS
+// ---------------------------------------------------------------------------
+
+const FONT_LINK = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">`;
+
+const STYLES = `
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f6f8fa;
+    --bg-hover: #eef1f5;
+    --text: #1a1a2e;
+    --text-secondary: #656d76;
+    --text-muted: #8b949e;
+    --border: rgba(0,0,0,0.1);
+    --border-heavy: rgba(0,0,0,0.15);
+    --pass: #3fb950;
+    --pass-bg: rgba(63,185,80,0.08);
+    --pass-border: rgba(63,185,80,0.3);
+    --fail: #f85149;
+    --fail-bg: rgba(248,81,73,0.08);
+    --fail-border: rgba(248,81,73,0.3);
+    --warn: #d29922;
+    --warn-bg: rgba(210,153,34,0.08);
+    --warn-border: rgba(210,153,34,0.3);
+    --skip: #8b949e;
+    --skip-bg: rgba(139,148,158,0.08);
+    --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --radius: 4px;
+    --radius-lg: 6px;
+    --transition: 150ms ease;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg-alt);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- Nav Bar ---- */
+  .topnav {
+    display: flex; align-items: center; padding: 0 24px; height: 42px;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topnav-title {
+    font-weight: 700; font-size: 13px; color: var(--text);
+    letter-spacing: -0.01em; white-space: nowrap; font-family: var(--mono);
+  }
+  .topnav-links { display: flex; margin-left: 32px; height: 100%; }
+  .topnav-link {
+    display: flex; align-items: center; padding: 0 14px;
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+    text-decoration: none; border-bottom: 2px solid transparent;
+    transition: color var(--transition), border-color var(--transition);
+  }
+  .topnav-link:hover { color: var(--text); }
+  .topnav-link.active { color: var(--text); border-bottom-color: var(--text); }
+  .topnav-meta {
+    margin-left: auto; font-size: 12px; color: var(--text-muted); font-family: var(--mono);
+  }
+
+  /* ---- Summary Bar ---- */
+  .summary-bar {
+    background: var(--bg); border-bottom: 1px solid var(--border); padding: 14px 24px 0;
+  }
+  .summary-stats {
+    display: flex; align-items: baseline; gap: 24px; flex-wrap: wrap; padding-bottom: 12px;
+  }
+  .stat { display: flex; align-items: baseline; gap: 6px; }
+  .stat-value {
+    font-family: var(--mono); font-size: 20px; font-weight: 700;
+    color: var(--text); line-height: 1;
+  }
+  .stat-label {
+    font-size: 12px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.03em; font-weight: 500;
+  }
+  .stat-passed .stat-value { color: var(--pass); }
+  .stat-failed .stat-value { color: var(--fail); }
+  .stat-skipped .stat-value { color: var(--warn); }
+
+  .status-track {
+    height: 4px; border-radius: 2px; background: var(--bg-alt);
+    overflow: hidden; display: flex;
+  }
+  .status-fill-pass { background: var(--pass); }
+  .status-fill-fail { background: var(--fail); }
+  .status-fill-skip { background: var(--warn); }
+
+  /* ---- Main Content ---- */
+  .main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 48px; }
+
+  /* ---- Section Headers ---- */
+  .section-title {
+    font-family: var(--sans); font-size: 14px; font-weight: 700;
+    color: var(--text); margin: 28px 0 10px; letter-spacing: -0.01em;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  /* ---- Matrix ---- */
+  .matrix {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--bg);
+  }
+  .matrix th, .matrix td {
+    border: 1px solid var(--border); padding: 8px 6px; text-align: center;
+  }
+  .matrix th {
+    background: var(--text); color: #fff; font-weight: 600; font-size: 12px;
+    font-family: var(--mono); padding: 6px 8px;
+  }
+  .matrix .sdk-name {
+    text-align: left; font-weight: 600; background: var(--bg-alt);
+    font-family: var(--mono); font-size: 12px; white-space: nowrap;
+  }
+  .matrix td.status-passed { background: var(--pass-bg); color: var(--pass); font-weight: 700; }
+  .matrix td.status-failed { background: var(--fail-bg); color: var(--fail); font-weight: 700; }
+  .matrix td.status-timeout { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+  .matrix td.status-skipped { background: var(--skip-bg); color: var(--skip); }
+  .matrix td.status-not-run { background: var(--bg-alt); color: var(--text-muted); }
+  .matrix td.status-partial { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+  .matrix td.multi-status { padding: 3px; }
+  .status-grid {
+    display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; align-items: center;
+  }
+  .mini-status {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; font-size: 11px; border-radius: 3px; font-weight: 700;
+  }
+  .mini-status.status-passed { background: var(--pass-bg); color: var(--pass); }
+  .mini-status.status-failed { background: var(--fail-bg); color: var(--fail); }
+  .mini-status.status-timeout { background: var(--warn-bg); color: var(--warn); }
+  .mini-status.status-skipped { background: var(--skip-bg); color: var(--skip); }
+  .mini-status.status-other { background: var(--bg-alt); color: var(--text-muted); }
+
+  /* ---- Failed Tests Details ---- */
+  .failed-test {
+    margin: 8px 0; border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden; background: var(--bg);
+  }
+  .failed-test.timeout-test { border-color: var(--warn-border); }
+  .timeout-test .failed-icon { color: var(--warn); }
+  .failed-test summary {
+    padding: 10px 14px; cursor: pointer; background: var(--bg);
+    user-select: none; font-size: 13px; transition: background var(--transition);
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .failed-test summary:hover { background: var(--bg-hover); }
+  .failed-test[open] summary { border-bottom: 1px solid var(--border); }
+  .failed-icon { color: var(--fail); flex-shrink: 0; font-family: var(--mono); font-variant-emoji: text; }
+  .failed-test summary strong { font-family: var(--mono); font-size: 12px; }
+
+  .severity-badges { display: inline-flex; gap: 4px; margin-left: 4px; }
+  .sev-badge {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 11px; font-weight: 700; padding: 1px 5px;
+    border-radius: var(--radius); line-height: 1.4; font-family: var(--mono);
+    text-rendering: geometricPrecision;
+  }
+  .sev-badge .sev-icon {
+    font-family: var(--mono);
+    font-style: normal;
+    font-variant-emoji: text;
+  }
+  .sev-badge-timeout { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
+  .sev-badge-critical { background: var(--fail-bg); color: #d1242f; border: 1px solid var(--fail-border); }
+  .sev-badge-normal { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail-border); }
+  .sev-badge-warning { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
+  .duration { color: var(--text-muted); font-size: 12px; font-family: var(--mono); margin-left: auto; }
+
+  .error-details { padding: 12px 14px; }
+
+  /* ---- Check Results ---- */
+  .check-results-breakdown { margin: 8px 0 12px; }
+  .check-section {
+    margin-bottom: 10px; padding: 0;
+    border: none; background: none;
+  }
+  .check-section-critical { }
+  .check-section-critical .check-section-label { color: var(--fail); }
+  .check-section-warning { }
+  .check-section-warning .check-section-label { color: var(--warn); }
+  .check-section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px;
+    padding-bottom: 2px; border-bottom: 1px solid var(--border);
+  }
+  .check-result {
+    padding: 4px 0 4px 10px; font-size: 13px;
+    border-left: 2px solid transparent; margin: 0; line-height: 1.4;
+  }
+  .check-icon {
+    display: inline-block; width: 14px; font-weight: 700; font-size: 12px;
+    font-family: var(--mono); font-variant-emoji: text;
+  }
+  .check-name { font-family: var(--mono); font-size: 12px; }
+  .check-passed { border-left-color: var(--pass); }
+  .check-passed .check-icon { color: var(--pass); }
+  .check-skipped { border-left-color: var(--warn); }
+  .check-skipped .check-icon { color: var(--warn); }
+  .check-skip-reason { color: var(--text-muted); font-size: 12px; margin-left: 6px; }
+  .check-failed { border-left-color: var(--fail); }
+  .check-failed .check-icon { color: var(--fail); }
+  .check-failed .check-name { font-weight: 600; }
+  .check-severity-critical { border-left-color: #d1242f; }
+  .check-severity-critical .check-icon { color: #d1242f; }
+  .check-severity-warning { border-left-color: var(--warn); }
+  .check-severity-warning .check-icon { color: var(--warn); }
+
+  .check-error-msg {
+    margin: 2px 0 2px 26px; font-size: 12px; color: var(--text-muted);
+    white-space: pre-wrap; font-family: var(--mono);
+    max-height: 100px; overflow: auto; line-height: 1.5;
+  }
+  .check-locations { margin: 4px 0 2px 26px; font-size: 12px; }
+  .span-group {
+    margin: 2px 0; overflow: hidden; background: var(--bg);
+  }
+  .span-group-header {
+    display: flex; align-items: center; gap: 8px; padding: 2px 0;
+    justify-content: space-between;
+  }
+  .span-group-errors { padding: 0; }
+  .check-location {
+    padding: 1px 0; font-family: var(--mono); display: flex;
+    gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 12px;
+  }
+  .loc-span { color: #1565c0; font-weight: 600; font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .loc-attr { color: var(--fail); font-weight: 600; white-space: nowrap; }
+  .loc-msg { color: var(--text-secondary); flex: 1; }
+
+  .span-view-row { margin: 2px 0 4px; }
+  .show-span-btn {
+    padding: 2px 8px; background: none;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; color: var(--text-muted);
+    font-size: 11px; font-family: var(--mono); font-weight: 500;
+    transition: background var(--transition), color var(--transition);
+  }
+  .show-span-btn:hover { background: var(--bg-alt); color: var(--text-secondary); }
+  .show-span-btn.open { background: var(--bg-alt); color: var(--text); border-color: var(--border-heavy); }
+  .span-preview {
+    margin: 4px 0; padding: 10px 14px;
+    background: #1a1b26; color: #a9b1d6;
+    font-size: 12px; font-family: var(--mono);
+    overflow-x: auto; max-height: 250px; line-height: 1.6;
+    border-radius: var(--radius);
+  }
+  .span-preview .highlight-error {
+    background: rgba(248,81,73,0.15); display: inline-block; width: 100%;
+    margin: 0 -14px; padding: 0 14px; border-left: 2px solid var(--fail);
+  }
+
+  /* JSON syntax highlighting */
+  .j-key { color: #7aa2f7; }
+  .j-str { color: #9ece6a; }
+  .j-num { color: #ff9e64; }
+  .j-bool { color: #bb9af7; }
+
+  /* Spans section */
+  .spans-section {
+    margin-top: 10px; border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .spans-toggle {
+    padding: 6px 12px; cursor: pointer; background: var(--bg);
+    user-select: none; font-weight: 500; font-size: 12px; color: var(--text-secondary);
+  }
+  .spans-toggle:hover { background: var(--bg-hover); }
+  .spans-icon { font-family: var(--mono); font-weight: 700; margin-right: 6px; }
+  .spans-section[open] .spans-toggle { border-bottom: 1px solid var(--border); }
+  .spans-json {
+    margin: 0; padding: 12px 14px;
+    background: #1a1b26; color: #a9b1d6;
+    font-size: 12px; font-family: var(--mono);
+    max-height: 350px; overflow: auto; line-height: 1.6;
+  }
+  .no-spans {
+    margin-top: 8px; padding: 6px 12px;
+    background: var(--warn-bg); color: var(--warn);
+    border-radius: var(--radius); font-size: 12px; font-style: italic;
+    border: 1px solid var(--warn-border);
+  }
+
+  /* ---- pre ---- */
+  pre {
+    background: var(--bg-alt); padding: 10px 14px; border-radius: var(--radius);
+    overflow-x: auto; font-size: 12px; font-family: var(--mono); line-height: 1.5;
+  }
+
+  /* ---- Audit ---- */
+  .audit-section-desc {
+    color: var(--text-secondary); font-size: 13px; margin: -6px 0 12px;
+  }
+  .audit-section-desc code {
+    font-family: var(--mono); background: var(--bg-alt); padding: 1px 4px;
+    border-radius: 2px; font-size: 12px;
+  }
+  .audit-test {
+    margin: 8px 0; border: 1px solid var(--warn-border);
+    border-radius: var(--radius-lg); overflow: hidden;
+  }
+  .audit-test summary {
+    padding: 10px 14px; cursor: pointer; background: var(--bg);
+    user-select: none; font-size: 13px; transition: background var(--transition);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .audit-test summary:hover { background: var(--bg-hover); }
+  .audit-test[open] summary { border-bottom: 1px solid var(--warn-border); }
+  .audit-icon { color: var(--warn); flex-shrink: 0; font-family: var(--mono); font-variant-emoji: text; }
+  .audit-test summary strong { font-family: var(--mono); font-size: 12px; }
+  .audit-badge {
+    display: inline-block; background: var(--warn-bg); color: var(--warn);
+    padding: 1px 6px; border-radius: 3px; font-size: 11px;
+    margin-left: 6px; font-weight: 600; border: 1px solid var(--warn-border);
+  }
+  .audit-test-details { padding: 12px 14px; }
+  .audit-inline { margin: 10px 0; }
+  .audit-group {
+    margin: 8px 0; padding: 0; border: none; background: none;
+  }
+  .audit-group-deprecated .audit-group-label { color: var(--warn); }
+  .audit-group-unknown .audit-group-label { color: var(--text-muted); }
+  .audit-group-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; margin-bottom: 2px;
+    padding-bottom: 2px; border-bottom: 1px solid var(--border);
+  }
+  .audit-item { margin: 0; padding: 4px 0 4px 10px; }
+  .audit-item-deprecated { border-left: 2px solid var(--warn); }
+  .audit-item-unknown { border-left: 2px solid var(--skip); }
+  .audit-attr {
+    font-family: var(--mono); background: var(--bg); padding: 1px 4px;
+    border-radius: 2px; border: 1px solid var(--border); font-size: 11px;
+  }
+  .audit-item-deprecated .audit-attr { color: var(--warn); }
+  .audit-item-unknown .audit-attr { color: var(--text-secondary); }
+  .audit-span-count { color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+  .audit-arrow { color: var(--pass); font-weight: 700; margin: 0 4px; }
+  .audit-replacement {
+    font-family: var(--mono); background: var(--pass-bg); padding: 1px 4px;
+    border-radius: 2px; border: 1px solid var(--pass-border); font-size: 11px; color: var(--pass);
+  }
+  .audit-message { color: var(--text-muted); margin-top: 2px; font-size: 11px; font-style: italic; }
+
+  /* ---- Warnings Section ---- */
+  .warnings-section-desc {
+    color: var(--text-secondary); font-size: 13px; margin: -6px 0 12px;
+  }
+  .warning-test {
+    margin: 8px 0; border: 1px solid var(--warn-border);
+    border-radius: var(--radius-lg); overflow: hidden;
+  }
+  .warning-test summary {
+    padding: 10px 14px; cursor: pointer; background: var(--bg);
+    user-select: none; font-size: 13px; transition: background var(--transition);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .warning-test summary:hover { background: var(--bg-hover); }
+  .warning-test[open] summary { border-bottom: 1px solid var(--warn-border); }
+  .warning-icon { color: var(--warn); flex-shrink: 0; font-family: var(--mono); font-variant-emoji: text; }
+  .warning-test summary strong { font-family: var(--mono); font-size: 12px; }
+  .warning-test-details { padding: 12px 14px; }
+`;
+
+// ---------------------------------------------------------------------------
+// Span JSON rendering
+// ---------------------------------------------------------------------------
+
 /**
- * Get overall status from combined results
+ * Syntax-highlight a single line of JSON (already HTML-escaped).
  */
+function highlightJsonLine(escaped: string): string {
+  return escaped
+    // Keys: "key":
+    .replace(
+      /^(\s*)(&quot;)([\w.$]+)(&quot;)(\s*:)/,
+      '$1<span class="j-key">$2$3$4</span>$5',
+    )
+    // String values (after colon or in arrays)
+    .replace(
+      /: (&quot;)(.*?)(&quot;)/g,
+      ': <span class="j-str">$1$2$3</span>',
+    )
+    .replace(
+      /^(\s+)(&quot;)(.*?)(&quot;)(,?)$/,
+      '$1<span class="j-str">$2$3$4</span>$5',
+    )
+    // Numbers
+    .replace(
+      /: (\d+\.?\d*)(,?)$/,
+      ': <span class="j-num">$1</span>$2',
+    )
+    // Booleans and null
+    .replace(
+      /: (true|false|null)(,?)$/,
+      ': <span class="j-bool">$1</span>$2',
+    );
+}
+
+function renderSpanJson(span: unknown, highlightAttrs?: Set<string>): string {
+  const spanJson = JSON.stringify(span, null, 2);
+  return spanJson
+    .split("\n")
+    .map((line) => {
+      const escaped = escapeHtml(line);
+      // Check for error highlight
+      if (highlightAttrs && highlightAttrs.size > 0) {
+        for (const attr of highlightAttrs) {
+          const attrEscaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (new RegExp(`^\\s*"${attrEscaped}"\\s*:`).test(line)) {
+            return `<span class="highlight-error">${highlightJsonLine(escaped)}</span>`;
+          }
+        }
+      }
+      return highlightJsonLine(escaped);
+    })
+    .join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Combined status helpers (for matrix)
+// ---------------------------------------------------------------------------
+
 function getCombinedStatus(result: CombinedTestResult): string {
   if (result.failed > 0) return "failed";
-  if (result.other > 0) return "failed"; // errors count as failed
+  if (result.other > 0) return "failed";
   if (result.passed > 0 && result.skipped === 0) return "passed";
-  if (result.passed > 0) return "partial"; // some passed, some skipped
+  if (result.passed > 0) return "partial";
   if (result.skipped > 0) return "skipped";
   return "not-run";
 }
 
-/**
- * Generate cell content with status icons for each variation
- */
 function CombinedStatusCell({ result }: { result: CombinedTestResult }) {
   const overallStatus = getCombinedStatus(result);
-  
-  // If only one variation, show simple icon with tooltip
+
   if (result.total === 1) {
     const v = result.variations[0];
     return html`<td class="status-${v.status}" title="${v.mode}">${getStatusIcon(v.status)}</td>`;
   }
-  
-  // Multiple variations - show mini icons with tooltips
+
   return html`
     <td class="status-${overallStatus} multi-status">
       <div class="status-grid">
@@ -158,9 +569,10 @@ function CombinedStatusCell({ result }: { result: CombinedTestResult }) {
   `;
 }
 
-/**
- * Build test matrix for a specific test type (LLM or Agent)
- */
+// ---------------------------------------------------------------------------
+// Test Matrix
+// ---------------------------------------------------------------------------
+
 function TestMatrixByType({
   tests,
   testType,
@@ -170,16 +582,11 @@ function TestMatrixByType({
   testType: string;
   title: string;
 }) {
-  // Filter tests by type
   const filteredTests = tests.filter(
     (t) => (t.extra as Record<string, unknown>)?.testType === testType,
   );
+  if (filteredTests.length === 0) return html``;
 
-  if (filteredTests.length === 0) {
-    return html``;
-  }
-
-  // Extract unique SDKs
   const sdks = [
     ...new Set(
       filteredTests.map((t: Test) =>
@@ -188,7 +595,6 @@ function TestMatrixByType({
     ),
   ].sort();
 
-  // Extract unique base test names (without mode suffixes)
   const testCases = [
     ...new Set(
       filteredTests.map((t: Test) => {
@@ -198,60 +604,38 @@ function TestMatrixByType({
     ),
   ].sort(naturalSortCompare);
 
-  // Build lookup map: sdk::baseTestName -> CombinedTestResult
   const testMap = new Map<string, CombinedTestResult>();
-
   for (const test of filteredTests) {
     const fullName = test.name.split(" :: ")[1] || test.name;
     const baseName = getBaseTestName(fullName);
     const suite =
       test.suite && test.suite.length > 0 ? test.suite[0] : "unknown";
     const key = `${suite}::${baseName}`;
-
-    // Extract mode from the test name (e.g., "(async, streaming)")
     const modeMatch = fullName.match(/\(([^)]+)\)$/);
     const mode = modeMatch ? modeMatch[1] : "default";
 
     if (!testMap.has(key)) {
-      testMap.set(key, {
-        passed: 0,
-        failed: 0,
-        skipped: 0,
-        other: 0,
-        total: 0,
-        variations: [],
-      });
+      testMap.set(key, { passed: 0, failed: 0, skipped: 0, other: 0, total: 0, variations: [] });
     }
-
     const result = testMap.get(key)!;
     result.total++;
-
-    // Use original status if available (e.g., "timeout" mapped to "failed" in CTRF)
     const extra = test.extra as Record<string, unknown> | undefined;
     const displayStatus = (extra?.originalStatus as string) || test.status;
     result.variations.push({ mode, status: displayStatus });
-
     switch (test.status) {
-      case "passed":
-        result.passed++;
-        break;
-      case "failed":
-        result.failed++;
-        break;
-      case "skipped":
-        result.skipped++;
-        break;
-      default:
-        result.other++;
+      case "passed": result.passed++; break;
+      case "failed": result.failed++; break;
+      case "skipped": result.skipped++; break;
+      default: result.other++;
     }
   }
 
   return html`
-    <h2>${title}</h2>
+    <h2 class="section-title">${title}</h2>
     <table class="matrix">
       <thead>
         <tr>
-          <th>SDK</th>
+          <th style="text-align:left">SDK</th>
           ${testCases.map((caseId) => html`<th>${caseId}</th>`)}
         </tr>
       </thead>
@@ -263,11 +647,7 @@ function TestMatrixByType({
               ${testCases.map((caseId) => {
                 const key = `${sdk}::${caseId}`;
                 const result = testMap.get(key);
-
-                if (!result) {
-                  return html`<td class="status-not-run">-</td>`;
-                }
-
+                if (!result) return html`<td class="status-not-run">-</td>`;
                 return CombinedStatusCell({ result });
               })}
             </tr>
@@ -278,101 +658,18 @@ function TestMatrixByType({
   `;
 }
 
-/**
- * Build test matrices split by type (LLM and Agent)
- */
 function TestMatrix({ report }: { report: Report }) {
   return html`
-    ${TestMatrixByType({
-      tests: report.results.tests,
-      testType: "llm",
-      title: "LLM Tests",
-    })}
-    ${TestMatrixByType({
-      tests: report.results.tests,
-      testType: "agent",
-      title: "Agent Tests",
-    })}
+    ${TestMatrixByType({ tests: report.results.tests, testType: "llm", title: "LLM Tests" })}
+    ${TestMatrixByType({ tests: report.results.tests, testType: "agent", title: "Agent Tests" })}
+    ${TestMatrixByType({ tests: report.results.tests, testType: "embeddings", title: "Embeddings Tests" })}
   `;
 }
 
-/**
- * Check result entry from the extra data
- */
-interface ReportCheckResult {
-  name: string;
-  status: "passed" | "failed" | "skipped";
-  severity?: "critical" | "normal" | "warning";
-  error?: string;
-  skipReason?: string;
-  errorLocations?: Array<{
-    spanId: string;
-    attribute?: string;
-    message: string;
-  }>;
-}
+// ---------------------------------------------------------------------------
+// Check results rendering
+// ---------------------------------------------------------------------------
 
-/**
- * Audited attribute from the attribute audit phase
- */
-interface ReportAuditedAttribute {
-  attribute: string;
-  status: "known" | "deprecated" | "unknown";
-  replacement?: string;
-  message: string;
-  spanIds: string[];
-}
-
-/**
- * Attribute audit result from the extra data
- */
-interface ReportAttributeAudit {
-  totalAttributes: number;
-  knownAttributes: ReportAuditedAttribute[];
-  deprecatedAttributes: ReportAuditedAttribute[];
-  unknownAttributes: ReportAuditedAttribute[];
-}
-
-/**
- * Escape HTML special characters to prevent XSS in pre-rendered HTML strings
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/**
- * Render a single span as JSON with optional attribute highlighting.
- */
-function renderSpanJson(span: unknown, highlightAttrs?: Set<string>): string {
-  const spanJson = JSON.stringify(span, null, 2);
-  if (!highlightAttrs || highlightAttrs.size === 0) {
-    return escapeHtml(spanJson);
-  }
-  return spanJson.split("\n").map((line) => {
-    for (const attr of highlightAttrs) {
-      const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (new RegExp(`^\\s*"${escaped}"\\s*:`).test(line)) {
-        return `<span class="highlight-error">${escapeHtml(line)}</span>`;
-      }
-    }
-    return escapeHtml(line);
-  }).join("\n");
-}
-
-/**
- * Render check results breakdown.
- *
- * Failed checks show the error message. Error locations are grouped by spanId;
- * each group has a toggle icon to show/hide that span's JSON with failing
- * attributes highlighted.
- */
-/**
- * Render a single failed check result with its error locations grouped by span.
- */
 function FailedCheckDetail({
   cr,
   spanById,
@@ -381,7 +678,8 @@ function FailedCheckDetail({
   spanById: Map<string, unknown>;
 }) {
   const severity = cr.severity || "normal";
-  const icon = severity === "critical" ? "❗" : severity === "warning" ? "⚠" : "✗";
+  const icon =
+    severity === "critical" ? "\u2757" : severity === "warning" ? "\u26A0" : "\u2717";
 
   const groups = new Map<string, typeof cr.errorLocations>();
   if (cr.errorLocations) {
@@ -391,10 +689,13 @@ function FailedCheckDetail({
     }
   }
 
+  // Only show the raw error text if there are no structured locations
+  const showRawError = cr.error && groups.size === 0;
+
   return html`<div class="check-result check-failed check-severity-${severity}">
     <span class="check-icon">${icon}</span>
     <span class="check-name">${cr.name}</span>
-    ${cr.error ? html`<div class="check-error-msg">${cr.error}</div>` : ""}
+    ${showRawError ? html`<div class="check-error-msg">${cr.error}</div>` : ""}
     ${groups.size > 0
       ? html`<div class="check-locations">
           ${[...groups.entries()].map(([spanId, locs]) => {
@@ -404,22 +705,18 @@ function FailedCheckDetail({
             }
             const span = spanById.get(spanId);
             return html`<div class="span-group">
-              <div class="span-group-header">
-                <span class="loc-span">${spanId.substring(0, 8)}</span>
-                ${span
-                  ? html`<button class="show-span-btn" onclick="toggleSpanPreview(this)" title="Show/hide span JSON" dangerouslySetInnerHTML=${{ __html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>' }}></button>`
-                  : ""}
-              </div>
-              <div class="span-group-errors">
-                ${locs!.map(
-                  (loc) => html`<div class="check-location">
-                    ${loc.attribute ? html`<span class="loc-attr">${loc.attribute}</span>` : ""}
-                    <span class="loc-msg">${loc.message}</span>
-                  </div>`,
-                )}
-              </div>
+              ${locs!.map(
+                (loc) => html`<div class="check-location">
+                  <span class="loc-span">${spanId.substring(0, 8)}</span>
+                  ${loc.attribute ? html`<span class="loc-attr">${loc.attribute}</span>` : ""}
+                  <span class="loc-msg">${loc.message}</span>
+                </div>`,
+              )}
               ${span
-                ? html`<pre class="span-preview" style="display:none" dangerouslySetInnerHTML=${{ __html: renderSpanJson(span, highlightAttrs) }}></pre>`
+                ? html`<div class="span-view-row">
+                    <button class="show-span-btn" onclick="toggleSpanPreview(this)" title="View span data">View span</button>
+                    <pre class="span-preview" style="display:none" dangerouslySetInnerHTML=${{ __html: renderSpanJson(span, highlightAttrs) }}></pre>
+                  </div>`
                 : ""}
             </div>`;
           })}
@@ -437,7 +734,6 @@ function CheckResultsBreakdown({
 }) {
   if (!checkResults || checkResults.length === 0) return "";
 
-  // Index spans by span_id for quick lookup
   const spanById = new Map<string, unknown>();
   if (spans) {
     for (const s of spans) {
@@ -446,7 +742,6 @@ function CheckResultsBreakdown({
     }
   }
 
-  // Split checks by severity, keeping original order within each group
   const severityOrder: Array<"critical" | "normal" | "warning"> = ["critical", "normal", "warning"];
   const groups: Record<string, ReportCheckResult[]> = { critical: [], normal: [], warning: [] };
   for (const cr of checkResults) {
@@ -461,12 +756,12 @@ function CheckResultsBreakdown({
       const items = groups[sev].map((cr) => {
         if (cr.status === "passed") {
           return html`<div class="check-result check-passed">
-            <span class="check-icon">✓</span>
+            <span class="check-icon">\u2713</span>
             <span class="check-name">${cr.name}</span>
           </div>`;
         } else if (cr.status === "skipped") {
           return html`<div class="check-result check-skipped">
-            <span class="check-icon">○</span>
+            <span class="check-icon">\u25CB</span>
             <span class="check-name">${cr.name}</span>
             ${cr.skipReason ? html`<span class="check-skip-reason">(${cr.skipReason})</span>` : ""}
           </div>`;
@@ -474,74 +769,55 @@ function CheckResultsBreakdown({
           return FailedCheckDetail({ cr, spanById });
         }
       });
-
       return html`<div class="check-section check-section-${sev}">
         <div class="check-section-label">${label}</div>
         ${items}
       </div>`;
     });
 
-  return html`<div class="check-results-breakdown">
-    ${sections}
-  </div>`;
+  return html`<div class="check-results-breakdown">${sections}</div>`;
 }
 
-/**
- * Render inline audit findings for a single test.
- * Used inside both FailedTestsDetails and AttributeAuditSection.
- */
 function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
-  if (audit.deprecatedAttributes.length === 0 && audit.unknownAttributes.length === 0) {
-    return "";
-  }
+  if (audit.deprecatedAttributes.length === 0 && audit.unknownAttributes.length === 0) return "";
 
   return html`<div class="audit-inline">
     ${audit.deprecatedAttributes.length > 0
       ? html`<div class="audit-group audit-group-deprecated">
           <div class="audit-group-label">Deprecated Attributes</div>
-          ${audit.deprecatedAttributes
-            .slice()
-            .sort((a, b) => a.attribute.localeCompare(b.attribute))
-            .map(
-              (attr) => html`<div class="audit-item audit-item-deprecated">
-                <code class="audit-attr">${attr.attribute}</code>
-                <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
-                ${attr.replacement ? html`<span class="audit-arrow">→</span> <code class="audit-replacement">${attr.replacement}</code>` : ""}
-                <div class="audit-message">${attr.message}</div>
-              </div>`,
-            )}
-        </div>`
-      : ""}
+          ${audit.deprecatedAttributes.slice().sort((a, b) => a.attribute.localeCompare(b.attribute)).map(
+            (attr) => html`<div class="audit-item audit-item-deprecated">
+              <code class="audit-attr">${attr.attribute}</code>
+              <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
+              ${attr.replacement ? html`<span class="audit-arrow">\u2192</span> <code class="audit-replacement">${attr.replacement}</code>` : ""}
+              <div class="audit-message">${attr.message}</div>
+            </div>`,
+          )}
+        </div>` : ""}
     ${audit.unknownAttributes.length > 0
       ? html`<div class="audit-group audit-group-unknown">
           <div class="audit-group-label">Unknown Attributes</div>
-          ${audit.unknownAttributes
-            .slice()
-            .sort((a, b) => a.attribute.localeCompare(b.attribute))
-            .map(
-              (attr) => html`<div class="audit-item audit-item-unknown">
-                <code class="audit-attr">${attr.attribute}</code>
-                <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
-                <div class="audit-message">${attr.message}</div>
-              </div>`,
-            )}
-        </div>`
-      : ""}
+          ${audit.unknownAttributes.slice().sort((a, b) => a.attribute.localeCompare(b.attribute)).map(
+            (attr) => html`<div class="audit-item audit-item-unknown">
+              <code class="audit-attr">${attr.attribute}</code>
+              <span class="audit-span-count">(${attr.spanIds.length} span${attr.spanIds.length !== 1 ? "s" : ""})</span>
+              <div class="audit-message">${attr.message}</div>
+            </div>`,
+          )}
+        </div>` : ""}
   </div>`;
 }
 
-/**
- * Failed tests details section
- */
+// ---------------------------------------------------------------------------
+// Failed Tests Details
+// ---------------------------------------------------------------------------
+
 function FailedTestsDetails({ tests }: { tests: Test[] }) {
   const failedTests = tests.filter((t) => t.status === "failed");
-
-  if (failedTests.length === 0) {
-    return html``;
-  }
+  if (failedTests.length === 0) return html``;
 
   return html`
-    <h2>Failed Tests Details</h2>
+    <h2 class="section-title">Failed Tests (${failedTests.length})</h2>
     ${failedTests.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
       const extra = test.extra as Record<string, unknown> | undefined;
@@ -551,7 +827,6 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
       const isTimeout = extra?.originalStatus === "timeout";
 
-      // Count failures by severity for summary badges
       const severityCounts = { critical: 0, normal: 0, warning: 0 };
       if (checkResults) {
         for (const cr of checkResults) {
@@ -565,51 +840,29 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       return html`
         <details class="${isTimeout ? "failed-test timeout-test" : "failed-test"}">
           <summary>
-            <span class="failed-icon">${isTimeout ? "⏱" : "✗"}</span>
-            <strong
-              >${test.suite && test.suite.length > 0
-                ? test.suite[0]
-                : "unknown"}</strong
-            >
-            :: ${caseId}
+            <span class="failed-icon">${isTimeout ? "\u23F1" : "\u2717"}</span>
+            <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
+            <span>\u00A0::\u00A0${caseId}</span>
             <span class="severity-badges">
-              ${isTimeout
-                ? html`<span class="sev-badge sev-badge-timeout">${"⏱"} Timeout</span>`
-                : ""}
-              ${severityCounts.critical > 0
-                ? html`<span class="sev-badge sev-badge-critical">${"❗"} ${severityCounts.critical}</span>`
-                : ""}
-              ${severityCounts.normal > 0
-                ? html`<span class="sev-badge sev-badge-normal">${"✗"} ${severityCounts.normal}</span>`
-                : ""}
-              ${severityCounts.warning > 0
-                ? html`<span class="sev-badge sev-badge-warning">${"⚠"} ${severityCounts.warning}</span>`
-                : ""}
+              ${isTimeout ? html`<span class="sev-badge sev-badge-timeout"><span class="sev-icon">${"\u23F1\uFE0E"}</span> Timeout</span>` : ""}
+              ${severityCounts.critical > 0 ? html`<span class="sev-badge sev-badge-critical"><span class="sev-icon">${"\u2757\uFE0E"}</span> ${severityCounts.critical}</span>` : ""}
+              ${severityCounts.normal > 0 ? html`<span class="sev-badge sev-badge-normal"><span class="sev-icon">${"\u2717"}</span> ${severityCounts.normal}</span>` : ""}
+              ${severityCounts.warning > 0 ? html`<span class="sev-badge sev-badge-warning"><span class="sev-icon">${"\u26A0\uFE0E"}</span> ${severityCounts.warning}</span>` : ""}
             </span>
-            <span class="duration">(${test.duration}ms)</span>
+            <span class="duration">${test.duration}ms</span>
           </summary>
           <div class="error-details">
             ${checkResults && checkResults.length > 0
               ? CheckResultsBreakdown({ checkResults, spans })
               : test.trace
-                ? html`
-                    <div class="error-trace">
-                      <strong>Details:</strong>
-                      <pre>${test.trace}</pre>
-                    </div>
-                  `
+                ? html`<div class="error-trace"><strong>Details:</strong><pre>${test.trace}</pre></div>`
                 : ""}
             ${audit ? InlineAuditDisplay({ audit }) : ""}
             ${spans && spans.length > 0
-              ? html`
-                  <details class="spans-section">
-                    <summary class="spans-toggle">
-                      <span class="spans-icon">{}</span>
-                      Captured Spans (${spanCount || spans.length})
-                    </summary>
-                    <pre class="spans-json">${JSON.stringify(spans, null, 2)}</pre>
-                  </details>
-                `
+              ? html`<details class="spans-section">
+                  <summary class="spans-toggle"><span class="spans-icon">{}</span>Captured Spans (${spanCount || spans.length})</summary>
+                  <pre class="spans-json" dangerouslySetInnerHTML=${{ __html: renderSpanJson(spans) }}></pre>
+                </details>`
               : spanCount === 0
                 ? html`<div class="no-spans">No spans captured</div>`
                 : ""}
@@ -620,86 +873,30 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
   `;
 }
 
-/**
- * Attribute audit section - shows deprecated and unknown gen_ai attributes per test.
- * Only includes non-failed tests (failed tests show audit inline in FailedTestsDetails).
- */
-function AttributeAuditSection({ tests }: { tests: Test[] }) {
-  // Only show non-failed tests here (failed tests have audit inline)
-  const testsWithFindings = tests.filter((t) => {
-    if (t.status === "failed") return false;
-    const extra = t.extra as Record<string, unknown> | undefined;
-    const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
-    return audit && (audit.deprecatedAttributes.length > 0 || audit.unknownAttributes.length > 0);
-  });
+// ---------------------------------------------------------------------------
+// Warnings Section
+// ---------------------------------------------------------------------------
 
-  if (testsWithFindings.length === 0) {
-    return html``;
-  }
-
-  return html`
-    <h2>Attribute Audit (${testsWithFindings.length} test${testsWithFindings.length !== 1 ? "s" : ""})</h2>
-    <p class="audit-section-desc">Audit of <code>gen_ai.*</code> attributes found on captured spans, checked against sentry-conventions definitions.</p>
-    ${testsWithFindings.map((test) => {
-      const caseId = test.name.split(" :: ")[1] || test.name;
-      const extra = test.extra as Record<string, unknown>;
-      const audit = extra.attributeAudit as ReportAttributeAudit;
-      const deprecated = audit.deprecatedAttributes.length;
-      const unknown = audit.unknownAttributes.length;
-
-      return html`
-        <details class="audit-test">
-          <summary>
-            <span class="audit-icon">⚠</span>
-            <strong
-              >${test.suite && test.suite.length > 0
-                ? test.suite[0]
-                : "unknown"}</strong
-            >
-            :: ${caseId}
-            <span class="audit-badge">${deprecated > 0 ? `${deprecated} deprecated` : ""}${deprecated > 0 && unknown > 0 ? ", " : ""}${unknown > 0 ? `${unknown} unknown` : ""}</span>
-          </summary>
-          <div class="audit-test-details">
-            ${InlineAuditDisplay({ audit })}
-          </div>
-        </details>
-      `;
-    })}
-  `;
-}
-
-/**
- * Warnings section - shows passed tests that have failed warning-severity checks.
- * Failed tests already show warnings inline in FailedTestsDetails.
- */
 function WarningsSection({ tests }: { tests: Test[] }) {
   const testsWithWarnings = tests.filter((t) => {
     if (t.status === "failed") return false;
     const extra = t.extra as Record<string, unknown> | undefined;
     const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
     if (!checkResults) return false;
-    return checkResults.some(
-      (cr) => cr.status === "failed" && cr.severity === "warning",
-    );
+    return checkResults.some((cr) => cr.status === "failed" && cr.severity === "warning");
   });
-
-  if (testsWithWarnings.length === 0) {
-    return html``;
-  }
+  if (testsWithWarnings.length === 0) return html``;
 
   return html`
-    <h2>Warnings (${testsWithWarnings.length} test${testsWithWarnings.length !== 1 ? "s" : ""})</h2>
-    <p class="warnings-section-desc">Passed tests with warning-level check failures. These indicate optional but recommended attributes or behaviors.</p>
+    <h2 class="section-title">Warnings (${testsWithWarnings.length} test${testsWithWarnings.length !== 1 ? "s" : ""})</h2>
+    <p class="warnings-section-desc">Passed tests with warning-level check failures.</p>
     ${testsWithWarnings.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
       const extra = test.extra as Record<string, unknown>;
       const checkResults = extra.checkResults as ReportCheckResult[];
       const spans = extra.spans as unknown[] | undefined;
-      const warningResults = checkResults.filter(
-        (cr) => cr.status === "failed" && cr.severity === "warning",
-      );
+      const warningResults = checkResults.filter((cr) => cr.status === "failed" && cr.severity === "warning");
 
-      // Index spans by span_id for quick lookup
       const spanById = new Map<string, unknown>();
       if (spans) {
         for (const s of spans) {
@@ -711,14 +908,10 @@ function WarningsSection({ tests }: { tests: Test[] }) {
       return html`
         <details class="warning-test">
           <summary>
-            <span class="warning-icon">⚠</span>
-            <strong
-              >${test.suite && test.suite.length > 0
-                ? test.suite[0]
-                : "unknown"}</strong
-            >
-            :: ${caseId}
-            <span class="sev-badge sev-badge-warning">${"⚠"} ${warningResults.length}</span>
+            <span class="warning-icon">${"\u26A0\uFE0E"}</span>
+            <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
+            <span>\u00A0::\u00A0${caseId}</span>
+            <span class="sev-badge sev-badge-warning"><span class="sev-icon">${"\u26A0\uFE0E"}</span> ${warningResults.length}</span>
           </summary>
           <div class="warning-test-details">
             ${warningResults.map((cr) => FailedCheckDetail({ cr, spanById }))}
@@ -729,12 +922,80 @@ function WarningsSection({ tests }: { tests: Test[] }) {
   `;
 }
 
-/**
- * Generate complete HTML report from CTRF report
- */
+// ---------------------------------------------------------------------------
+// Attribute Audit Section
+// ---------------------------------------------------------------------------
+
+function AttributeAuditSection({ tests }: { tests: Test[] }) {
+  const testsWithFindings = tests.filter((t) => {
+    if (t.status === "failed") return false;
+    const extra = t.extra as Record<string, unknown> | undefined;
+    const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
+    return audit && (audit.deprecatedAttributes.length > 0 || audit.unknownAttributes.length > 0);
+  });
+  if (testsWithFindings.length === 0) return html``;
+
+  return html`
+    <h2 class="section-title">Attribute Audit (${testsWithFindings.length} test${testsWithFindings.length !== 1 ? "s" : ""})</h2>
+    <p class="audit-section-desc">Audit of <code>gen_ai.*</code> attributes found on captured spans.</p>
+    ${testsWithFindings.map((test) => {
+      const caseId = test.name.split(" :: ")[1] || test.name;
+      const extra = test.extra as Record<string, unknown>;
+      const audit = extra.attributeAudit as ReportAttributeAudit;
+      const deprecated = audit.deprecatedAttributes.length;
+      const unknown = audit.unknownAttributes.length;
+
+      return html`
+        <details class="audit-test">
+          <summary>
+            <span class="audit-icon">${"\u26A0\uFE0E"}</span>
+            <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
+            <span>\u00A0::\u00A0${caseId}</span>
+            <span class="audit-badge">${deprecated > 0 ? `${deprecated} deprecated` : ""}${deprecated > 0 && unknown > 0 ? ", " : ""}${unknown > 0 ? `${unknown} unknown` : ""}</span>
+          </summary>
+          <div class="audit-test-details">
+            ${InlineAuditDisplay({ audit })}
+          </div>
+        </details>
+      `;
+    })}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Main HTML generation
+// ---------------------------------------------------------------------------
+
+function flattenToString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    if (value[0] === "!DOCTYPE") {
+      return "<!DOCTYPE html>\n" + value.slice(2).map(flattenToString).join("");
+    }
+    return value.map(flattenToString).join("");
+  }
+  if (typeof value === "object" && value !== null) return "";
+  return String(value);
+}
+
 export function generateHTML(report: Report): string {
-  const title = "Sentry AI SDK Test Report";
-  const timestamp = new Date(report.results.summary.stop).toLocaleString();
+  const summary = report.results.summary;
+  const duration = summary.stop - summary.start;
+  const total = summary.tests;
+  const passRate = total > 0 ? ((summary.passed / total) * 100).toFixed(1) : "0.0";
+  const timestamp = new Date(summary.stop).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+
+  const passWidth = total > 0 ? ((summary.passed / total) * 100).toFixed(1) : "0";
+  const failWidth = total > 0 ? ((summary.failed / total) * 100).toFixed(1) : "0";
+  const skipWidth = total > 0 ? ((summary.skipped / total) * 100).toFixed(1) : "0";
+
+  // Count total warnings
+  const totalWarnings = report.results.tests.reduce((sum, t) => {
+    const extra = t.extra as Record<string, unknown> | undefined;
+    return sum + ((extra?.warningCount as number) || 0);
+  }, 0);
 
   const htmlContent = html`
     <!DOCTYPE html>
@@ -742,643 +1003,43 @@ export function generateHTML(report: Report): string {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>${title}</title>
-        <style>
-          * {
-            box-sizing: border-box;
-          }
-          body {
-            font-family:
-              -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-          }
-          .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          }
-          h1 {
-            margin: 0 0 10px 0;
-            color: #333;
-          }
-          .timestamp {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 30px;
-          }
-          h2 {
-            margin: 30px 0 15px 0;
-            color: #555;
-          }
-          .summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-          }
-          .stat-card {
-            padding: 20px;
-            border-radius: 8px;
-            background: #f9f9f9;
-            border: 2px solid #e0e0e0;
-          }
-          .stat-card h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .stat-value {
-            margin: 0;
-            font-size: 32px;
-            font-weight: bold;
-            color: #333;
-          }
-          .stat-card.passed {
-            background: #e8f5e9;
-            border-color: #4caf50;
-          }
-          .stat-card.passed .stat-value {
-            color: #2e7d32;
-          }
-          .stat-card.failed {
-            background: #ffebee;
-            border-color: #f44336;
-          }
-          .stat-card.failed .stat-value {
-            color: #c62828;
-          }
-          .matrix {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            font-size: 14px;
-          }
-          .matrix th,
-          .matrix td {
-            border: 1px solid #ddd;
-            padding: 12px 8px;
-            text-align: center;
-          }
-          .matrix th {
-            background: #333;
-            color: white;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-          }
-          .matrix .sdk-name {
-            text-align: left;
-            font-weight: 500;
-            background: #fafafa;
-          }
-          .matrix td.status-passed {
-            background: #c8e6c9;
-            color: #2e7d32;
-            font-weight: bold;
-          }
-          .matrix td.status-failed {
-            background: #ffcdd2;
-            color: #c62828;
-            font-weight: bold;
-          }
-          .matrix td.status-timeout {
-            background: #fff3e0;
-            color: #e65100;
-            font-weight: bold;
-          }
-          .matrix td.status-skipped {
-            background: #fff9c4;
-            color: #f57f17;
-          }
-          .matrix td.status-not-run {
-            background: #f5f5f5;
-            color: #999;
-          }
-          .matrix td.status-partial {
-            background: #fff3e0;
-            color: #e65100;
-            font-weight: bold;
-          }
-          .matrix td.multi-status {
-            padding: 4px;
-          }
-          .status-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 2px;
-            justify-content: center;
-            align-items: center;
-          }
-          .mini-status {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            font-size: 10px;
-            border-radius: 3px;
-          }
-          .mini-status.status-passed {
-            background: #c8e6c9;
-            color: #2e7d32;
-          }
-          .mini-status.status-failed {
-            background: #ffcdd2;
-            color: #c62828;
-          }
-          .mini-status.status-timeout {
-            background: #fff3e0;
-            color: #e65100;
-          }
-          .mini-status.status-skipped {
-            background: #fff9c4;
-            color: #f57f17;
-          }
-          .mini-status.status-other {
-            background: #e0e0e0;
-            color: #666;
-          }
-          .spans-section {
-            margin-top: 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-          }
-          .spans-toggle {
-            padding: 10px 15px;
-            cursor: pointer;
-            background: #f0f4f8;
-            user-select: none;
-            font-weight: 500;
-            color: #1976d2;
-          }
-          .spans-toggle:hover {
-            background: #e3f2fd;
-          }
-          .spans-icon {
-            font-family: monospace;
-            font-weight: bold;
-            margin-right: 8px;
-            color: #1976d2;
-          }
-          .spans-section[open] .spans-toggle {
-            border-bottom: 1px solid #e0e0e0;
-          }
-          .spans-json {
-            margin: 0;
-            padding: 15px;
-            background: #263238;
-            color: #aed581;
-            font-size: 12px;
-            max-height: 400px;
-            overflow: auto;
-            border-radius: 0 0 4px 4px;
-          }
-          .no-spans {
-            margin-top: 15px;
-            padding: 10px 15px;
-            background: #fff3e0;
-            color: #e65100;
-            border-radius: 4px;
-            font-style: italic;
-          }
-          .failed-test {
-            margin: 15px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-          }
-          .failed-test.timeout-test {
-            border-color: #ffb74d;
-          }
-          .timeout-test .failed-icon {
-            color: #e65100;
-          }
-          .failed-test summary {
-            padding: 15px;
-            cursor: pointer;
-            background: #fafafa;
-            user-select: none;
-          }
-          .failed-test summary:hover {
-            background: #f0f0f0;
-          }
-          .failed-test[open] summary {
-            border-bottom: 1px solid #ddd;
-          }
-          .failed-icon {
-            color: #c62828;
-            margin-right: 8px;
-          }
-          .severity-badges {
-            display: inline-flex;
-            gap: 6px;
-            margin-left: 8px;
-            vertical-align: middle;
-          }
-          .sev-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            font-size: 11px;
-            font-weight: 600;
-            padding: 1px 7px;
-            border-radius: 10px;
-            line-height: 1.4;
-          }
-          .sev-badge-timeout {
-            background: #fff3e0;
-            color: #e65100;
-          }
-          .sev-badge-critical {
-            background: #ffcdd2;
-            color: #b71c1c;
-          }
-          .sev-badge-normal {
-            background: #ffcdd2;
-            color: #c62828;
-          }
-          .sev-badge-warning {
-            background: #fff3e0;
-            color: #e65100;
-          }
-          .duration {
-            color: #666;
-            font-size: 12px;
-            margin-left: 8px;
-          }
-          .error-details {
-            padding: 15px;
-          }
-          .error-message,
-          .error-trace {
-            margin: 15px 0;
-          }
-          pre {
-            background: #f5f5f5;
-            padding: 12px;
-            border-radius: 4px;
-            overflow-x: auto;
-            font-size: 13px;
-            line-height: 1.5;
-          }
-          /* Check results breakdown */
-          .check-results-breakdown {
-            margin: 10px 0 15px 0;
-          }
-          .check-section {
-            margin-bottom: 8px;
-            padding: 8px 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            background: #fafafa;
-          }
-          .check-section-label {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-            color: #888;
-          }
-          .check-section-critical {
-            border-color: #ef9a9a;
-            background: #fff5f5;
-          }
-          .check-section-critical .check-section-label {
-            color: #b71c1c;
-          }
-          .check-section-warning {
-            border-color: #ffe082;
-            background: #fffde7;
-          }
-          .check-section-warning .check-section-label {
-            color: #f57f17;
-          }
-          .check-result {
-            padding: 4px 0 4px 8px;
-            font-size: 13px;
-            border-left: 3px solid transparent;
-            margin: 2px 0;
-          }
-          .check-result .check-icon {
-            display: inline-block;
-            width: 16px;
-            font-weight: bold;
-          }
-          .check-result .check-name {
-            font-family: monospace;
-            font-size: 12px;
-          }
-          .check-passed {
-            border-left-color: #4caf50;
-          }
-          .check-passed .check-icon {
-            color: #2e7d32;
-          }
-          .check-skipped {
-            border-left-color: #ffc107;
-          }
-          .check-skipped .check-icon {
-            color: #f57f17;
-          }
-          .check-skip-reason {
-            color: #999;
-            font-size: 12px;
-            margin-left: 8px;
-          }
-          .check-failed {
-            border-left-color: #f44336;
-            background: #fff8f8;
-          }
-          .check-failed .check-icon {
-            color: #c62828;
-          }
-          .check-failed .check-name {
-            font-weight: 600;
-          }
-          .check-severity-critical {
-            border-left-color: #b71c1c;
-            background: #ffebee;
-          }
-          .check-severity-critical .check-icon {
-            color: #b71c1c;
-          }
-          .check-severity-warning {
-            border-left-color: #f9a825;
-            background: #fffde7;
-          }
-          .check-severity-warning .check-icon {
-            color: #f57f17;
-          }
-          /* Attribute audit section */
-          .audit-section-desc {
-            color: #666;
-            font-size: 14px;
-            margin: -10px 0 15px 0;
-          }
-          .audit-section-desc code {
-            background: #f5f5f5;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 13px;
-          }
-          .audit-test {
-            margin: 15px 0;
-            border: 1px solid #ffe0b2;
-            border-radius: 4px;
-          }
-          .audit-test summary {
-            padding: 15px;
-            cursor: pointer;
-            background: #fffdf7;
-            user-select: none;
-          }
-          .audit-test summary:hover {
-            background: #fff8e1;
-          }
-          .audit-test[open] summary {
-            border-bottom: 1px solid #ffe0b2;
-          }
-          .audit-icon {
-            color: #e65100;
-            margin-right: 8px;
-          }
-          .audit-badge {
-            display: inline-block;
-            background: #fff3e0;
-            color: #e65100;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            margin-left: 8px;
-            font-weight: 600;
-          }
-          .audit-test-details {
-            padding: 15px;
-          }
-          .audit-inline {
-            margin: 10px 0;
-          }
-          .audit-group {
-            margin: 8px 0;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 10px 12px;
-          }
-          .audit-group-deprecated {
-            border-color: #ffe0b2;
-            background: #fffdf7;
-          }
-          .audit-group-unknown {
-            border-color: #e0e0e0;
-            background: #fafafa;
-          }
-          .audit-group-label {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
-          }
-          .audit-group-deprecated .audit-group-label {
-            color: #e65100;
-          }
-          .audit-group-unknown .audit-group-label {
-            color: #666;
-          }
-          .audit-item {
-            margin: 6px 0;
-            padding: 6px 8px;
-            border-radius: 4px;
-          }
-          .audit-item-deprecated {
-            background: #fff8e1;
-            border-left: 3px solid #ff9800;
-          }
-          .audit-item-unknown {
-            background: #f5f5f5;
-            border-left: 3px solid #9e9e9e;
-          }
-          .audit-attr {
-            background: #fff;
-            padding: 2px 4px;
-            border-radius: 2px;
-            border: 1px solid #ddd;
-            font-size: 12px;
-            color: #d84315;
-          }
-          .audit-item-unknown .audit-attr {
-            color: #555;
-          }
-          .audit-span-count {
-            color: #888;
-            font-size: 12px;
-            margin-left: 4px;
-          }
-          .audit-arrow {
-            color: #4caf50;
-            font-weight: bold;
-            margin: 0 4px;
-          }
-          .audit-replacement {
-            background: #e8f5e9;
-            padding: 2px 4px;
-            border-radius: 2px;
-            border: 1px solid #c8e6c9;
-            font-size: 12px;
-            color: #2e7d32;
-          }
-          .audit-message {
-            color: #666;
-            margin-top: 2px;
-            font-size: 12px;
-            font-style: italic;
-          }
-          .check-error-msg {
-            margin: 4px 0 4px 24px;
-            font-size: 12px;
-            color: #888;
-            white-space: pre-wrap;
-            font-family: monospace;
-            max-height: 120px;
-            overflow: auto;
-          }
-          .check-locations {
-            margin: 6px 0 2px 24px;
-            font-size: 12px;
-          }
-          .span-group {
-            margin: 4px 0;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            overflow: hidden;
-          }
-          .span-group-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 8px;
-            background: #f5f5f5;
-            border-bottom: 1px solid #e0e0e0;
-            justify-content: space-between;
-          }
-          .span-group-errors {
-            padding: 2px 8px;
-          }
-          .check-location {
-            padding: 2px 0;
-            font-family: monospace;
-            display: flex;
-            gap: 8px;
-            align-items: baseline;
-            flex-wrap: wrap;
-          }
-          .loc-span {
-            color: #1565c0;
-            font-weight: 600;
-            font-family: monospace;
-            font-size: 12px;
-            white-space: nowrap;
-          }
-          .loc-attr {
-            color: #c62828;
-            font-weight: 600;
-            white-space: nowrap;
-          }
-          .loc-msg {
-            color: #555;
-            flex: 1;
-          }
-          .show-span-btn {
-            width: 22px;
-            height: 22px;
-            padding: 0;
-            background: none;
-            border: 1px solid #90caf9;
-            border-radius: 3px;
-            cursor: pointer;
-            flex-shrink: 0;
-            color: #1565c0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .show-span-btn svg {
-            width: 14px;
-            height: 14px;
-          }
-          .show-span-btn:hover {
-            background: #e3f2fd;
-          }
-          .show-span-btn.open {
-            background: #bbdefb;
-          }
-          .span-preview {
-            margin: 0;
-            padding: 10px 15px;
-            background: #263238;
-            color: #aed581;
-            font-size: 12px;
-            border-radius: 0;
-            overflow-x: auto;
-            max-height: 300px;
-          }
-          .span-preview .highlight-error {
-            background: rgba(244, 67, 54, 0.25);
-            display: inline-block;
-            width: 100%;
-            margin: 0 -15px;
-            padding: 0 15px;
-            border-left: 3px solid #f44336;
-          }
-          /* Warnings section */
-          .warnings-section-desc {
-            color: #666;
-            font-size: 14px;
-            margin: -10px 0 15px 0;
-          }
-          .warning-test {
-            margin: 15px 0;
-            border: 1px solid #ffe0b2;
-            border-radius: 4px;
-          }
-          .warning-test summary {
-            padding: 15px;
-            cursor: pointer;
-            background: #fffdf7;
-            user-select: none;
-          }
-          .warning-test summary:hover {
-            background: #fff8e1;
-          }
-          .warning-test[open] summary {
-            border-bottom: 1px solid #ffe0b2;
-          }
-          .warning-icon {
-            color: #e65100;
-            margin-right: 8px;
-          }
-          .warning-test-details {
-            padding: 15px;
-          }
-        </style>
+        <title>Test Results \u2014 Sentry AI SDK Tests</title>
+        <style dangerouslySetInnerHTML=${{ __html: STYLES }}></style>
       </head>
       <body>
-        <div class="container">
-          <h1>${title}</h1>
-          <p class="timestamp">Generated: ${timestamp}</p>
-          ${SummaryCards({ summary: report.results.summary })}
+        <nav class="topnav">
+          <span class="topnav-title">sentry/ai-sdk-tests</span>
+          <div class="topnav-links">
+            <a class="topnav-link active" href="#">Results</a>
+            <a class="topnav-link" href="trends.html">Trends</a>
+          </div>
+          <span class="topnav-meta">${timestamp}</span>
+        </nav>
+
+        <div class="summary-bar">
+          <div class="summary-stats">
+            <div class="stat"><span class="stat-value">${total}</span><span class="stat-label">total</span></div>
+            <div class="stat stat-passed"><span class="stat-value">${summary.passed}</span><span class="stat-label">passed</span></div>
+            <div class="stat stat-failed"><span class="stat-value">${summary.failed}</span><span class="stat-label">failed</span></div>
+            <div class="stat stat-skipped"><span class="stat-value">${summary.skipped}</span><span class="stat-label">skipped</span></div>
+            ${totalWarnings > 0 ? html`<div class="stat"><span class="stat-value" style="color:var(--warn)">${totalWarnings}</span><span class="stat-label">warnings</span></div>` : ""}
+            <div class="stat"><span class="stat-value">${passRate}%</span><span class="stat-label">pass rate</span></div>
+            <div class="stat"><span class="stat-value">${formatDuration(duration)}</span><span class="stat-label">duration</span></div>
+          </div>
+          <div class="status-track">
+            <div class="status-fill-pass" style="width:${passWidth}%"></div>
+            <div class="status-fill-fail" style="width:${failWidth}%"></div>
+            <div class="status-fill-skip" style="width:${skipWidth}%"></div>
+          </div>
+        </div>
+
+        <div class="main">
           ${TestMatrix({ report })}
           ${FailedTestsDetails({ tests: report.results.tests })}
           ${WarningsSection({ tests: report.results.tests })}
           ${AttributeAuditSection({ tests: report.results.tests })}
         </div>
+
         <script dangerouslySetInnerHTML=${{ __html: `
           function toggleSpanPreview(btn) {
             var group = btn.closest('.span-group');
@@ -1394,37 +1055,16 @@ export function generateHTML(report: Report): string {
     </html>
   `;
 
-  // vhtml returns mixed content: strings for HTML tags, and arrays for special elements like DOCTYPE
-  // The structure is typically: ["!DOCTYPE", attrs, "<html>...</html>"]
-  function flattenToString(value: unknown): string {
-    if (typeof value === "string") {
-      return value;
-    }
-    if (Array.isArray(value)) {
-      // Check if this is a DOCTYPE declaration
-      if (value[0] === "!DOCTYPE") {
-        // DOCTYPE + rest of HTML
-        return (
-          "<!DOCTYPE html>\n" + value.slice(2).map(flattenToString).join("")
-        );
-      }
-      // Regular array, flatten all elements
-      return value.map(flattenToString).join("");
-    }
-    if (typeof value === "object" && value !== null) {
-      // Skip objects (like attributes)
-      return "";
-    }
-    return String(value);
-  }
-
-  return flattenToString(htmlContent);
+  return flattenToString(htmlContent).replace(
+    "</head>",
+    `${FONT_LINK}\n</head>`,
+  );
 }
 
-/**
- * Generate timestamp string for filenames
- * Format: YYYY-MM-DD-HHmmss
- */
+// ---------------------------------------------------------------------------
+// File output helpers
+// ---------------------------------------------------------------------------
+
 export function getTimestamp(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -1436,20 +1076,14 @@ export function getTimestamp(): string {
   return `${year}-${month}-${day}-${hours}${minutes}${seconds}`;
 }
 
-/**
- * Write HTML report to file
- */
 export async function writeHTMLReport(
   htmlContent: string,
   outputDir: string = "./test-results",
   timestamp?: string,
 ): Promise<string> {
-  // Ensure output directory exists
   await mkdir(outputDir, { recursive: true });
-
   const ts = timestamp || getTimestamp();
   const filePath = join(outputDir, `test-report-${ts}.html`);
   await writeFile(filePath, htmlContent, "utf-8");
-
   return filePath;
 }
