@@ -9,6 +9,7 @@
     "postbuild": "rm -rf dist/runner/templates && mkdir -p dist/runner/templates && cp -r src/runner/templates/* dist/runner/templates/",
     "test": "node dist/cli.js",
     "setup": "node dist/setup.js",
+    "postsetup": "git submodule update --init sentry-conventions && npx playwright install chromium",
     "dev": "npm run build && node dist/cli.js",
     "report": "node dist/generate-html-report.js",
     "update-conventions": "git submodule update --remote sentry-conventions"
