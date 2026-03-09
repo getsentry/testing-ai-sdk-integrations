@@ -237,7 +237,7 @@ export const checkAgentInputOutputMessages: Check = {
     );
 
     const invokeAgentSpans = findAgentSpans(extractGenAISpans(spans)).filter(
-      (s) => s.data?.["gen_ai.operation.name"] === "invoke_agent",
+      (s) => /^(gen_ai\.)?invoke_agent$/.test(s.data?.["gen_ai.operation.name"] ?? ""),
     );
     skipIf(invokeAgentSpans.length === 0, "No invoke_agent spans captured");
 
