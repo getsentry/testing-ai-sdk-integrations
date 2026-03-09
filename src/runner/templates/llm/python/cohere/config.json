@@ -2,7 +2,7 @@
   "name": "cohere",
   "displayName": "Cohere Python SDK",
   "type": "llm-only",
-  "platform": "py",
+  "platform": "python",
   "executionMode": "sync",
   "streamingMode": "both",
   "dependencies": [

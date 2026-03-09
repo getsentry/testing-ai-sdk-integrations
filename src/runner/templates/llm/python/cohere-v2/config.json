@@ -2,7 +2,7 @@
   "name": "cohere-v2",
   "displayName": "Cohere Python SDK (V2 API)",
   "type": "llm-only",
-  "platform": "py",
+  "platform": "python",
   "executionMode": "sync",
   "streamingMode": "both",
   "dependencies": [
