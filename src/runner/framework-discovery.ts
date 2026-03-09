@@ -62,7 +62,8 @@ export function discoverFrameworks(): DiscoveredFramework[] {
             dirent.name === "python" ||
             dirent.name === "browser" ||
             dirent.name === "nextjs" ||
-            dirent.name === "php"),
+            dirent.name === "php" ||
+            dirent.name === "cloudflare"),
       )
       .map((dirent) => dirent.name);
 
@@ -166,7 +167,7 @@ export function getFrameworksByCategory(
  * Get frameworks by platform (node, py, browser)
  */
 export function getFrameworksByPlatform(
-  platform: "node" | "python" | "browser" | "nextjs" | "php",
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
 ): DiscoveredFramework[] {
   return discoverFrameworks().filter((f) => f.platform === platform);
 }

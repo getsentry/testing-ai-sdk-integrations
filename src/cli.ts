@@ -29,7 +29,7 @@ Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
   --type <type>              Filter by framework type (llm, agents, embeddings)
-  --platform <node|python|browser|php|js>  Filter by platform (js = node + browser)
+  --platform <node|python|browser|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -127,7 +127,7 @@ function parseCliArgs() {
 
   // Validate platform
   const platformArg = values.platform;
-  const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php"];
+  const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php", "cloudflare"];
   if (platformArg && !validPlatforms.includes(platformArg)) {
     console.error(
       `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -282,7 +282,8 @@ async function main() {
         } else if (
           (df.platform === "node" ||
             df.platform === "browser" ||
-            df.platform === "nextjs") &&
+            df.platform === "nextjs" ||
+            df.platform === "cloudflare") &&
           options.sentryJavaScriptPath
         ) {
           sentryVersion = "local";

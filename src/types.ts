@@ -112,7 +112,7 @@ export interface CapturedSpan {
 
 export interface FrameworkConfig {
   name: string;
-  platform: "node" | "python" | "browser" | "nextjs" | "php";
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
   type: "llm-only" | "agentic" | "embeddings";
   version: string;
   sentryVersion: string;

@@ -1,0 +1,14 @@
+{
+  "name": "langchain",
+  "displayName": "LangChain JavaScript SDK Embeddings (Cloudflare)",
+  "type": "embeddings",
+  "platform": "cloudflare",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "langchain", "version": "framework" },
+    { "package": "@langchain/openai", "version": "0.3.0" },
+    { "package": "@langchain/core", "version": "0.3.49" }
+  ],
+  "versions": ["0.3.24"],
+  "sentryVersions": ["latest"]
+}
