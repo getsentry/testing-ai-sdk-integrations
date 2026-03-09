@@ -415,7 +415,7 @@ function generateCountsChart(history) {
 // History Table with regression detection
 // ---------------------------------------------------------------------------
 
-function generateHistoryTable(history) {
+function generateHistoryTable(history, availableDates) {
   const reversed = history.slice().reverse();
 
   const rows = reversed
@@ -439,6 +439,10 @@ function generateHistoryTable(history) {
         ? '<span class="regression-flag">\u25BC regression</span>'
         : "";
 
+      const hasReport = availableDates.has(e.date);
+      const viewCell = hasReport
+        ? `<a href="reports/${e.date}/index.html" style="color:var(--text-secondary);font-size:11px;">view</a>`
+        : '';
       return `<tr${rowClass}>
         <td>${formatDate(e.date)}${regressionFlag}</td>
         <td>${e.total}</td>
@@ -446,7 +450,7 @@ function generateHistoryTable(history) {
         <td class="val-fail">${e.failed}</td>
         <td class="val-rate">${rate}%</td>
         <td>${formatDuration(e.duration)}</td>
-        <td><a href="index.html" style="color:var(--text-secondary);font-size:11px;">view</a></td>
+        <td>${viewCell}</td>
       </tr>`;
     })
     .join("\n");
@@ -458,7 +462,7 @@ function generateHistoryTable(history) {
 // Page generation
 // ---------------------------------------------------------------------------
 
-function generateHTML(history) {
+function generateHTML(history, availableDates) {
   const latest = history.length > 0 ? history[history.length - 1] : null;
   const passRate =
     latest && latest.total > 0
@@ -557,7 +561,7 @@ function generateHTML(history) {
           </tr>
         </thead>
         <tbody>
-          ${generateHistoryTable(history)}
+          ${generateHistoryTable(history, availableDates)}
         </tbody>
       </table>
     </div>
@@ -618,19 +622,35 @@ const args = process.argv.slice(2);
 
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
   console.log(`
-Usage: node .github/scripts/generate-trends-page.cjs <history-json> [output-path]
+Usage: node .github/scripts/generate-trends-page.cjs <history-json> [output-path] [reports-dir]
 
 Generate an HTML trends page from test history data.
 
 Arguments:
   history-json   Path to the history.json file
   output-path    Optional: Output HTML file path (default: test-results/trends.html)
+  reports-dir    Optional: Path to reports directory to detect available dated reports
 `);
   process.exit(0);
 }
 
 const inputFile = args[0];
 const outputPath = args[1] || "test-results/trends.html";
+const reportsDir = args[2] || null;
+
+// Scan reports directory to find which dates have reports
+const availableDates = new Set();
+if (reportsDir && fs.existsSync(reportsDir)) {
+  for (const entry of fs.readdirSync(reportsDir)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(entry)) {
+      const reportFile = path.join(reportsDir, entry, "index.html");
+      if (fs.existsSync(reportFile)) {
+        availableDates.add(entry);
+      }
+    }
+  }
+  console.log(`Found ${availableDates.size} dated reports in ${reportsDir}`);
+}
 
 try {
   const content = fs.readFileSync(inputFile, "utf-8");
@@ -638,7 +658,7 @@ try {
 
   console.log(`Read ${history.length} history entries from ${inputFile}`);
 
-  const htmlContent = generateHTML(history);
+  const htmlContent = generateHTML(history, availableDates);
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, htmlContent, "utf-8");
