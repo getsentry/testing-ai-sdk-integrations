@@ -1,0 +1,15 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI JavaScript SDK (Cloudflare)",
+  "type": "llm-only",
+  "platform": "cloudflare",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "openai",
+      "version": "framework"
+    }
+  ],
+  "versions": ["4.96.0"],
+  "sentryVersions": ["latest"]
+}

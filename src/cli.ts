@@ -29,7 +29,7 @@ Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
   --type <type>              Filter by framework type (llm, agents, embeddings, mcp)
-  --platform <node|python|browser|php|js>  Filter by platform (js = node + browser)
+  --platform <node|python|browser|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -37,6 +37,7 @@ Options:
   --parallel, -j <N>         Run up to N tests in parallel (default: 1)
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
+  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
@@ -84,6 +85,7 @@ function parseCliArgs() {
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
       "sentry-laravel": { type: "string" },
+      option: { type: "string", multiple: true },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -130,7 +132,7 @@ function parseCliArgs() {
 
   // Validate platform
   const platformArg = values.platform;
-  const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php"];
+  const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php", "cloudflare"];
   if (platformArg && !validPlatforms.includes(platformArg)) {
     console.error(
       `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
@@ -138,7 +140,7 @@ function parseCliArgs() {
     process.exit(1);
   }
 
-  // Parse --option key=value pairs into a map
+  // Parse --option key=value filters
   const optionFilters: Record<string, string> = {};
   if (values.option) {
     for (const opt of values.option) {
@@ -302,7 +304,8 @@ async function main() {
         } else if (
           (df.platform === "node" ||
             df.platform === "browser" ||
-            df.platform === "nextjs") &&
+            df.platform === "nextjs" ||
+            df.platform === "cloudflare") &&
           options.sentryJavaScriptPath
         ) {
           sentryVersion = "local";
@@ -326,6 +329,7 @@ async function main() {
           modelOverrides: df.modelOverrides,
           toolNameMapping: df.toolNameMapping,
           minimumPlatformVersion: df.minimumPlatformVersion,
+          options: df.options,
           skip: df.skip,
         };
       });

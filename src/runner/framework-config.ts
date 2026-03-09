@@ -12,8 +12,8 @@ export interface FrameworkConfig {
   /** Framework type: llm-only, agentic, embeddings, or mcp-server */
   type: "llm-only" | "agentic" | "embeddings" | "mcp-server";
 
-  /** Platform: Node.js, Browser, Next.js, Python, or PHP */
-  platform: "node" | "python" | "browser" | "nextjs" | "php";
+  /** Platform: Node.js, Browser, Next.js, Python, PHP, or Cloudflare */
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
 
   /** Package dependencies to install */
   dependencies: FrameworkDependency[];
@@ -126,10 +126,11 @@ export function loadFrameworkConfig(configPath: string): FrameworkConfig {
       config.platform !== "python" &&
       config.platform !== "browser" &&
       config.platform !== "nextjs" &&
-      config.platform !== "php"
+      config.platform !== "php" &&
+      config.platform !== "cloudflare"
     ) {
       throw new Error(
-        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', 'nextjs', or 'php'`,
+        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', 'nextjs', 'php', or 'cloudflare'`,
       );
     }
 

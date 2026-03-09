@@ -420,6 +420,11 @@ export class Orchestrator {
               : "blocking",
           );
         }
+        if (testRun.framework.resolvedOptions) {
+          for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+            modeParts.push(testRun.framework.resolvedOptions[key]);
+          }
+        }
         const modeSuffix =
           modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
         browserFilesByWorkDir
@@ -509,7 +514,8 @@ export class Orchestrator {
           run.framework.platform === "node" ||
           run.framework.platform === "nextjs" ||
           run.framework.platform === "browser" ||
-          run.framework.platform === "php"
+          run.framework.platform === "php" ||
+          run.framework.platform === "cloudflare"
         )
           return false;
         return run.framework.executionMode === "sync";
@@ -520,7 +526,8 @@ export class Orchestrator {
           run.framework.platform === "node" ||
           run.framework.platform === "nextjs" ||
           run.framework.platform === "browser" ||
-          run.framework.platform === "php"
+          run.framework.platform === "php" ||
+          run.framework.platform === "cloudflare"
         )
           return false;
         return run.framework.executionMode === "async";
@@ -542,8 +549,9 @@ export class Orchestrator {
     if (this.optionFilters && Object.keys(this.optionFilters).length > 0) {
       testMatrix = testMatrix.filter((run) => {
         for (const [key, value] of Object.entries(this.optionFilters!)) {
-          const resolved = run.framework.resolvedOptions?.[key];
-          if (resolved !== value) return false;
+          if (run.framework.resolvedOptions?.[key] !== value) {
+            return false;
+          }
         }
         return true;
       });
@@ -669,6 +677,20 @@ export class Orchestrator {
                   status: "pending",
                 });
               }
+            for (const resolvedOptions of optionCombinations) {
+              const runId = this.generateRunId();
+              matrix.push({
+                id: runId,
+                index: matrix.length, // Track original order for consistent reporting
+                framework: {
+                  ...framework,
+                  executionMode: execMode,
+                  streamingMode: streamMode,
+                  resolvedOptions,
+                },
+                testDefinition,
+                status: "pending",
+              });
             }
           }
         }
@@ -735,7 +757,7 @@ export class Orchestrator {
           const testPrefix = isLastFramework ? "      " : "   │  ";
           const testBranch = isLast ? "└─" : "├─";
 
-          // Build mode string with execution mode, streaming mode, transport mode, and resolved options
+          // Build mode string with execution mode, streaming mode, and resolved options
           const modeParts: string[] = [];
           if (run.framework.executionMode) {
             modeParts.push(run.framework.executionMode);

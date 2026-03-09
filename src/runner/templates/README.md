@@ -8,6 +8,7 @@ Base templates and framework-specific templates for generating test files using 
 templates/
 ├── base.js.njk              # JavaScript base template
 ├── base.python.njk          # Python base template
+├── base.cloudflare.njk      # Cloudflare Workers base template
 ├── llm/                     # LLM-only framework templates
 │   ├── node/
 │   │   ├── openai/
@@ -16,7 +17,14 @@ templates/
 │   │   └── anthropic/
 │   │       ├── template.njk
 │   │       └── config.json
-│   └── python/
+│   ├── python/
+│   │   ├── openai/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   └── anthropic/
+│   │       ├── template.njk
+│   │       └── config.json
+│   └── cloudflare/
 │       ├── openai/
 │       │   ├── template.njk
 │       │   └── config.json
@@ -85,6 +93,20 @@ Provides a standard structure for Python tests with the following blocks:
 - **`test`** - Main test logic (inside `main()` function)
 - **`teardown`** - Code to run after the test
 
+### `base.cloudflare.njk` - Cloudflare Workers Base Template
+
+Provides a structure for Cloudflare Workers tests using `@sentry/cloudflare`:
+
+- **`setup`** - Code before the handler (module-level declarations)
+- **`sentry_integrations`** - Integrations added to the `withSentry()` config (e.g. `Sentry.vercelAIIntegration()`)
+- **`dynamic_imports`** - Dynamic imports and client setup inside the fetch handler (e.g. `Sentry.instrumentOpenAiClient(client)`)
+- **`test`** - Main test logic inside `Sentry.startSpan()` callback
+
+Key differences from Node.js:
+- Uses `Sentry.withSentry()` wrapper instead of `Sentry.init()`
+- AI SDK clients are instrumented manually (e.g. `Sentry.instrumentOpenAiClient(client)`)
+- API keys accessed via `env` parameter (from `.dev.vars`), not `process.env`
+
 ## Usage
 
 ### 1. Render Base Template
@@ -138,8 +160,9 @@ Framework-specific templates extend base templates and implement SDK-specific co
 
 ### Location
 
-- **LLM frameworks:** `llm/{node,python}/{framework}.njk`
-- **Agent frameworks:** `agents/{node,python}/{framework}.njk`
+- **LLM frameworks:** `llm/{node,python,browser,nextjs,cloudflare}/{framework}/`
+- **Agent frameworks:** `agents/{node,python,nextjs,cloudflare,php}/{framework}/`
+- **Embedding frameworks:** `embeddings/{node,python,browser,nextjs,cloudflare,php}/{framework}/`
 - **MCP frameworks:** `mcp/{python}/{framework}.njk`
 
 ### Example: OpenAI Python LLM Template
@@ -246,16 +269,46 @@ Framework templates receive:
 - `input` / `inputs` - Test input(s) with model, prompt, action, etc.
 - `input.model` - Model identifier
 - `input.prompt` - User prompt
-- `isStreaming` - Whether the test runs in streaming mode
-- `isAsync` - Whether the test runs in async mode (Python)
-- `isSse` - Whether the test uses SSE transport (MCP tests)
-- Resolved options from `config.json` `options` field are spread as top-level variables (e.g., `apiStyle`)
+- Any resolved option values as top-level variables (see Generic Options below)
+
+### Generic Options
+
+Frameworks can define `options` in their `config.json` to create additional test matrix dimensions:
+
+```json
+{
+  "name": "my-framework",
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+This doubles the test count — each test runs once per `apiStyle` value. Multiple options multiply further via cartesian product.
+
+**How options flow:**
+
+1. **Config**: `options` defines arrays of possible values per key
+2. **Matrix expansion**: The orchestrator generates all combinations (cartesian product)
+3. **Template variables**: Resolved values are available as top-level variables (e.g., `{{ apiStyle }}`)
+4. **Filenames**: Option values are appended to test filenames (e.g., `test-basic-...-highlevel.py`)
+5. **CLI filtering**: Use `--option key=value` (repeatable) to run only specific values
+
+**Template usage example:**
+
+```nunjucks
+{% if apiStyle == "highlevel" %}
+{# High-level API code #}
+{% elif apiStyle == "lowlevel" %}
+{# Low-level API code #}
+{% endif %}
+```
 
 ### Creating Framework Templates
 
 1. Determine framework type (LLM or agent)
-2. Choose platform (node, python, browser, nextjs, or php)
-3. Create framework directory: `{llm,agents,mcp}/{node,python,browser,nextjs,php}/{framework}/`
+2. Choose platform (node, python, browser, nextjs, php, or cloudflare)
+3. Create framework directory: `{llm,agents,embeddings,mcp}/{node,python,browser,nextjs,php,cloudflare}/{framework}/`
 4. Create template file: `template.njk`
 5. Create config file: `config.json`
 6. Extend appropriate base template

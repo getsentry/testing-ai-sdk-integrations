@@ -60,7 +60,7 @@ export class SpanCollector {
     try {
       const projectIdStr = c.req.param('projectId');
       const projectId = parseInt(projectIdStr, 10);
-      
+
       // Look up runId from projectId
       const runId = this.projectIdToRunId.get(projectId);
       if (!runId) {

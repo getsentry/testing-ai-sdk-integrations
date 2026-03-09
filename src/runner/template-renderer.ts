@@ -67,7 +67,7 @@ export class TemplateRenderer {
    */
   renderFramework(
     type: string,
-    platform: "node" | "python" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
     frameworkName: string,
     context: TemplateContext,
   ): string {
@@ -79,7 +79,7 @@ export class TemplateRenderer {
    * Render base template for a platform
    */
   renderBase(
-    platform: "node" | "python" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
     context: TemplateContext,
   ): string {
     const templateFile = getBaseTemplateName(platform);
@@ -97,7 +97,7 @@ export class TemplateRenderer {
    * Extend a base template with custom blocks
    */
   renderWithBlocks(
-    platform: "node" | "python" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
     context: TemplateContext,
     blocks: {
       imports?: string;

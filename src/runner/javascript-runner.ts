@@ -149,6 +149,7 @@ export class JavaScriptRunner {
       testDefinition,
       framework,
       isStreaming,
+      resolvedOptions,
     } = context;
     const verbose = context.verbose === true;
 
@@ -164,6 +165,11 @@ export class JavaScriptRunner {
     }
     if (context.transportMode) {
       modeParts.push(context.transportMode);
+    // Add resolved options (sorted by key for consistent ordering)
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.js`);

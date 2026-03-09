@@ -5,10 +5,10 @@
 
 import { FrameworkConfig } from "./types.js";
 
-export type Platform = "node" | "python" | "browser" | "nextjs" | "php";
+export type Platform = "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
 
 /** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
-export const JS_PLATFORMS: readonly Platform[] = ["node", "browser"] as const;
+export const JS_PLATFORMS: readonly Platform[] = ["node", "browser", "cloudflare"] as const;
 
 /**
  * Resolve a CLI platform value to the concrete platform(s) it represents.
@@ -35,6 +35,7 @@ export function getFileExtension(platform: Platform): string {
       return "html";
     case "node":
     case "nextjs":
+    case "cloudflare":
       return "js";
     default:
       return "js";
@@ -56,6 +57,8 @@ export function getPlatformIcon(platform: Platform): string {
       return "🟢";
     case "nextjs":
       return "➡️";
+    case "cloudflare":
+      return "☁️";
   }
 }
 
@@ -74,6 +77,8 @@ export function getPlatformDisplayName(platform: Platform): string {
       return "NODE";
     case "nextjs":
       return "NEXT.JS";
+    case "cloudflare":
+      return "CLOUDFLARE";
   }
 }
 
@@ -109,6 +114,7 @@ export function getLocalSentryEnvVar(platform: Platform): string | null {
     case "node":
     case "browser":
     case "nextjs":
+    case "cloudflare":
       return "SENTRY_JAVASCRIPT_PATH";
   }
 }
@@ -128,6 +134,8 @@ export function getSentryPackageName(platform: Platform): string {
       return "@sentry/node";
     case "nextjs":
       return "@sentry/nextjs";
+    case "cloudflare":
+      return "@sentry/cloudflare";
   }
 }
 
@@ -146,6 +154,8 @@ export function getBaseTemplateName(platform: Platform): string {
       return "base.node.njk";
     case "nextjs":
       return "base.nextjs.njk";
+    case "cloudflare":
+      return "base.cloudflare.njk";
   }
 }
 
@@ -164,6 +174,8 @@ export function getFormatterParser(platform: Platform): string | null {
     case "node":
       return "babel";
     case "nextjs":
+      return "babel";
+    case "cloudflare":
       return "babel";
   }
 }
@@ -197,7 +209,8 @@ export function determineSentryVersion(
   if (
     (framework.platform === "node" ||
       framework.platform === "browser" ||
-      framework.platform === "nextjs") &&
+      framework.platform === "nextjs" ||
+      framework.platform === "cloudflare") &&
     sentryJavaScriptPath
   ) {
     return "local";

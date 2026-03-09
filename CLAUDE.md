@@ -61,6 +61,7 @@ testing-ai-sdk-integrations/
 │   │   ├── javascript-runner.ts      # JS (Node) execution
 │   │   ├── python-runner.ts          # Python execution
 │   │   ├── browser-runner.ts         # Browser execution (Playwright)
+│   │   ├── cloudflare-runner.ts      # Cloudflare Workers execution (wrangler dev)
 │   │   ├── framework-config.ts       # Framework configuration types
 │   │   ├── framework-discovery.ts    # Auto-discovers frameworks
 │   │   ├── template-renderer.ts      # Nunjucks template rendering
@@ -87,9 +88,10 @@ Templates are organized by **category** (llm, agents, embeddings), then **platfo
 ```
 src/runner/templates/
 ├── base.node.njk                     # Base JavaScript (Node) template
-├── base.python.njk                       # Base Python template
+├── base.python.njk                   # Base Python template
 ├── base.browser.njk                  # Base JavaScript (browser) template
 ├── base.nextjs.njk                   # Base Next.js template
+├── base.cloudflare.njk               # Base Cloudflare Workers template
 ├── base.php.njk                      # Base PHP (Laravel) template
 ├── llm/                              # Low-level LLM frameworks
 │   ├── node/
@@ -107,6 +109,10 @@ src/runner/templates/
 │   │   ├── google-genai/
 │   │   ├── langchain/
 │   │   └── openai/
+│   ├── cloudflare/
+│   │   ├── anthropic/
+│   │   ├── google-genai/
+│   │   └── openai/
 │   └── nextjs/
 │       ├── anthropic/
 │       ├── google-genai/
@@ -122,37 +128,43 @@ src/runner/templates/
 │   │   ├── langgraph/
 │   │   ├── openai-agents/
 │   │   └── pydantic-ai/
+│   ├── cloudflare/
+│   │   └── vercel/
 │   ├── nextjs/
 │   │   ├── mastra/
 │   │   └── vercel/
 │   └── php/
 │       └── laravel/                  # config.json + template.njk + agent.php.njk + tool.php.njk
 ├── embeddings/                       # Embedding frameworks
-│   ├── node/
-│   │   ├── google-genai/
-│   │   ├── langchain/
-│   │   ├── openai/
-│   │   └── vercel/
-│   ├── browser/
-│   │   ├── google-genai/
-│   │   ├── langchain/
-│   │   └── openai/
-│   ├── nextjs/
-│   │   ├── google-genai/
-│   │   ├── langchain/
-│   │   ├── openai/
-│   │   └── vercel/
-│   ├── python/
-│   │   ├── google-genai/
-│   │   ├── langchain/
-│   │   ├── litellm/
-│   │   ├── manual/                   # Manual instrumentation (no SDK dependency)
-│   │   └── openai/
-│   └── php/
-│       └── laravel/
+|   ├── node/
+|   │   ├── google-genai/
+|   │   ├── langchain/
+|   │   ├── openai/
+|   │   └── vercel/
+|   ├── browser/
+|   │   ├── google-genai/
+|   │   ├── langchain/
+|   │   └── openai/
+|   ├── cloudflare/
+|   │   ├── google-genai/
+|   │   ├── openai/
+|   │   └── vercel/
+|   ├── nextjs/
+|   │   ├── google-genai/
+|   │   ├── langchain/
+|   │   ├── openai/
+|   │   └── vercel/
+|   ├── python/
+|   │   ├── google-genai/
+|   │   ├── langchain/
+|   │   ├── litellm/
+|   │   ├── manual/                   # Manual instrumentation (no SDK dependency)
+|   │   └── openai/
+|   └── php/
+|       └── laravel/
 └── mcp/                              # MCP server frameworks
     └── python/
-        └── mcp/                      # MCP Python SDK (highlevel + lowlevel)
+        └── mcp/  
 ```
 
 ## Quick Start
@@ -173,12 +185,13 @@ npm run test run
 # Run tests for a specific framework
 npm run test -- --framework openai
 
-# Run tests for a specific platform (node, python, browser, nextjs, php, or js)
+# Run tests for a specific platform (node, python, browser, nextjs, php, cloudflare, or js)
 npm run test -- --platform python
 npm run test -- --platform browser
 npm run test -- --platform nextjs
 npm run test -- --platform php                        # PHP platform (Laravel)
-npm run test -- --platform js                         # all JS platforms (node + browser)
+npm run test -- --platform cloudflare                 # Cloudflare Workers platform
+npm run test -- --platform js                         # all JS platforms (node + browser + cloudflare)
 
 # Run tests for a specific type (llm, agents, embeddings, mcp)
 npm run test -- --type embeddings
@@ -219,7 +232,7 @@ Options:
   --framework <name>         Filter by framework name
   --test <name>              Filter by test name
   --type <type>              Filter by framework type (llm, agents, embeddings, mcp)
-  --platform <node|python|browser|nextjs|php|js>  Filter by platform (js = node + browser)
+  --platform <node|python|browser|nextjs|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -227,6 +240,7 @@ Options:
   --parallel, -j <N>         Run up to N tests in parallel (default: 1)
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
+  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --open                     Open HTML report in browser after test run
   --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
@@ -293,6 +307,10 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `pydantic-ai`   | agents   | agentic  | -         | async           |
 | Python            | `google-genai`  | agents   | agentic  | -         | sync/async      |
 | PHP (Laravel)     | `laravel`       | agents   | agentic  | -         | -               |
+| Cloudflare Workers | `openai`       | llm      | llm-only | both      | -               |
+| Cloudflare Workers | `anthropic`    | llm      | llm-only | both      | -               |
+| Cloudflare Workers | `google-genai` | llm      | llm-only | both      | -               |
+| Cloudflare Workers | `vercel`       | agents   | agentic  | -         | -               |
 | JavaScript (Node) | `openai`        | embeddings | embeddings | -      | -               |
 | JavaScript (Node) | `google-genai`  | embeddings | embeddings | -      | -               |
 | JavaScript (Node) | `langchain`     | embeddings | embeddings | -      | -               |
@@ -309,6 +327,9 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Python            | `litellm`       | embeddings | embeddings | -      | sync/async      |
 | Python            | `langchain`     | embeddings | embeddings | -      | sync/async      |
 | Python            | `google-genai`  | embeddings | embeddings | -      | sync/async      |
+| Cloudflare Workers | `openai`       | embeddings | embeddings | -      | -               |
+| Cloudflare Workers | `google-genai` | embeddings | embeddings | -      | -               |
+| Cloudflare Workers | `vercel`       | embeddings | embeddings | -      | -               |
 | PHP (Laravel)     | `laravel`       | embeddings | embeddings | -      | -               |
 | Python            | `mcp`           | mcp        | mcp-server | -      | async           |
 
@@ -499,8 +520,8 @@ Each framework has a `config.json` file that defines its capabilities:
 | ---------------- | ------------------------------------------------------------------------------------------------------- |
 | `name`           | Framework identifier                                                                                    |
 | `displayName`    | Human-readable name                                                                                     |
-| `type`           | `"llm-only"`, `"agentic"`, `"embeddings"`, or `"mcp-server"`                                            |
-| `platform`       | `"node"`, `"python"`, `"browser"`, `"php"`, or `"nextjs"` (CLI also accepts `"js"` as meta-platform for node + browser) |
+| `type`           | `"llm-only"`, `"agentic"`, or `"embeddings"`, or `"mcp-server"`                                                          |
+| `platform`       | `"node"`, `"python"`, `"browser"`, `"nextjs"`, `"php"`, or `"cloudflare"` (CLI also accepts `"js"` as meta-platform for node + browser + cloudflare) |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
 | `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`                                                               |
@@ -517,7 +538,7 @@ Frameworks can define `options` in their `config.json` to create additional test
 
 ```json
 {
-  "name": "mcp",
+  "name": "my-framework",
   "options": {
     "apiStyle": ["highlevel", "lowlevel"]
   }
@@ -530,7 +551,7 @@ This doubles the test count — each test runs once per `apiStyle` value. Multip
 - **In filenames**: Option values are appended to the test filename (e.g., `test-basic-...-highlevel.py`)
 - **CLI filtering**: Use `--option key=value` (repeatable) to run only specific option values:
   ```bash
-  npm run test -- --framework mcp --option apiStyle=highlevel
+  npm run test -- --framework my-framework --option apiStyle=highlevel
   ```
 
 ## Test Utilities
@@ -576,7 +597,7 @@ assertAttributes(spans, {
 ### 1. Create Template Directory
 
 ```bash
-mkdir -p src/runner/templates/{llm|agents|mcp}/{node|python|browser|nextjs|php}/your-framework
+mkdir -p src/runner/templates/{llm|agents|mcp}/{node|python|browser|nextjs|php|cloudflare}/your-framework
 ```
 
 ### 2. Create `config.json`
@@ -596,7 +617,7 @@ mkdir -p src/runner/templates/{llm|agents|mcp}/{node|python|browser|nextjs|php}/
 
 ### 3. Create `template.njk`
 
-Templates extend the base template and implement required blocks. Use `base.node.njk` for Node, `base.py.njk` for Python, `base.browser.njk` for browser, or `base.nextjs.njk` for Next.js.
+Templates extend the base template and implement required blocks. Use `base.node.njk` for Node, `base.py.njk` for Python, `base.browser.njk` for browser, `base.nextjs.njk` for Next.js, or `base.cloudflare.njk` for Cloudflare Workers.
 
 ```njk
 {% extends "base.node.njk" %}
@@ -698,7 +719,7 @@ interface TestDefinition {
 ```typescript
 interface FrameworkConfig {
   name: string;
-  platform: "node" | "python" | "browser" | "nextjs" | "php";
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
   type: "llm-only" | "agentic" | "embeddings" | "mcp-server";
   version: string;
   sentryVersion: string;
@@ -827,6 +848,17 @@ The `mcp` framework tests Sentry's MCP server instrumentation using the official
 - Client uses `mcp.client.session.ClientSession` for all modes
 - In-process (stdio) mode uses `anyio.create_memory_object_stream()` for client-server communication
 - Resolved options (e.g., `apiStyle`) are exposed as top-level template variables (e.g., `{{ apiStyle }}`)
+
+### Cloudflare Workers
+
+Cloudflare Workers use `@sentry/cloudflare` instead of `@sentry/node`. Key differences:
+
+- Uses `Sentry.withSentry()` handler wrapper instead of `Sentry.init()`
+- AI integrations use manual client instrumentation functions (`Sentry.instrumentOpenAiClient(client)`, `Sentry.instrumentAnthropicAiClient(client)`, `Sentry.instrumentGoogleGenAIClient(client)`) rather than auto-enabled integrations
+- Only `Sentry.vercelAIIntegration()` uses the integration-style API (added to the `integrations` array)
+- API keys are accessed via `env` parameter (from `.dev.vars`) rather than `process.env`
+- The `CloudflareRunner` manages the `wrangler dev` lifecycle: spawns the dev server, waits for ready, sends HTTP request to trigger the worker, then kills the process
+- Generated files include `wrangler.json` (with `nodejs_compat` flag), `.dev.vars` (secrets), and `package.json` (with `wrangler` dev dependency)
 
 ## References
 

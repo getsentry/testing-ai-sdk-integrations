@@ -19,7 +19,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
   // Convert each TestRun to CTRF Test
   const tests: Test[] = testReport.runs.map((run) => {
     const frameworkName = `${run.framework.platform}/${run.framework.name}`;
-    // Build mode string with execution mode (Python) and streaming mode
+    // Build mode string with execution mode (Python), streaming mode, and resolved options
     const modeParts: string[] = [];
     if (run.framework.platform === "python" && run.framework.executionMode) {
       modeParts.push(run.framework.executionMode);
