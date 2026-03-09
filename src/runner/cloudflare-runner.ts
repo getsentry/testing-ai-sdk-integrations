@@ -190,6 +190,7 @@ export class CloudflareRunner {
       testDefinition,
       framework,
       isStreaming,
+      resolvedOptions,
     } = context;
     const verbose = context.verbose === true;
 
@@ -202,6 +203,11 @@ export class CloudflareRunner {
     const modeParts: string[] = [];
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? "streaming" : "blocking");
+    }
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = `test-${testCaseId}${modeSuffix}.js`;

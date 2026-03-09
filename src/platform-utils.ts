@@ -226,6 +226,7 @@ export function buildModeParts(
   framework: FrameworkConfig,
   isAsync?: boolean,
   isStreaming?: boolean,
+  resolvedOptions?: Record<string, string>,
 ): string[] {
   const parts: string[] = [];
 
@@ -239,6 +240,13 @@ export function buildModeParts(
     parts.push(isStreaming ? "streaming" : "blocking");
   }
 
+  // Add resolved options (sorted by key for consistent ordering)
+  if (resolvedOptions) {
+    for (const key of Object.keys(resolvedOptions).sort()) {
+      parts.push(resolvedOptions[key]);
+    }
+  }
+
   return parts;
 }
 
@@ -249,7 +257,8 @@ export function buildModeSuffix(
   framework: FrameworkConfig,
   isAsync?: boolean,
   isStreaming?: boolean,
+  resolvedOptions?: Record<string, string>,
 ): string {
-  const parts = buildModeParts(framework, isAsync, isStreaming);
+  const parts = buildModeParts(framework, isAsync, isStreaming, resolvedOptions);
   return parts.length > 0 ? `-${parts.join("-")}` : "";
 }

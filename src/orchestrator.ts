@@ -48,6 +48,7 @@ export class Orchestrator {
   private asyncFilter?: boolean;
   private streamingFilter?: boolean;
   private blockingFilter?: boolean;
+  private optionFilters?: Record<string, string>;
 
   constructor(
     options: {
@@ -59,6 +60,7 @@ export class Orchestrator {
       blocking?: boolean;
       parallel?: number;
       openReport?: boolean;
+      optionFilters?: Record<string, string>;
     } = {},
   ) {
     this.spanCollector = new SpanCollector();
@@ -75,6 +77,7 @@ export class Orchestrator {
     this.asyncFilter = options.async;
     this.streamingFilter = options.streaming;
     this.blockingFilter = options.blocking;
+    this.optionFilters = options.optionFilters;
     this.openReport = options.openReport === true;
 
     // Set verbose on validator
@@ -228,6 +231,7 @@ export class Orchestrator {
           workDir,
           isAsync,
           isStreaming,
+          resolvedOptions: firstRun.framework.resolvedOptions,
           timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
         });
@@ -271,6 +275,7 @@ export class Orchestrator {
             workDir,
             isAsync: testIsAsync,
             isStreaming: testIsStreaming,
+            resolvedOptions: testRun.framework.resolvedOptions,
             timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
           });
@@ -413,6 +418,11 @@ export class Orchestrator {
               : "blocking",
           );
         }
+        if (testRun.framework.resolvedOptions) {
+          for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+            modeParts.push(testRun.framework.resolvedOptions[key]);
+          }
+        }
         const modeSuffix =
           modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
         browserFilesByWorkDir
@@ -476,6 +486,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
       });
@@ -529,6 +540,18 @@ export class Orchestrator {
       testMatrix = testMatrix.filter(
         (run) => run.framework.streamingMode === "blocking",
       );
+    }
+
+    // Filter by generic options (--option key=value)
+    if (this.optionFilters && Object.keys(this.optionFilters).length > 0) {
+      testMatrix = testMatrix.filter((run) => {
+        for (const [key, value] of Object.entries(this.optionFilters!)) {
+          if (run.framework.resolvedOptions?.[key] !== value) {
+            return false;
+          }
+        }
+        return true;
+      });
     }
 
     return testMatrix;
@@ -626,24 +649,28 @@ export class Orchestrator {
           continue;
         }
 
-        // Generate test runs for all combinations of execution mode and streaming mode
+        // Generate test runs for all combinations of execution mode, streaming mode, and options
         const executionModes = this.getExecutionModes(framework);
         const streamingModes = this.getStreamingModes(framework);
+        const optionCombinations = this.getOptionCombinations(framework);
 
         for (const execMode of executionModes) {
           for (const streamMode of streamingModes) {
-            const runId = this.generateRunId();
-            matrix.push({
-              id: runId,
-              index: matrix.length, // Track original order for consistent reporting
-              framework: {
-                ...framework,
-                executionMode: execMode,
-                streamingMode: streamMode,
-              },
-              testDefinition,
-              status: "pending",
-            });
+            for (const resolvedOptions of optionCombinations) {
+              const runId = this.generateRunId();
+              matrix.push({
+                id: runId,
+                index: matrix.length, // Track original order for consistent reporting
+                framework: {
+                  ...framework,
+                  executionMode: execMode,
+                  streamingMode: streamMode,
+                  resolvedOptions,
+                },
+                testDefinition,
+                status: "pending",
+              });
+            }
           }
         }
       }
@@ -709,13 +736,19 @@ export class Orchestrator {
           const testPrefix = isLastFramework ? "      " : "   │  ";
           const testBranch = isLast ? "└─" : "├─";
 
-          // Build mode string with execution mode and streaming mode
+          // Build mode string with execution mode, streaming mode, and resolved options
           const modeParts: string[] = [];
           if (run.framework.executionMode) {
             modeParts.push(run.framework.executionMode);
           }
           if (run.framework.streamingMode) {
             modeParts.push(run.framework.streamingMode);
+          }
+          // Add resolved options
+          if (run.framework.resolvedOptions) {
+            for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+              modeParts.push(run.framework.resolvedOptions[key]);
+            }
           }
           const mode =
             modeParts.length > 0
@@ -803,6 +836,37 @@ export class Orchestrator {
   }
 
   /**
+   * Get all combinations of generic options for a framework.
+   * Returns an array of resolved option objects (cartesian product of all option values).
+   * If no options are defined, returns [undefined] so the loop runs once.
+   */
+  private getOptionCombinations(
+    framework: FrameworkConfig,
+  ): Array<Record<string, string> | undefined> {
+    if (!framework.options || Object.keys(framework.options).length === 0) {
+      return [undefined];
+    }
+
+    const keys = Object.keys(framework.options).sort();
+    const valueSets = keys.map((k) => framework.options![k]);
+
+    // Cartesian product
+    const combinations: Record<string, string>[] = [{}];
+    for (let i = 0; i < keys.length; i++) {
+      const newCombinations: Record<string, string>[] = [];
+      for (const combo of combinations) {
+        for (const value of valueSets[i]) {
+          newCombinations.push({ ...combo, [keys[i]]: value });
+        }
+      }
+      combinations.length = 0;
+      combinations.push(...newCombinations);
+    }
+
+    return combinations;
+  }
+
+  /**
    * Execute a single test
    */
   private async executeTest(testRun: TestRun): Promise<void> {
@@ -847,6 +911,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
@@ -1028,6 +1093,13 @@ export class Orchestrator {
       modeParts.push(testRun.framework.streamingMode);
     }
 
+    // Add resolved options
+    if (testRun.framework.resolvedOptions) {
+      for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+        modeParts.push(testRun.framework.resolvedOptions[key]);
+      }
+    }
+
     if (modeParts.length > 0) {
       return `${testRun.testDefinition.name} (${modeParts.join(", ")})`;
     }
@@ -1055,6 +1127,11 @@ export class Orchestrator {
       }
       if (testRun.framework.streamingMode) {
         modeParts.push(testRun.framework.streamingMode);
+      }
+      if (testRun.framework.resolvedOptions) {
+        for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+          modeParts.push(testRun.framework.resolvedOptions[key]);
+        }
       }
       const modeSuffix = modeParts.length > 0 ? modeParts.join("-") : "default";
       const logFile = path.join(
@@ -1145,13 +1222,18 @@ export class Orchestrator {
     console.log(colors.gray + "─".repeat(70) + colors.reset);
 
     for (const run of report.runs) {
-      // Build mode string with execution mode (Python) and streaming mode
+      // Build mode string with execution mode (Python), streaming mode, and resolved options
       const modeParts: string[] = [];
       if (run.framework.platform === "python" && run.framework.executionMode) {
         modeParts.push(run.framework.executionMode);
       }
       if (run.framework.streamingMode) {
         modeParts.push(run.framework.streamingMode);
+      }
+      if (run.framework.resolvedOptions) {
+        for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+          modeParts.push(run.framework.resolvedOptions[key]);
+        }
       }
       const modeStr =
         modeParts.length > 0

@@ -261,6 +261,7 @@ return [
       framework,
       isAsync,
       isStreaming,
+      resolvedOptions,
     } = context;
     const verbose = context.verbose === true;
 
@@ -271,7 +272,7 @@ return [
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix to match the generated command signature
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, resolvedOptions);
 
     // Build the artisan command name from the test case ID + mode suffix
     const commandName = `test:${testCaseId}${modeSuffix}`;

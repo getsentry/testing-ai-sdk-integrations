@@ -19,13 +19,18 @@ export function generateCTRFReport(testReport: TestReport): Report {
   // Convert each TestRun to CTRF Test
   const tests: Test[] = testReport.runs.map((run) => {
     const frameworkName = `${run.framework.platform}/${run.framework.name}`;
-    // Build mode string with execution mode (Python) and streaming mode
+    // Build mode string with execution mode (Python), streaming mode, and resolved options
     const modeParts: string[] = [];
     if (run.framework.platform === "python" && run.framework.executionMode) {
       modeParts.push(run.framework.executionMode);
     }
     if (run.framework.streamingMode) {
       modeParts.push(run.framework.streamingMode);
+    }
+    if (run.framework.resolvedOptions) {
+      for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+        modeParts.push(run.framework.resolvedOptions[key]);
+      }
     }
     const modeStr = modeParts.length > 0 ? ` (${modeParts.join(", ")})` : "";
     const testName = `${frameworkName} :: ${run.testDefinition.name}${modeStr}`;
@@ -52,6 +57,11 @@ export function generateCTRFReport(testReport: TestReport): Report {
     if (run.framework.streamingMode) {
       tags.push(run.framework.streamingMode); // 'streaming' or 'blocking'
     }
+    if (run.framework.resolvedOptions) {
+      for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+        tags.push(run.framework.resolvedOptions[key]);
+      }
+    }
 
     test.tags = tags;
 
@@ -77,6 +87,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       }),
       ...(run.framework.streamingMode && {
         streamingMode: run.framework.streamingMode,
+      }),
+      ...(run.framework.resolvedOptions && {
+        resolvedOptions: run.framework.resolvedOptions,
       }),
       ...(run.spans && {
         spanCount: run.spans.length,

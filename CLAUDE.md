@@ -187,6 +187,9 @@ npm run test -- --platform js                         # all JS platforms (node +
 npm run test -- --type embeddings
 npm run test -- --type llm --platform python
 
+# Filter by framework option (for frameworks with generic options)
+npm run test -- --framework mcp --option apiStyle=highlevel
+
 # Run with verbose output
 npm run test -- --framework openai --verbose
 
@@ -226,6 +229,7 @@ Options:
   --parallel, -j <N>         Run up to N tests in parallel (default: 1)
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
+  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
@@ -492,8 +496,31 @@ Each framework has a `config.json` file that defines its capabilities:
 | `dependencies`   | NPM/pip packages to install                                                                             |
 | `versions`       | Framework versions to test                                                                              |
 | `sentryVersions` | Sentry SDK versions to test against                                                                     |
+| `options`        | Generic options expanding the test matrix (e.g., `{ "apiStyle": ["highlevel", "lowlevel"] }`)           |
 | `modelOverrides` | Override model names for request/response validation                                                    |
 | `skip`           | Tests or checks to skip for this framework                                                              |
+
+### Generic Options System
+
+Frameworks can define `options` in their `config.json` to create additional test matrix dimensions. Each option key maps to an array of possible values. The cartesian product of all option values expands the test count.
+
+```json
+{
+  "name": "my-framework",
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+This doubles the test count — each test runs once per `apiStyle` value. Multiple options multiply further (e.g., 2 x 3 = 6x tests).
+
+- **In templates**: Resolved option values are available as top-level template variables (e.g., `{{ apiStyle }}`)
+- **In filenames**: Option values are appended to the test filename (e.g., `test-basic-...-highlevel.py`)
+- **CLI filtering**: Use `--option key=value` (repeatable) to run only specific option values:
+  ```bash
+  npm run test -- --framework my-framework --option apiStyle=highlevel
+  ```
 
 ## Test Utilities
 
@@ -662,6 +689,8 @@ interface FrameworkConfig {
   templatePath?: string;
   executionMode?: "sync" | "async" | "both";
   streamingMode?: "streaming" | "blocking" | "both";
+  options?: Record<string, string[]>; // Generic options expanding test matrix
+  resolvedOptions?: Record<string, string>; // Single values after matrix expansion
   modelOverrides?: { request?: string; response?: string };
   skip?: { tests?: string[]; checks?: { [testName: string]: string[] } };
 }

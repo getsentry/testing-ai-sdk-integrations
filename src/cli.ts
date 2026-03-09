@@ -37,6 +37,7 @@ Options:
   --parallel, -j <N>         Run up to N tests in parallel (default: 1)
   --verbose, -v              Show detailed output (test execution logs, etc.)
   --live-status              Enable live status display (real-time tree view)
+  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
@@ -82,6 +83,7 @@ function parseCliArgs() {
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
       "sentry-laravel": { type: "string" },
+      option: { type: "string", multiple: true },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -135,6 +137,21 @@ function parseCliArgs() {
     process.exit(1);
   }
 
+  // Parse --option key=value filters
+  const optionFilters: Record<string, string> = {};
+  if (values.option) {
+    for (const opt of values.option) {
+      const eqIdx = opt.indexOf("=");
+      if (eqIdx === -1) {
+        console.error(
+          `Error: --option must be in key=value format, got: ${opt}`,
+        );
+        process.exit(1);
+      }
+      optionFilters[opt.slice(0, eqIdx)] = opt.slice(eqIdx + 1);
+    }
+  }
+
   return {
     command,
     framework: values.framework,
@@ -149,6 +166,7 @@ function parseCliArgs() {
     verbose: values.verbose,
     liveStatus: values["live-status"],
     open: values.open,
+    optionFilters,
     sentryPythonPath: values["sentry-python"],
     sentryJavaScriptPath: values["sentry-javascript"],
     sentryPhpPath: values["sentry-php"],
@@ -185,6 +203,7 @@ async function main() {
     blocking: options.blocking,
     parallel: options.parallel,
     openReport: options.open,
+    optionFilters: options.optionFilters,
   });
 
   try {
@@ -305,6 +324,7 @@ async function main() {
           modelOverrides: df.modelOverrides,
           toolNameMapping: df.toolNameMapping,
           minimumPlatformVersion: df.minimumPlatformVersion,
+          options: df.options,
           skip: df.skip,
         };
       });

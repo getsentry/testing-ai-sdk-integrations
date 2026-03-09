@@ -213,14 +213,14 @@ export class Runner {
       console.log(`  Rendering template for ${context.framework.name}...`);
     }
 
-    const { workDir, framework, testDefinition, isAsync, isStreaming } =
+    const { workDir, framework, testDefinition, isAsync, isStreaming, resolvedOptions } =
       context;
 
     // Generate test case ID from test name
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix for filename
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, resolvedOptions);
 
     // Determine test filename based on platform and modes
     const extension = getFileExtension(framework.platform);
@@ -260,6 +260,7 @@ export class Runner {
       isStreaming: isStreaming || false, // Boolean flag for streaming mode
       causeAPIError: testDefinition.causeAPIError || false, // Flag to intentionally cause API errors
       ...(testDefinition.agent && { agent: testDefinition.agent }),
+      ...(resolvedOptions || {}), // Spread resolved options as top-level template variables
       inputs: processedInputs,
     };
 
