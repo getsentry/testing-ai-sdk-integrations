@@ -245,6 +245,40 @@ Framework templates receive:
 - `input` - Test input with model, prompt, etc.
 - `input.model` - Model identifier
 - `input.prompt` - User prompt
+- Any resolved option values as top-level variables (see Generic Options below)
+
+### Generic Options
+
+Frameworks can define `options` in their `config.json` to create additional test matrix dimensions:
+
+```json
+{
+  "name": "my-framework",
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+This doubles the test count — each test runs once per `apiStyle` value. Multiple options multiply further via cartesian product.
+
+**How options flow:**
+
+1. **Config**: `options` defines arrays of possible values per key
+2. **Matrix expansion**: The orchestrator generates all combinations (cartesian product)
+3. **Template variables**: Resolved values are available as top-level variables (e.g., `{{ apiStyle }}`)
+4. **Filenames**: Option values are appended to test filenames (e.g., `test-basic-...-highlevel.py`)
+5. **CLI filtering**: Use `--option key=value` (repeatable) to run only specific values
+
+**Template usage example:**
+
+```nunjucks
+{% if apiStyle == "highlevel" %}
+{# High-level API code #}
+{% elif apiStyle == "lowlevel" %}
+{# Low-level API code #}
+{% endif %}
+```
 
 ### Creating Framework Templates
 
