@@ -70,7 +70,7 @@
           }
 {% endif %}
           // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
-          // Extract the first user message text as a plain string for the custom state
+          // Extract the first message text as a plain string for the custom state
           const userInput{{ loop.index }} = {% if input.messages[0].content is string %}"{{ input.messages[0].content }}"{% else %}"{{ input.messages[0].content[0].text }}"{% endif %};
 
           try {

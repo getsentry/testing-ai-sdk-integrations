@@ -48,9 +48,9 @@
             apiKey: OPENAI_API_KEY,
           });
 
-          // Build graph with agent node — passes callback handler to llm.invoke()
+          // Build graph with agent node — callback propagates automatically from graph.invoke()
           async function agentNode(state) {
-            const response = await llm.invoke(state.messages, { callbacks: [callbackHandler] });
+            const response = await llm.invoke(state.messages);
             return { messages: [response] };
           }
 
@@ -88,7 +88,7 @@
 
           try {
             log('Starting request {{ loop.index }}...');
-            const result = await compiledGraph.invoke({ messages: messages{{ loop.index }} });
+            const result = await compiledGraph.invoke({ messages: messages{{ loop.index }} }, { callbacks: [callbackHandler] });
             const lastMessage = result.messages[result.messages.length - 1];
             log('Response {{ loop.index }}:', lastMessage.content);
           } catch (error) {
