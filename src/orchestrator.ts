@@ -418,6 +418,11 @@ export class Orchestrator {
               : "blocking",
           );
         }
+        if (testRun.framework.resolvedOptions) {
+          for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+            modeParts.push(testRun.framework.resolvedOptions[key]);
+          }
+        }
         const modeSuffix =
           modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
         browserFilesByWorkDir
