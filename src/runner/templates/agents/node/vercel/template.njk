@@ -15,7 +15,7 @@
 {% if part.type == 'text' %}
             { type: "text", text: "{{ part.text }}" },
 {% elif part.type == 'image' %}
-            { type: "image", image: "data:{{ part.mediaType }};base64,{{ part.base64 }}" },
+            { type: "image", image: "{{ part.base64 }}", mimeType: "{{ part.mediaType }}" },
 {% endif %}
 {% endfor %}
           ]
@@ -24,7 +24,7 @@
 
 {% block setup %}
 // Functions will be initialized after dynamic import
-let generateText, openai;
+let generateText, tool, jsonSchema, openai, stepCountIs;
 {% endblock %}
 
 {% block dynamic_imports %}
@@ -32,10 +32,32 @@ let generateText, openai;
       const ai = await import("ai");
       const aiSdkOpenai = await import("@ai-sdk/openai");
       generateText = ai.generateText;
+      tool = ai.tool;
+      jsonSchema = ai.jsonSchema;
       openai = aiSdkOpenai.openai;
+      stepCountIs = ai.stepCountIs;
 {% endblock %}
 
 {% block test %}
+{% if agent and agent.tools and agent.tools.length > 0 %}
+      const tools = {
+{% for toolDef in agent.tools %}
+        {{ toolDef.name }}: tool({
+          description: "{{ toolDef.description }}",
+          inputSchema: jsonSchema({{ toolDef.parameters | dump }}),
+          execute: async (input) => {
+{% if toolDef.error %}
+            throw new Error("{{ toolDef.error }}");
+{% elif toolDef.result is defined %}
+            return {{ toolDef.result | dump }};
+{% else %}
+            return input;
+{% endif %}
+          },
+        }),
+{% endfor %}
+      };
+{% endif %}
 {% for input in inputs %}
 {% set system_content = "" %}
 {% set user_content = null %}
@@ -64,6 +86,10 @@ let generateText, openai;
               content: {{ renderVercelContent(user_content) }},
             },
           ],
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+          stopWhen: stepCountIs(10),
+{% endif %}
         });
 {% else %}
         // Simple text prompt
@@ -73,6 +99,10 @@ let generateText, openai;
           system: "{{ system_content }}",
 {% endif %}
           prompt: "{{ user_content }}",
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+          stopWhen: stepCountIs(10),
+{% endif %}
         });
 {% endif %}
         console.log("Response:", text);
