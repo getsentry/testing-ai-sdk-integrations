@@ -113,7 +113,7 @@ src/runner/templates/
 │   ├── browser/
 │   │   ├── langgraph/                # instrumentLangGraph only; streaming: no invoke_agent span
 │   │   ├── langgraph-langchain/      # createLangChainCallbackHandler only; chain spans previously named unknown_chain
-│   │   ├── langgraph-combined/       # both APIs together; chat spans orphaned, hierarchy broken
+│   │   ├── langgraph-combined/       # both APIs together; chat spans dropped intermittently, duplicate invoke_agent spans
 │   │   ├── langgraph-compiled/       # instrumentLangGraph on compiled graph; crashes with TypeError
 │   │   └── langgraph-custom-state/   # custom Annotation.Root state; recordInputs/recordOutputs silently empty
 │   └── python/
@@ -756,7 +756,7 @@ LangGraph browser tests are split into five framework folders — each isolating
 |-----------|-------------|-----------------|-------------|
 | `langgraph` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` only | Blocking: produces `invoke_agent` spans; streaming: no span at all |
 | `langgraph-langchain` | LangGraph + OpenAI | `Sentry.createLangChainCallbackHandler()` only | Chain spans previously named `unknown_chain` instead of node name (fixed in sentry-javascript#19554) |
-| `langgraph-combined` | LangGraph + OpenAI | Both APIs together | Combined use orphans `chat` spans and produces spurious `invoke_agent` sub-spans |
+| `langgraph-combined` | LangGraph + OpenAI | Both APIs together | Combined use drops `chat` spans intermittently and produces duplicate `invoke_agent` spans |
 | `langgraph-compiled` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` on compiled graph | Crashes with `TypeError` — mirrors the pattern shown in official docs |
 | `langgraph-custom-state` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` with custom state | `recordInputs`/`recordOutputs` silently records nothing (no `messages` key in custom state) |
 

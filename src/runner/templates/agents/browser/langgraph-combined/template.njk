@@ -1,3 +1,12 @@
+{#
+  Using both instrumentLangGraph and createLangChainCallbackHandler together.
+  The callback handler is passed at graph.invoke() level (the realistic user pattern,
+  since LangGraph auto-propagates callbacks to nested calls).
+
+  Known issues when both APIs are active:
+  - chat spans are dropped intermittently (not all LLM calls produce spans)
+  - duplicate invoke_agent spans are created (one from each instrumentation API)
+#}
 {% extends "base.browser.njk" %}
 
 {# Macro to render message content - handles both string and multimodal array #}
