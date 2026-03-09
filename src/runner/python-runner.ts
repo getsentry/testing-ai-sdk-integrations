@@ -244,7 +244,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    * Execute Python test
    */
   async executeTest(context: RunnerContext): Promise<void> {
-    const { workDir, sentryDsn, runId, isAsync, isStreaming, testDefinition, framework } = context;
+    const { workDir, sentryDsn, runId, isAsync, isStreaming, resolvedOptions, testDefinition, framework } = context;
     const verbose = context.verbose === true;
 
     if (verbose) {
@@ -252,13 +252,19 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
     }
 
     const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
-    
+
     // Generate test case ID and determine filename (must match runner.ts logic)
     const testCaseId = this.generateTestCaseId(testDefinition.name);
     const modeParts: string[] = [];
     modeParts.push(isAsync ? 'async' : 'sync');
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? 'streaming' : 'blocking');
+    }
+    // Add resolved options (sorted by key for consistent ordering)
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.join('-');
     const testFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.py`);

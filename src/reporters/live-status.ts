@@ -14,6 +14,7 @@ interface TestState {
   type: string;
   testName: string;
   executionMode?: string;
+  resolvedOptions?: Record<string, string>;
   status: "pending" | "running" | "passed" | "failed" | "skipped" | "timeout";
   currentCheck?: string;
   checkResults: CheckResult[];
@@ -72,6 +73,7 @@ export class LiveStatusReporter {
       type: testRun.framework.type,
       testName: testRun.testDefinition.name,
       executionMode: testRun.framework.executionMode,
+      resolvedOptions: testRun.framework.resolvedOptions,
       status: "pending",
       checkResults: [],
     });
@@ -186,8 +188,15 @@ export class LiveStatusReporter {
 
         for (const test of tests) {
           const testIcon = this.getStatusIcon(test.status);
-          const executionMode = test.executionMode
-            ? ` ${colors.dim}(${test.executionMode})${colors.reset}`
+          const modeParts: string[] = [];
+          if (test.executionMode) modeParts.push(test.executionMode);
+          if (test.resolvedOptions) {
+            for (const key of Object.keys(test.resolvedOptions).sort()) {
+              modeParts.push(test.resolvedOptions[key]);
+            }
+          }
+          const executionMode = modeParts.length > 0
+            ? ` ${colors.dim}(${modeParts.join(", ")})${colors.reset}`
             : "";
           const duration = test.startTime
             ? ` ${colors.gray}${this.formatDuration(Date.now() - test.startTime)}${colors.reset}`

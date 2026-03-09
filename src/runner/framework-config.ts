@@ -30,6 +30,15 @@ export interface FrameworkConfig {
   /** Streaming mode: whether the framework supports streaming responses */
   streamingMode?: "streaming" | "blocking" | "both";
 
+  /**
+   * Generic options that expand the test matrix.
+   * Each key maps to an array of possible values.
+   * Example: { "apiStyle": ["highlevel", "lowlevel"] }
+   * This would double the tests, running each once per value.
+   * Values are exposed to templates as variables (e.g., {{ apiStyle }}).
+   */
+  options?: Record<string, string[]>;
+
   /** Model overrides: Some frameworks use different models than requested */
   modelOverrides?: {
     request?: string;
