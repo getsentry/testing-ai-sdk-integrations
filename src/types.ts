@@ -112,7 +112,7 @@ export interface CapturedSpan {
 
 export interface FrameworkConfig {
   name: string;
-  platform: "node" | "python" | "browser" | "nextjs" | "php";
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
   type: "llm-only" | "agentic" | "embeddings";
   version: string;
   sentryVersion: string;
@@ -124,6 +124,10 @@ export interface FrameworkConfig {
   executionMode?: "sync" | "async" | "both";
   // Streaming mode: whether the framework supports streaming responses
   streamingMode?: "streaming" | "blocking" | "both";
+  // Generic options that expand the test matrix (config-level: arrays of values)
+  options?: Record<string, string[]>;
+  // Resolved option values after matrix expansion (runtime: single values per key)
+  resolvedOptions?: Record<string, string>;
   // Model overrides: Some frameworks use different models than requested
   modelOverrides?: {
     request?: string;
@@ -250,6 +254,8 @@ export interface RunnerContext {
   isAsync?: boolean;
   // If true, render streaming version; if false, render non-streaming version
   isStreaming?: boolean;
+  // Resolved generic options for the test (single values per key)
+  resolvedOptions?: Record<string, string>;
   // Execution timeout in milliseconds
   timeoutMs: number;
   // Controls whether to print verbose console output (default: true)

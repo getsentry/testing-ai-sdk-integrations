@@ -1,0 +1,19 @@
+{
+  "name": "google-genai",
+  "displayName": "Google GenAI JavaScript SDK (Cloudflare)",
+  "type": "llm-only",
+  "platform": "cloudflare",
+  "streamingMode": "both",
+  "dependencies": [
+    {
+      "package": "@google/genai",
+      "version": "framework"
+    }
+  ],
+  "versions": ["1.38.0"],
+  "sentryVersions": ["latest"],
+  "modelOverrides": {
+    "request": "gemini-2.5-flash-lite",
+    "response": "gemini-2.5-flash-lite*"
+  }
+}

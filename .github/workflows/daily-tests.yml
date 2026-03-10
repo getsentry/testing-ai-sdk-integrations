@@ -105,8 +105,12 @@ jobs:
         run: |
           CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
           npm run report "$CTRF_FILE"
-          mkdir -p _site
-          cp $(ls -t test-results/test-report-*.html | head -1) _site/index.html
+          TODAY=$(date -u +%Y-%m-%d)
+          mkdir -p "_site/reports/${TODAY}"
+          REPORT=$(ls -t test-results/test-report-*.html | head -1)
+          cp "$REPORT" _site/index.html
+          # Dated copy with adjusted relative links (trends.html is two levels up)
+          sed 's|href="trends.html"|href="../../trends.html"|g' "$REPORT" > "_site/reports/${TODAY}/index.html"
 
       - name: Upload CTRF artifact
         uses: actions/upload-artifact@v4
@@ -135,9 +139,15 @@ jobs:
           CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
           node .github/scripts/update-history.cjs "$CTRF_FILE" history.json
 
+      - name: Fetch existing dated reports from GitHub Pages
+        continue-on-error: true
+        run: |
+          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          node .github/scripts/fetch-existing-reports.cjs history.json _site "${PAGES_URL}"
+
       - name: Generate trends page
         run: |
-          node .github/scripts/generate-trends-page.cjs history.json _site/trends.html
+          node .github/scripts/generate-trends-page.cjs history.json _site/trends.html _site/reports
           cp history.json _site/history.json
 
       - name: Upload Pages artifact
