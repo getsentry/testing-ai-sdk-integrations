@@ -2,7 +2,11 @@
 
 {% block imports %}
 {{ super() }}
+{% if apiVersion == "v2" %}
+from cohere import ClientV2
+{% else %}
 from cohere import Client, ChatMessage
+{% endif %}
 {% if causeAPIError %}
 import respx
 import httpx
@@ -17,12 +21,43 @@ respx.mock.start()
 {% endblock %}
 
 {% block setup %}
+{% if apiVersion == "v2" %}
+client = ClientV2()
+{% else %}
 client = Client()
+{% endif %}
 {% endblock %}
 
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}
+{% if apiVersion == "v2" %}
+    messages = [
+{% for message in input.messages %}
+        {"role": "{{ message.role }}", "content": "{{ message.content }}"},
+{% endfor %}
+    ]
+
+{% if isStreaming %}
+    stream = client.chat_stream(
+        model="{{ input.model }}",
+        messages=messages,
+    )
+    collected_content = []
+    for event in stream:
+        if event.type == "content-delta":
+            collected_content.append(event.delta.message.content.text)
+    full_response = "".join(collected_content)
+    print(f"Turn {{ loop.index }} Response: {full_response}")
+{% else %}{# not isStreaming (v2) #}
+    response = client.chat(
+        model="{{ input.model }}",
+        messages=messages,
+    )
+    text = response.message.content[0].text if response.message.content else ""
+    print(f"Turn {{ loop.index }} Response: {text}")
+{% endif %}{# isStreaming (v2) #}
+{% else %}{# apiVersion == "v1" #}
     preamble = None
     chat_history = []
     user_message = None
@@ -34,10 +69,10 @@ client = Client()
 {% else %}
 {% if message.role == 'assistant' %}
     chat_history.append(ChatMessage(role="CHATBOT", message="{{ message.content }}"))
-{% else %}
+{% else %}{# not assistant role #}
     chat_history.append(ChatMessage(role="{{ message.role | upper }}", message="{{ message.content }}"))
-{% endif %}
-{% endif %}
+{% endif %}{# message.role == 'assistant' #}
+{% endif %}{# message.role == 'system' / loop.last #}
 {% endfor %}
 
     kwargs = {
@@ -57,10 +92,11 @@ client = Client()
             collected_content.append(event.text)
     full_response = "".join(collected_content)
     print(f"Turn {{ loop.index }} Response: {full_response}")
-{% else %}
+{% else %}{# not isStreaming (v1) #}
     response = client.chat(**kwargs)
     print(f"Turn {{ loop.index }} Response: {response.text}")
-{% endif %}
+{% endif %}{# isStreaming (v1) #}
+{% endif %}{# apiVersion #}
 {% if not loop.last %}
 
 {% endif %}

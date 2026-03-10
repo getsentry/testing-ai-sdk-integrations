@@ -17,6 +17,9 @@
   ],
   "versions": ["5.13.0"],
   "sentryVersions": ["latest"],
+  "options": {
+    "apiVersion": ["v1", "v2"]
+  },
   "modelOverrides": {
     "request": "command-a-03-2025",
     "response": "command-a-03-2025"
