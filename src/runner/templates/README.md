@@ -47,7 +47,7 @@ templates/
     │       ├── template.njk
     │       └── config.json
     ├── browser/
-    │   └── langgraph/              # 5 variants via options: graph, langchain, combined, compiled, custom-state
+    │   └── langgraph/
     │       ├── template.njk
     │       └── config.json
     ├── python/

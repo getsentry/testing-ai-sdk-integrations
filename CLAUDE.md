@@ -117,7 +117,7 @@ src/runner/templates/
 │   │   ├── mastra/
 │   │   └── vercel/
 │   ├── browser/
-│   │   └── langgraph/                # 5 variants via options: graph, langchain, combined, compiled, custom-state
+│   │   └── langgraph/
 │   └── python/
 │   │   ├── google-genai/
 │   │   ├── langgraph/
