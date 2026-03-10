@@ -108,8 +108,9 @@ jobs:
           TODAY=$(date -u +%Y-%m-%d)
           mkdir -p "_site/reports/${TODAY}"
           REPORT=$(ls -t test-results/test-report-*.html | head -1)
-          cp "$REPORT" "_site/reports/${TODAY}/index.html"
           cp "$REPORT" _site/index.html
+          # Dated copy with adjusted relative links (trends.html is two levels up)
+          sed 's|href="trends.html"|href="../../trends.html"|g' "$REPORT" > "_site/reports/${TODAY}/index.html"
 
       - name: Upload CTRF artifact
         uses: actions/upload-artifact@v4
