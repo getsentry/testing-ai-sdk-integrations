@@ -99,6 +99,9 @@ TOOLS = {{ agent.tools | dump }}
 {% block test %}
 {% for input in inputs %}
     # ── Turn {{ loop.index }} ──
+{% if input.conversationId %}
+    sentry_sdk.ai.set_conversation_id("{{ input.conversationId }}")
+{% endif %}
     model = "{{ input.model }}"
     messages = {{ input.messages | dump }}
 

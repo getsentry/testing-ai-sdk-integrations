@@ -19,5 +19,5 @@
     }
   ],
   "versions": ["0.3.24"],
-  "sentryVersions": ["10.38.0", "latest"]
+  "sentryVersions": ["latest"]
 }

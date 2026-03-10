@@ -164,9 +164,13 @@ export const checkChatSpanAttributes: Check = {
         "gen_ai.output.messages",
         "gen_ai.response.text"
       );
+      
       if (responseResult.value === undefined) {
-        errors.push("Should have gen_ai.output.messages or gen_ai.response.text");
-        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing response attribute" });
+        const hasToolCalls = !!span.data?.["gen_ai.response.tool_calls"];
+        if (!hasToolCalls) {
+          errors.push("Should have gen_ai.output.messages, gen_ai.response.text, or gen_ai.response.tool_calls");
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing response attribute" });
+        }
       }
     }
 
@@ -191,18 +195,25 @@ export const checkChatSpanAttributes: Check = {
  */
 export const checkAgentSpanAttributes: Check = {
   name: "checkAgentSpanAttributes",
-  fn: (spans) => {
+  fn: (spans, config) => {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     if (agentSpans.length === 0) {
       throw new CheckError("Should have at least one agent span");
     }
 
-    assertAttributes(agentSpans, {
-      "description": (span) =>
-        `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.agent.name"]}`,
+    const attrs: Record<string, any> = {
+      "description": (span: CapturedSpan) => {
+        const name = span.data?.["gen_ai.agent.name"] ?? span.data?.["gen_ai.function_id"];
+        return name ? `${span.data?.["gen_ai.operation.name"]} ${name}` : span.data?.["gen_ai.operation.name"];
+      },
       "gen_ai.operation.name": AGENT_OPERATION_NAME_PATTERN,
-      "gen_ai.agent.name": true,
-    });
+    };
+
+    if (config.name !== "vercel") {
+      attrs["gen_ai.agent.name"] = true;
+    }
+
+    assertAttributes(agentSpans, attrs);
   },
 };
 
@@ -1221,17 +1232,21 @@ export const checkAgentHierarchy: Check = {
       throw new CheckError("Should have at least one agent span");
     }
 
-    // For each agent span, verify it has gen_ai.agent.name
-    for (const agentSpan of agentSpans) {
-      const agentName = agentSpan.data?.["gen_ai.agent.name"];
-      if (agentName === undefined || agentName === null) {
-        const msg = `Agent span (${agentSpan.op}) should have gen_ai.agent.name attribute`;
-        errors.push(msg);
-        locations.push({
-          spanId: agentSpan.span_id,
-          attribute: "gen_ai.agent.name",
-          message: msg,
-        });
+    const isVercel = config.name === "vercel";
+
+    // For each agent span, verify it has gen_ai.agent.name (skip for Vercel AI)
+    if (!isVercel) {
+      for (const agentSpan of agentSpans) {
+        const agentName = agentSpan.data?.["gen_ai.agent.name"];
+        if (agentName === undefined || agentName === null) {
+          const msg = `Agent span (${agentSpan.op}) should have gen_ai.agent.name attribute`;
+          errors.push(msg);
+          locations.push({
+            spanId: agentSpan.span_id,
+            attribute: "gen_ai.agent.name",
+            message: msg,
+          });
+        }
       }
     }
 
@@ -1268,7 +1283,9 @@ export const checkAgentHierarchy: Check = {
         const expectedAgentName = ancestorAgent.data?.["gen_ai.agent.name"];
         const actualAgentName = span.data?.["gen_ai.agent.name"];
 
-        if (actualAgentName === undefined || actualAgentName === null) {
+        if (isVercel) {
+          // Vercel AI SDK doesn't propagate gen_ai.agent.name; skip validation
+        } else if (actualAgentName === undefined || actualAgentName === null) {
           const msg = `Child span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.agent.name attribute`;
           errors.push(msg);
           locations.push({
@@ -1411,6 +1428,85 @@ export const checkResponseModel: Check = {
     }
   },
 };
+
+// =============================================================================
+// Conversation ID Checks
+// =============================================================================
+
+/**
+ * Factory function to create a check that validates conversation IDs on chat spans.
+ *
+ * Each entry in `expectedIds` corresponds to one chat span (ordered by timestamp).
+ * Validates:
+ * 1. Each chat span has gen_ai.conversation.id matching the expected value
+ * 2. All gen_ai spans have gen_ai.conversation.id set
+ *
+ * @param expectedIds - The expected conversation ID sequence, e.g. ["conv-a", "conv-b", "conv-a", "conv-b"]
+ *
+ * @example
+ * checkConversationIds(["conv-a", "conv-b", "conv-a", "conv-b"])
+ */
+export function checkConversationIds(expectedIds: string[]): Check {
+  return {
+    name: `checkConversationIds([${[...new Set(expectedIds)].join(", ")}])`,
+    fn: (spans) => {
+      const aiSpans = extractGenAISpans(spans);
+      if (aiSpans.length === 0) {
+        throw new CheckError("Should have at least one AI span");
+      }
+
+      const chatSpans = findChatSpans(aiSpans).sort(
+        (a, b) => a.start_timestamp - b.start_timestamp,
+      );
+
+      if (chatSpans.length < expectedIds.length) {
+        throw new CheckError(
+          `Expected at least ${expectedIds.length} chat spans for conversation ID validation, got ${chatSpans.length}`,
+        );
+      }
+
+      const errors: string[] = [];
+      const locations: ErrorLocation[] = [];
+
+      // Check that chat spans match the expected sequence
+      for (let i = 0; i < expectedIds.length; i++) {
+        const actualId = chatSpans[i].data?.["gen_ai.conversation.id"];
+
+        if (actualId !== expectedIds[i]) {
+          const msg = `Chat span ${i} gen_ai.conversation.id should be "${expectedIds[i]}" but is "${actualId}"`;
+          errors.push(msg);
+          locations.push({
+            spanId: chatSpans[i].span_id,
+            attribute: "gen_ai.conversation.id",
+            message: msg,
+          });
+        }
+      }
+
+      // Check that ALL gen_ai spans have a conversation ID
+      for (const span of aiSpans) {
+        const convId = span.data?.["gen_ai.conversation.id"];
+        if (convId === undefined || convId === null) {
+          const msg = `Span (${span.op}, id: ${span.span_id.substring(0, 8)}) should have gen_ai.conversation.id attribute`;
+          errors.push(msg);
+          locations.push({
+            spanId: span.span_id,
+            attribute: "gen_ai.conversation.id",
+            message: msg,
+          });
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new CheckError(errors.join("\n"), locations);
+      }
+    },
+  };
+}
+
+// =============================================================================
+// Embedding Checks
+// =============================================================================
 
 /**
  * Check token usage on embedding spans

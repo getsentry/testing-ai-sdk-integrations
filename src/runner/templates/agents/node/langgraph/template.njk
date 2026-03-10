@@ -35,11 +35,16 @@ let llm, agent;
       llm = new ChatOpenAI({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
       });
-      agent = createReactAgent({ llm, tools: [] });
+      agent = createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
 {% endblock %}
 
 {% block test %}
 {% for input in inputs %}
+{% if input.conversationId %}
+      if (typeof Sentry.setConversationId === "function") {
+        Sentry.setConversationId("{{ input.conversationId }}");
+      }
+{% endif %}
       // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
       const messages{{ loop.index }} = [

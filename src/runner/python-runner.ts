@@ -186,10 +186,12 @@ export class PythonRunner {
       dependencies.push(`"${framework.name}==${framework.version}"`);
     }
 
+    const minPythonVersion = framework.minimumPlatformVersion ?? '3.9';
+
     return `[project]
 name = "sentry-test-${framework.name}"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=${minPythonVersion}"
 dependencies = [
 ${dependencies.map(d => `    ${d},`).join('\n')}
 ]
@@ -242,7 +244,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    * Execute Python test
    */
   async executeTest(context: RunnerContext): Promise<void> {
-    const { workDir, sentryDsn, runId, isAsync, isStreaming, testDefinition, framework } = context;
+    const { workDir, sentryDsn, runId, isAsync, isStreaming, resolvedOptions, testDefinition, framework } = context;
     const verbose = context.verbose === true;
 
     if (verbose) {
@@ -250,13 +252,19 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
     }
 
     const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
-    
+
     // Generate test case ID and determine filename (must match runner.ts logic)
     const testCaseId = this.generateTestCaseId(testDefinition.name);
     const modeParts: string[] = [];
     modeParts.push(isAsync ? 'async' : 'sync');
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? 'streaming' : 'blocking');
+    }
+    // Add resolved options (sorted by key for consistent ordering)
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.join('-');
     const testFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.py`);
@@ -275,7 +283,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
       const { stdout, stderr } = await execAsync(`${pythonPath} ${testFile}`, {
         cwd: workDir,
         env,
-        timeout: 60000, // 60 second timeout
+        timeout: context.timeoutMs,
       });
 
       // Write stdout and stderr to log file
@@ -343,8 +351,8 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         }
       }
 
-      if (error.code === 'ETIMEDOUT') {
-        throw new Error('Test execution timed out (60s)');
+      if (error.killed || error.code === 'ETIMEDOUT') {
+        throw new Error(`Test execution timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(`Test execution failed: ${error.message}\n${error.stderr || ''}`);
     }

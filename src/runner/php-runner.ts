@@ -261,6 +261,7 @@ return [
       framework,
       isAsync,
       isStreaming,
+      resolvedOptions,
     } = context;
     const verbose = context.verbose === true;
 
@@ -271,7 +272,7 @@ return [
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix to match the generated command signature
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, resolvedOptions);
 
     // Build the artisan command name from the test case ID + mode suffix
     const commandName = `test:${testCaseId}${modeSuffix}`;
@@ -292,7 +293,7 @@ return [
       const { stdout, stderr } = await execAsync(`php artisan ${commandName}`, {
         cwd: workDir,
         env,
-        timeout: 60000,
+        timeout: context.timeoutMs,
       });
 
       const logContent = [
@@ -357,8 +358,8 @@ return [
         }
       }
 
-      if (error.code === "ETIMEDOUT") {
-        throw new Error("Test execution timed out (60s)");
+      if (error.killed || error.code === "ETIMEDOUT") {
+        throw new Error(`Test execution timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(
         `Test execution failed: ${error.message}\n${error.stderr || ""}`,

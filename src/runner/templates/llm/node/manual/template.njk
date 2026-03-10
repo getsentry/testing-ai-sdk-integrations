@@ -93,6 +93,11 @@ function buildSentryMessages(messages) {
 
 {% block test %}
 {% for input in inputs %}
+{% if input.conversationId %}
+      if (typeof Sentry.setConversationId === "function") {
+        Sentry.setConversationId("{{ input.conversationId }}");
+      }
+{% endif %}
       // ── Turn {{ loop.index }} ──
       const model{{ loop.index }} = "{{ input.model }}";
       const messages{{ loop.index }} = {{ input.messages | dump }};

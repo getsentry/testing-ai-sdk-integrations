@@ -19,13 +19,18 @@ export function generateCTRFReport(testReport: TestReport): Report {
   // Convert each TestRun to CTRF Test
   const tests: Test[] = testReport.runs.map((run) => {
     const frameworkName = `${run.framework.platform}/${run.framework.name}`;
-    // Build mode string with execution mode (Python) and streaming mode
+    // Build mode string with execution mode (Python), streaming mode, and resolved options
     const modeParts: string[] = [];
     if (run.framework.platform === "python" && run.framework.executionMode) {
       modeParts.push(run.framework.executionMode);
     }
     if (run.framework.streamingMode) {
       modeParts.push(run.framework.streamingMode);
+    }
+    if (run.framework.resolvedOptions) {
+      for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+        modeParts.push(run.framework.resolvedOptions[key]);
+      }
     }
     const modeStr = modeParts.length > 0 ? ` (${modeParts.join(", ")})` : "";
     const testName = `${frameworkName} :: ${run.testDefinition.name}${modeStr}`;
@@ -52,6 +57,11 @@ export function generateCTRFReport(testReport: TestReport): Report {
     if (run.framework.streamingMode) {
       tags.push(run.framework.streamingMode); // 'streaming' or 'blocking'
     }
+    if (run.framework.resolvedOptions) {
+      for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+        tags.push(run.framework.resolvedOptions[key]);
+      }
+    }
 
     test.tags = tags;
 
@@ -71,11 +81,15 @@ export function generateCTRFReport(testReport: TestReport): Report {
       sentryVersion: run.framework.sentryVersion,
       testType: run.testDefinition.type,
       platform: run.framework.platform,
+      ...(run.status === "timeout" && { originalStatus: "timeout" }),
       ...(run.framework.executionMode && {
         executionMode: run.framework.executionMode,
       }),
       ...(run.framework.streamingMode && {
         streamingMode: run.framework.streamingMode,
+      }),
+      ...(run.framework.resolvedOptions && {
+        resolvedOptions: run.framework.resolvedOptions,
       }),
       ...(run.spans && {
         spanCount: run.spans.length,
@@ -105,7 +119,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
   const summary = {
     tests: testReport.totalTests,
     passed: testReport.passed,
-    failed: testReport.failed,
+    failed: testReport.failed + testReport.timeouts,
     pending: 0,
     skipped: testReport.skipped,
     other: testReport.errors,
@@ -156,6 +170,8 @@ function mapStatus(
       return "failed";
     case "skipped":
       return "skipped";
+    case "timeout":
+      return "failed";
     case "error":
       return "other";
     case "pending":

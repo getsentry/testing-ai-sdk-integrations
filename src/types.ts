@@ -39,6 +39,8 @@ export interface TestDefinition {
   inputs: TestInput[];
   /** If true, the test should intentionally cause an API error (e.g., invalid model name) */
   causeAPIError?: boolean;
+  /** Execution timeout in milliseconds (default: 60000) */
+  timeoutMs?: number;
   /** Critical checks - core instrumentation must work (spans exist, attributes, hierarchy) */
   criticalChecks?: Check[];
   /** Normal checks - data correctness (token usage, messages, tool calls) */
@@ -110,7 +112,7 @@ export interface CapturedSpan {
 
 export interface FrameworkConfig {
   name: string;
-  platform: "node" | "python" | "browser" | "nextjs" | "php";
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
   type: "llm-only" | "agentic" | "embeddings";
   version: string;
   sentryVersion: string;
@@ -122,6 +124,10 @@ export interface FrameworkConfig {
   executionMode?: "sync" | "async" | "both";
   // Streaming mode: whether the framework supports streaming responses
   streamingMode?: "streaming" | "blocking" | "both";
+  // Generic options that expand the test matrix (config-level: arrays of values)
+  options?: Record<string, string[]>;
+  // Resolved option values after matrix expansion (runtime: single values per key)
+  resolvedOptions?: Record<string, string>;
   // Model overrides: Some frameworks use different models than requested
   modelOverrides?: {
     request?: string;
@@ -132,6 +138,8 @@ export interface FrameworkConfig {
   toolNameMapping?: {
     [expectedName: string]: string;
   };
+  // Minimum platform version required (e.g., "3.10" for Python)
+  minimumPlatformVersion?: string;
   // Skip configuration: Tests or checks that should be skipped
   skip?: {
     tests?: string[]; // Array of test names to skip entirely
@@ -214,7 +222,7 @@ export interface TestRun {
   index?: number;
   framework: FrameworkConfig;
   testDefinition: TestDefinition;
-  status: "pending" | "running" | "passed" | "failed" | "error" | "skipped";
+  status: "pending" | "running" | "passed" | "failed" | "error" | "skipped" | "timeout";
   startTime?: number;
   endTime?: number;
   error?: string;
@@ -231,6 +239,7 @@ export interface TestReport {
   failed: number;
   errors: number;
   skipped: number;
+  timeouts: number;
   duration: number;
   runs: TestRun[];
 }
@@ -245,6 +254,10 @@ export interface RunnerContext {
   isAsync?: boolean;
   // If true, render streaming version; if false, render non-streaming version
   isStreaming?: boolean;
+  // Resolved generic options for the test (single values per key)
+  resolvedOptions?: Record<string, string>;
+  // Execution timeout in milliseconds
+  timeoutMs: number;
   // Controls whether to print verbose console output (default: true)
   verbose?: boolean;
 }

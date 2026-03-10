@@ -8,6 +8,7 @@ import { PythonRunner } from "./python-runner.js";
 import { JavaScriptRunner } from "./javascript-runner.js";
 import { BrowserRunner } from "./browser-runner.js";
 import { PhpRunner } from "./php-runner.js";
+import { CloudflareRunner } from "./cloudflare-runner.js";
 import {
   getFileExtension,
   buildModeSuffix,
@@ -24,6 +25,7 @@ export class Runner {
   private jsRunner: JavaScriptRunner;
   private browserRunner: BrowserRunner;
   private phpRunner: PhpRunner;
+  private cloudflareRunner: CloudflareRunner;
 
   constructor() {
     this.runsDir = path.join(process.cwd(), "runs");
@@ -32,20 +34,23 @@ export class Runner {
     this.jsRunner = new JavaScriptRunner();
     this.browserRunner = new BrowserRunner();
     this.phpRunner = new PhpRunner();
+    this.cloudflareRunner = new CloudflareRunner();
   }
 
   /**
    * Get platform-specific runner based on platform
    */
   private getPlatformRunner(
-    platform: "node" | "python" | "browser" | "nextjs" | "php",
-  ): PythonRunner | JavaScriptRunner | BrowserRunner | PhpRunner {
+    platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
+  ): PythonRunner | JavaScriptRunner | BrowserRunner | PhpRunner | CloudflareRunner {
     if (platform === "python") {
       return this.pythonRunner;
     } else if (platform === "php") {
       return this.phpRunner;
     } else if (platform === "browser") {
       return this.browserRunner;
+    } else if (platform === "cloudflare") {
+      return this.cloudflareRunner;
     } else {
       return this.jsRunner;
     }
@@ -208,14 +213,14 @@ export class Runner {
       console.log(`  Rendering template for ${context.framework.name}...`);
     }
 
-    const { workDir, framework, testDefinition, isAsync, isStreaming } =
+    const { workDir, framework, testDefinition, isAsync, isStreaming, resolvedOptions } =
       context;
 
     // Generate test case ID from test name
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix for filename
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, resolvedOptions);
 
     // Determine test filename based on platform and modes
     const extension = getFileExtension(framework.platform);
@@ -255,6 +260,7 @@ export class Runner {
       isStreaming: isStreaming || false, // Boolean flag for streaming mode
       causeAPIError: testDefinition.causeAPIError || false, // Flag to intentionally cause API errors
       ...(testDefinition.agent && { agent: testDefinition.agent }),
+      ...(resolvedOptions || {}), // Spread resolved options as top-level template variables
       inputs: processedInputs,
     };
 
@@ -383,7 +389,7 @@ export class Runner {
    */
   private async formatFile(
     filePath: string,
-    platform: "node" | "python" | "browser" | "nextjs" | "php",
+    platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
   ): Promise<void> {
     try {
       const parser = getFormatterParser(platform);

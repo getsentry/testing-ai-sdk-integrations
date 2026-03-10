@@ -48,6 +48,7 @@ export class Orchestrator {
   private asyncFilter?: boolean;
   private streamingFilter?: boolean;
   private blockingFilter?: boolean;
+  private optionFilters?: Record<string, string>;
 
   constructor(
     options: {
@@ -59,6 +60,7 @@ export class Orchestrator {
       blocking?: boolean;
       parallel?: number;
       openReport?: boolean;
+      optionFilters?: Record<string, string>;
     } = {},
   ) {
     this.spanCollector = new SpanCollector();
@@ -75,6 +77,7 @@ export class Orchestrator {
     this.asyncFilter = options.async;
     this.streamingFilter = options.streaming;
     this.blockingFilter = options.blocking;
+    this.optionFilters = options.optionFilters;
     this.openReport = options.openReport === true;
 
     // Set verbose on validator
@@ -228,6 +231,8 @@ export class Orchestrator {
           workDir,
           isAsync,
           isStreaming,
+          resolvedOptions: firstRun.framework.resolvedOptions,
+          timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
         });
       } catch (setupError) {
@@ -270,6 +275,8 @@ export class Orchestrator {
             workDir,
             isAsync: testIsAsync,
             isStreaming: testIsStreaming,
+            resolvedOptions: testRun.framework.resolvedOptions,
+            timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
           });
 
@@ -411,6 +418,11 @@ export class Orchestrator {
               : "blocking",
           );
         }
+        if (testRun.framework.resolvedOptions) {
+          for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+            modeParts.push(testRun.framework.resolvedOptions[key]);
+          }
+        }
         const modeSuffix =
           modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
         browserFilesByWorkDir
@@ -474,6 +486,8 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        resolvedOptions: testRun.framework.resolvedOptions,
+        timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
       });
 
@@ -497,7 +511,8 @@ export class Orchestrator {
           run.framework.platform === "node" ||
           run.framework.platform === "nextjs" ||
           run.framework.platform === "browser" ||
-          run.framework.platform === "php"
+          run.framework.platform === "php" ||
+          run.framework.platform === "cloudflare"
         )
           return false;
         return run.framework.executionMode === "sync";
@@ -508,7 +523,8 @@ export class Orchestrator {
           run.framework.platform === "node" ||
           run.framework.platform === "nextjs" ||
           run.framework.platform === "browser" ||
-          run.framework.platform === "php"
+          run.framework.platform === "php" ||
+          run.framework.platform === "cloudflare"
         )
           return false;
         return run.framework.executionMode === "async";
@@ -524,6 +540,18 @@ export class Orchestrator {
       testMatrix = testMatrix.filter(
         (run) => run.framework.streamingMode === "blocking",
       );
+    }
+
+    // Filter by generic options (--option key=value)
+    if (this.optionFilters && Object.keys(this.optionFilters).length > 0) {
+      testMatrix = testMatrix.filter((run) => {
+        for (const [key, value] of Object.entries(this.optionFilters!)) {
+          if (run.framework.resolvedOptions?.[key] !== value) {
+            return false;
+          }
+        }
+        return true;
+      });
     }
 
     return testMatrix;
@@ -621,24 +649,28 @@ export class Orchestrator {
           continue;
         }
 
-        // Generate test runs for all combinations of execution mode and streaming mode
+        // Generate test runs for all combinations of execution mode, streaming mode, and options
         const executionModes = this.getExecutionModes(framework);
         const streamingModes = this.getStreamingModes(framework);
+        const optionCombinations = this.getOptionCombinations(framework);
 
         for (const execMode of executionModes) {
           for (const streamMode of streamingModes) {
-            const runId = this.generateRunId();
-            matrix.push({
-              id: runId,
-              index: matrix.length, // Track original order for consistent reporting
-              framework: {
-                ...framework,
-                executionMode: execMode,
-                streamingMode: streamMode,
-              },
-              testDefinition,
-              status: "pending",
-            });
+            for (const resolvedOptions of optionCombinations) {
+              const runId = this.generateRunId();
+              matrix.push({
+                id: runId,
+                index: matrix.length, // Track original order for consistent reporting
+                framework: {
+                  ...framework,
+                  executionMode: execMode,
+                  streamingMode: streamMode,
+                  resolvedOptions,
+                },
+                testDefinition,
+                status: "pending",
+              });
+            }
           }
         }
       }
@@ -704,13 +736,19 @@ export class Orchestrator {
           const testPrefix = isLastFramework ? "      " : "   │  ";
           const testBranch = isLast ? "└─" : "├─";
 
-          // Build mode string with execution mode and streaming mode
+          // Build mode string with execution mode, streaming mode, and resolved options
           const modeParts: string[] = [];
           if (run.framework.executionMode) {
             modeParts.push(run.framework.executionMode);
           }
           if (run.framework.streamingMode) {
             modeParts.push(run.framework.streamingMode);
+          }
+          // Add resolved options
+          if (run.framework.resolvedOptions) {
+            for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+              modeParts.push(run.framework.resolvedOptions[key]);
+            }
           }
           const mode =
             modeParts.length > 0
@@ -798,6 +836,37 @@ export class Orchestrator {
   }
 
   /**
+   * Get all combinations of generic options for a framework.
+   * Returns an array of resolved option objects (cartesian product of all option values).
+   * If no options are defined, returns [undefined] so the loop runs once.
+   */
+  private getOptionCombinations(
+    framework: FrameworkConfig,
+  ): Array<Record<string, string> | undefined> {
+    if (!framework.options || Object.keys(framework.options).length === 0) {
+      return [undefined];
+    }
+
+    const keys = Object.keys(framework.options).sort();
+    const valueSets = keys.map((k) => framework.options![k]);
+
+    // Cartesian product
+    const combinations: Record<string, string>[] = [{}];
+    for (let i = 0; i < keys.length; i++) {
+      const newCombinations: Record<string, string>[] = [];
+      for (const combo of combinations) {
+        for (const value of valueSets[i]) {
+          newCombinations.push({ ...combo, [keys[i]]: value });
+        }
+      }
+      combinations.length = 0;
+      combinations.push(...newCombinations);
+    }
+
+    return combinations;
+  }
+
+  /**
    * Execute a single test
    */
   private async executeTest(testRun: TestRun): Promise<void> {
@@ -833,6 +902,7 @@ export class Orchestrator {
       const isStreaming = testRun.framework.streamingMode === "streaming";
 
       // Execute test via runner (template already rendered in setup phase)
+      const timeoutMs = testRun.testDefinition.timeoutMs ?? 60000;
       await this.runner.executeOnly({
         runId: testRun.id,
         framework: testRun.framework,
@@ -841,6 +911,8 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        resolvedOptions: testRun.framework.resolvedOptions,
+        timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
       });
 
@@ -896,14 +968,16 @@ export class Orchestrator {
         process.stdout.write("\x1b[32m.\x1b[0m");
       }
     } catch (error) {
-      testRun.status = "failed";
-
       // Extract check results from ValidationError if available
       if (error instanceof ValidationError) {
+        testRun.status = "failed";
         testRun.checkResults = error.checkResults;
         testRun.error = error.message;
       } else {
-        testRun.error = error instanceof Error ? error.message : String(error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        const isTimeout = errorMsg.includes("timed out");
+        testRun.status = isTimeout ? "timeout" : "failed";
+        testRun.error = errorMsg;
       }
 
       // Run attribute audit even on failed tests
@@ -916,14 +990,24 @@ export class Orchestrator {
         if (testRun.attributeAudit) {
           this.liveStatus.updateAuditResult(testRun, testRun.attributeAudit);
         }
-        this.liveStatus.updateTestStatus(testRun, "failed", testRun.error);
+        this.liveStatus.updateTestStatus(
+          testRun,
+          testRun.status as "failed" | "timeout",
+          testRun.error,
+        );
       }
 
       if (this.verbose && !this.useLiveStatus) {
-        console.error(`✗ ${displayName} failed:`, testRun.error);
+        const icon = testRun.status === "timeout" ? "⏱" : "✗";
+        console.error(`${icon} ${displayName} ${testRun.status}:`, testRun.error);
       } else if (!this.useLiveStatus) {
-        // Pytest-style progress: F for failed
-        process.stdout.write("\x1b[31mF\x1b[0m");
+        if (testRun.status === "timeout") {
+          // Pytest-style progress: T for timeout
+          process.stdout.write("\x1b[33mT\x1b[0m");
+        } else {
+          // Pytest-style progress: F for failed
+          process.stdout.write("\x1b[31mF\x1b[0m");
+        }
       }
     } finally {
       testRun.endTime = Date.now();
@@ -969,6 +1053,7 @@ export class Orchestrator {
     const failed = sortedRuns.filter((r) => r.status === "failed").length;
     const errors = sortedRuns.filter((r) => r.status === "error").length;
     const skipped = sortedRuns.filter((r) => r.status === "skipped").length;
+    const timeouts = sortedRuns.filter((r) => r.status === "timeout").length;
 
     return {
       totalTests: sortedRuns.length,
@@ -976,6 +1061,7 @@ export class Orchestrator {
       failed,
       errors,
       skipped,
+      timeouts,
       duration: endTime - startTime,
       runs: sortedRuns,
     };
@@ -1007,6 +1093,13 @@ export class Orchestrator {
       modeParts.push(testRun.framework.streamingMode);
     }
 
+    // Add resolved options
+    if (testRun.framework.resolvedOptions) {
+      for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+        modeParts.push(testRun.framework.resolvedOptions[key]);
+      }
+    }
+
     if (modeParts.length > 0) {
       return `${testRun.testDefinition.name} (${modeParts.join(", ")})`;
     }
@@ -1034,6 +1127,11 @@ export class Orchestrator {
       }
       if (testRun.framework.streamingMode) {
         modeParts.push(testRun.framework.streamingMode);
+      }
+      if (testRun.framework.resolvedOptions) {
+        for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
+          modeParts.push(testRun.framework.resolvedOptions[key]);
+        }
       }
       const modeSuffix = modeParts.length > 0 ? modeParts.join("-") : "default";
       const logFile = path.join(
@@ -1097,6 +1195,11 @@ export class Orchestrator {
     );
     console.log(`${colors.green}✓ Passed:${colors.reset}     ${report.passed}`);
     console.log(`${colors.red}✗ Failed:${colors.reset}     ${report.failed}`);
+    if (report.timeouts > 0) {
+      console.log(
+        `${colors.yellow}⏱ Timed out:${colors.reset}  ${report.timeouts}`,
+      );
+    }
     if (report.skipped > 0) {
       console.log(
         `${colors.yellow}⊘ Skipped:${colors.reset}    ${report.skipped}`,
@@ -1119,13 +1222,18 @@ export class Orchestrator {
     console.log(colors.gray + "─".repeat(70) + colors.reset);
 
     for (const run of report.runs) {
-      // Build mode string with execution mode (Python) and streaming mode
+      // Build mode string with execution mode (Python), streaming mode, and resolved options
       const modeParts: string[] = [];
       if (run.framework.platform === "python" && run.framework.executionMode) {
         modeParts.push(run.framework.executionMode);
       }
       if (run.framework.streamingMode) {
         modeParts.push(run.framework.streamingMode);
+      }
+      if (run.framework.resolvedOptions) {
+        for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
+          modeParts.push(run.framework.resolvedOptions[key]);
+        }
       }
       const modeStr =
         modeParts.length > 0
@@ -1136,6 +1244,10 @@ export class Orchestrator {
       if (run.status === "passed") {
         console.log(
           `\n${colors.green}✓${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset} ${run.testDefinition.name}${modeStr}`,
+        );
+      } else if (run.status === "timeout") {
+        console.log(
+          `\n${colors.yellow}⏱${colors.reset} ${colors.bright}[${run.framework.name}]${colors.reset} ${run.testDefinition.name}${modeStr}`,
         );
       } else {
         console.log(
@@ -1195,6 +1307,11 @@ export class Orchestrator {
         console.log(
           `  ${colors.yellow}⊘${colors.reset} ${colors.dim}${reason}${colors.reset}`,
         );
+      } else if (run.status === "timeout" && run.error) {
+        // Timeout - no check results were produced
+        console.log(
+          `  ${colors.yellow}⏱ ${run.error}${colors.reset}`,
+        );
       } else if (run.status === "failed" && run.error) {
         // Fallback for tests without check results
         console.log(
@@ -1235,13 +1352,14 @@ export class Orchestrator {
     console.log("\n" + colors.gray + "─".repeat(70) + colors.reset);
 
     // Final summary
-    if (report.failed === 0 && report.errors === 0) {
+    if (report.failed === 0 && report.errors === 0 && report.timeouts === 0) {
       console.log(
         `\n${colors.green}${colors.bright}✓ All tests passed!${colors.reset} 🎉\n`,
       );
     } else {
+      const failCount = report.failed + report.errors + report.timeouts;
       console.log(
-        `\n${colors.red}${colors.bright}✗ ${report.failed + report.errors} test(s) failed${colors.reset}\n`,
+        `\n${colors.red}${colors.bright}✗ ${failCount} test(s) failed${colors.reset}\n`,
       );
     }
   }

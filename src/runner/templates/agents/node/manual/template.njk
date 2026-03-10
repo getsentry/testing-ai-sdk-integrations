@@ -94,6 +94,11 @@ const TOOLS = {{ agent.tools | dump }};
 
 {% block test %}
 {% for input in inputs %}
+{% if input.conversationId %}
+      if (typeof Sentry.setConversationId === "function") {
+        Sentry.setConversationId("{{ input.conversationId }}");
+      }
+{% endif %}
       // ── Turn {{ loop.index }} ──
       const model = "{{ input.model }}";
       const messages = {{ input.messages | dump }};

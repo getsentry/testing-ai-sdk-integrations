@@ -1,0 +1,16 @@
+{
+  "name": "google-genai",
+  "displayName": "Google GenAI JavaScript SDK Embeddings (Cloudflare)",
+  "type": "embeddings",
+  "platform": "cloudflare",
+  "streamingMode": "blocking",
+  "dependencies": [
+    { "package": "@google/genai", "version": "framework" }
+  ],
+  "versions": ["1.38.0"],
+  "sentryVersions": ["latest"],
+  "modelOverrides": {
+    "request": "models/gemini-embedding-001",
+    "response": "models/gemini-embedding-001*"
+  }
+}

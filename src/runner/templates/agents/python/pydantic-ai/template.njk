@@ -18,6 +18,7 @@ from pydantic_ai import Agent, ImageUrl, RunContext
 agent = Agent(
     "openai:{{ inputs[0].model }}",
     system_prompt="{{ system_content }}",
+    name="{{ agent.name }}"
 )
 
 {% if agent.tools | length > 0 %}
@@ -41,6 +42,9 @@ def {{ tool.name }}(context: RunContext, {% for param in tool.parameters.require
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}: Run agent
+{% if input.conversationId %}
+    sentry_sdk.ai.set_conversation_id("{{ input.conversationId }}")
+{% endif %}
     {# Extract user message content #}
     {% set user_content = null %}
     {% for message in input.messages %}
@@ -49,23 +53,26 @@ def {{ tool.name }}(context: RunContext, {% for param in tool.parameters.require
         {% endif %}
     {% endfor %}
 
+    try:
 {% if user_content is string %}
-    result = await agent.run("{{ user_content }}")
+        result = await agent.run("{{ user_content }}")
 {% else %}
-    # Multimodal content - build message parts
-    message_parts = []
+        # Multimodal content - build message parts
+        message_parts = []
 {% for part in user_content %}
 {% if part.type == 'text' %}
-    message_parts.append("{{ part.text }}")
+        message_parts.append("{{ part.text }}")
 {% elif part.type == 'image' %}
-    message_parts.append(ImageUrl(url="data:{{ part.mediaType }};base64,{{ part.base64 }}"))
+        message_parts.append(ImageUrl(url="data:{{ part.mediaType }};base64,{{ part.base64 }}"))
 {% endif %}
 {% endfor %}
-    result = await agent.run(message_parts)
+        result = await agent.run(message_parts)
 {% endif %}
 
-    # Print response
-    print(f"Turn {{ loop.index }} Response: {result.output}")
+        # Print response
+        print(f"Turn {{ loop.index }} Response: {result.output}")
+    except Exception as e:
+        print(f"Turn {{ loop.index }} Error: {type(e).__name__}: {e}")
 {% if not loop.last %}
     print()  # Blank line between turns
 {% endif %}

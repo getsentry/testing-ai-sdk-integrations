@@ -221,7 +221,8 @@ async function main(): Promise<void> {
     } else if (
       (df.platform === "node" ||
         df.platform === "browser" ||
-        df.platform === "nextjs") &&
+        df.platform === "nextjs" ||
+        df.platform === "cloudflare") &&
       options.sentryJavaScriptPath
     ) {
       sentryVersion = "local";
@@ -232,6 +233,7 @@ async function main(): Promise<void> {
     return {
       name: df.name,
       platform: df.platform,
+      minimumPlatformVersion: df.minimumPlatformVersion,
       type: df.type,
       version: df.versions[0],
       sentryVersion,

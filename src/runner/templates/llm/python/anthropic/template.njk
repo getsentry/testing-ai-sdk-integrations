@@ -48,6 +48,9 @@ client = Anthropic()
 {% block test %}
 {% for input in inputs %}
     # Turn {{ loop.index }}
+{% if input.conversationId %}
+    sentry_sdk.ai.set_conversation_id("{{ input.conversationId }}")
+{% endif %}
     system_prompt = None
     messages = []
 {% for message in input.messages %}

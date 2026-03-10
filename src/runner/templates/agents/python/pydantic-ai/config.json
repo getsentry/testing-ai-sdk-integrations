@@ -4,6 +4,7 @@
   "type": "agentic",
   "platform": "python",
   "executionMode": "async",
+  "minimumPlatformVersion": "3.10",
   "dependencies": [
     {
       "package": "pydantic-ai",
@@ -11,5 +12,5 @@
     }
   ],
   "versions": ["1.52.0"],
-  "sentryVersions": ["2.51.0", "latest"]
+  "sentryVersions": ["latest"]
 }

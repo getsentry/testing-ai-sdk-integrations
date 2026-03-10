@@ -30,6 +30,7 @@ export const longInputLLMTest: TestDefinition = {
   name: "Long Input LLM Test",
   description: "Tests message trimming for inputs > 20KB",
   type: "llm",
+  timeoutMs: 120000,
 
   inputs: [
     {

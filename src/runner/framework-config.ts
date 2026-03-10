@@ -12,8 +12,8 @@ export interface FrameworkConfig {
   /** Framework type: llm-only, agentic, or embeddings */
   type: "llm-only" | "agentic" | "embeddings";
 
-  /** Platform: Node.js, Browser, Next.js, Python, or PHP */
-  platform: "node" | "python" | "browser" | "nextjs" | "php";
+  /** Platform: Node.js, Browser, Next.js, Python, PHP, or Cloudflare */
+  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
 
   /** Package dependencies to install */
   dependencies: FrameworkDependency[];
@@ -30,6 +30,15 @@ export interface FrameworkConfig {
   /** Streaming mode: whether the framework supports streaming responses */
   streamingMode?: "streaming" | "blocking" | "both";
 
+  /**
+   * Generic options that expand the test matrix.
+   * Each key maps to an array of possible values.
+   * Example: { "apiStyle": ["highlevel", "lowlevel"] }
+   * This would double the tests, running each once per value.
+   * Values are exposed to templates as variables (e.g., {{ apiStyle }}).
+   */
+  options?: Record<string, string[]>;
+
   /** Model overrides: Some frameworks use different models than requested */
   modelOverrides?: {
     request?: string;
@@ -40,6 +49,9 @@ export interface FrameworkConfig {
   toolNameMapping?: {
     [expectedName: string]: string;
   };
+
+  /** Minimum platform version required (e.g., "3.10" for Python). Defaults to platform default if omitted. */
+  minimumPlatformVersion?: string;
 
   /** Skip configuration: Tests or checks that should be skipped */
   skip?: {
@@ -111,10 +123,11 @@ export function loadFrameworkConfig(configPath: string): FrameworkConfig {
       config.platform !== "python" &&
       config.platform !== "browser" &&
       config.platform !== "nextjs" &&
-      config.platform !== "php"
+      config.platform !== "php" &&
+      config.platform !== "cloudflare"
     ) {
       throw new Error(
-        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', 'nextjs', or 'php'`,
+        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', 'nextjs', 'php', or 'cloudflare'`,
       );
     }
 

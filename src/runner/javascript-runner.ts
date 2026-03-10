@@ -149,6 +149,7 @@ export class JavaScriptRunner {
       testDefinition,
       framework,
       isStreaming,
+      resolvedOptions,
     } = context;
     const verbose = context.verbose === true;
 
@@ -161,6 +162,12 @@ export class JavaScriptRunner {
     const modeParts: string[] = [];
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? "streaming" : "blocking");
+    }
+    // Add resolved options (sorted by key for consistent ordering)
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = path.join(workDir, `test-${testCaseId}${modeSuffix}.js`);
@@ -179,7 +186,7 @@ export class JavaScriptRunner {
       const { stdout, stderr } = await execAsync(`node ${testFile}`, {
         cwd: workDir,
         env,
-        timeout: 60000, // 60 second timeout
+        timeout: context.timeoutMs,
       });
 
       // Write stdout and stderr to log file
@@ -246,8 +253,8 @@ export class JavaScriptRunner {
         }
       }
 
-      if (error.code === "ETIMEDOUT") {
-        throw new Error("Test execution timed out (60s)");
+      if (error.killed || error.code === "ETIMEDOUT") {
+        throw new Error(`Test execution timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(
         `Test execution failed: ${error.message}\n${error.stderr || ""}`,

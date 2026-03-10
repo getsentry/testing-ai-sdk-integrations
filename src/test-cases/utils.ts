@@ -4,6 +4,7 @@
 
 import { CapturedSpan, ErrorLocation, FrameworkConfig } from "../types.js";
 import { SkipCheckError, CheckError } from "../validator.js";
+import { getAttributeWithFallback } from "../deprecation/fallback.js";
 
 /**
  * Skip the current check with a reason
@@ -543,7 +544,8 @@ export type ToolInputSchema = {
 /**
  * Assert that a tool span has the expected input arguments
  *
- * Tool input is typically stored in gen_ai.tool.input as a JSON string
+ * Tool input is stored in gen_ai.tool.call.arguments (OTEL) or
+ * gen_ai.tool.input (deprecated) as a JSON string.
  *
  * @param span - The tool span to check
  * @param schema - Expected arguments schema
@@ -552,11 +554,17 @@ export function assertToolInput(
   span: CapturedSpan,
   schema: ToolInputSchema,
 ): void {
-  const toolInput = span.data?.["gen_ai.tool.input"];
+  const result = getAttributeWithFallback(
+    span,
+    "gen_ai.tool.call.arguments",
+    "gen_ai.tool.input"
+  );
+  const toolInput = result.value;
+  const attrName = result.usedAttribute ?? "gen_ai.tool.call.arguments";
 
   if (toolInput === undefined) {
-    throw new CheckError(`Tool span is missing gen_ai.tool.input attribute`, [
-      { spanId: span.span_id, attribute: "gen_ai.tool.input", message: "Attribute is missing" },
+    throw new CheckError(`Tool span is missing gen_ai.tool.call.arguments or gen_ai.tool.input attribute`, [
+      { spanId: span.span_id, attribute: "gen_ai.tool.call.arguments", message: "Attribute is missing" },
     ]);
   }
 
@@ -567,14 +575,14 @@ export function assertToolInput(
       parsedInput = JSON.parse(toolInput);
     } catch {
       throw new CheckError(`Tool input is not valid JSON: ${toolInput}`, [
-        { spanId: span.span_id, attribute: "gen_ai.tool.input", message: "Invalid JSON" },
+        { spanId: span.span_id, attribute: attrName, message: "Invalid JSON" },
       ]);
     }
   } else if (typeof toolInput === "object" && toolInput !== null) {
     parsedInput = toolInput as Record<string, unknown>;
   } else {
     throw new CheckError(`Unexpected tool input type: ${typeof toolInput}`, [
-      { spanId: span.span_id, attribute: "gen_ai.tool.input", message: `Unexpected type: ${typeof toolInput}` },
+      { spanId: span.span_id, attribute: attrName, message: `Unexpected type: ${typeof toolInput}` },
     ]);
   }
 
@@ -588,26 +596,26 @@ export function assertToolInput(
       if (actual === undefined) {
         const msg = `Tool argument '${argName}' must exist but is missing`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
+        locations.push({ spanId: span.span_id, attribute: attrName, message: msg });
       }
     } else if (expected === false) {
       if (actual !== undefined) {
         const msg = `Tool argument '${argName}' must not exist but has value: ${actual}`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
+        locations.push({ spanId: span.span_id, attribute: attrName, message: msg });
       }
     } else {
       if (actual === undefined) {
         const msg = `Tool argument '${argName}' must equal '${expected}' but is missing`;
         errors.push(msg);
-        locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
+        locations.push({ spanId: span.span_id, attribute: attrName, message: msg });
       } else {
         const actualStr = String(actual);
         const expectedStr = String(expected);
         if (actualStr !== expectedStr) {
           const msg = `Tool argument '${argName}' must equal '${expected}' but is '${actual}'`;
           errors.push(msg);
-          locations.push({ spanId: span.span_id, attribute: "gen_ai.tool.input", message: msg });
+          locations.push({ spanId: span.span_id, attribute: attrName, message: msg });
         }
       }
     }
@@ -620,12 +628,18 @@ export function assertToolInput(
 
 /**
  * Get tool input arguments from a tool span
- * Returns the parsed arguments object, or undefined if not available
+ * Returns the parsed arguments object, or undefined if not available.
+ * Tries gen_ai.tool.call.arguments (OTEL) first, falls back to gen_ai.tool.input (deprecated).
  */
 export function getToolInput(
   span: CapturedSpan,
 ): Record<string, unknown> | undefined {
-  const toolInput = span.data?.["gen_ai.tool.input"];
+  const result = getAttributeWithFallback(
+    span,
+    "gen_ai.tool.call.arguments",
+    "gen_ai.tool.input"
+  );
+  const toolInput = result.value;
 
   if (toolInput === undefined) {
     return undefined;

@@ -234,6 +234,7 @@ export default defineConfig({
       testDefinition,
       framework,
       isStreaming,
+      resolvedOptions,
     } = context;
     const verbose = context.verbose === true;
 
@@ -246,6 +247,11 @@ export default defineConfig({
     const modeParts: string[] = [];
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? "streaming" : "blocking");
+    }
+    if (resolvedOptions) {
+      for (const key of Object.keys(resolvedOptions).sort()) {
+        modeParts.push(resolvedOptions[key]);
+      }
     }
     const modeSuffix = modeParts.length > 0 ? `-${modeParts.join("-")}` : "";
     const testFile = `test-${testCaseId}${modeSuffix}.html`;
@@ -317,9 +323,8 @@ export default defineConfig({
       });
 
       // Wait for test to complete (window.testComplete = true)
-      // Timeout after 60 seconds
       await page.waitForFunction("window.testComplete === true", {
-        timeout: 60000,
+        timeout: context.timeoutMs,
       });
 
       if (verbose) {
@@ -379,7 +384,7 @@ export default defineConfig({
       }
 
       if (error.message?.includes("Timeout")) {
-        throw new Error("Browser test timed out (60s)");
+        throw new Error(`Browser test timed out (${Math.round(context.timeoutMs / 1000)}s)`);
       }
       throw new Error(`Browser test execution failed: ${error.message}`);
     } finally {
