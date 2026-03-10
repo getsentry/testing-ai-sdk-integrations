@@ -146,7 +146,7 @@
           // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
 {% if variant == "custom-state" %}
-          const userInput{{ loop.index }} = {% if input.messages[0].content is string %}"{{ input.messages[0].content }}"{% else %}"{{ input.messages[0].content[0].text }}"{% endif %};
+          const userInput{{ loop.index }} = {% if input.messages[-1].content is string %}"{{ input.messages[-1].content }}"{% else %}"{{ input.messages[-1].content[0].text }}"{% endif %};
 
           try {
 {% if isStreaming %}
