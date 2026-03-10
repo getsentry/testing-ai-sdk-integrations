@@ -1,6 +1,6 @@
 {
   "name": "langgraph",
-  "displayName": "LangGraph + OpenAI Browser (graph instrumentation only)",
+  "displayName": "LangGraph + OpenAI Browser",
   "type": "agentic",
   "platform": "browser",
   "dependencies": [
@@ -11,5 +11,8 @@
   ],
   "versions": ["1.2.0"],
   "sentryVersions": ["latest"],
-  "streamingMode": "both"
+  "streamingMode": "both",
+  "options": {
+    "variant": ["graph", "langchain", "combined", "compiled", "custom-state"]
+  }
 }

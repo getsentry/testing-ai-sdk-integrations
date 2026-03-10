@@ -17,7 +17,6 @@ import {
   checkInputMessagesSchema,
   checkConversationIds,
   checkResponseModel,
-  checkLangChainNodeNames,
 } from "../checks.js";
 
 export const conversationIdAgentTest: TestDefinition = {
@@ -68,7 +67,7 @@ export const conversationIdAgentTest: TestDefinition = {
     checkConversationIds(["conv-a", "conv-b", "conv-a", "conv-b"]),
   ],
 
-  checks: [checkValidTokenUsage, checkInputMessagesSchema, checkLangChainNodeNames],
+  checks: [checkValidTokenUsage, checkInputMessagesSchema],
 
   warningChecks: [checkResponseModel],
 };

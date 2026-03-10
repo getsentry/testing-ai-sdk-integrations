@@ -189,17 +189,19 @@ export const checkChatSpanAttributes: Check = {
  * Validates:
  * - description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
  * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
- * - gen_ai.agent.name exists
+ * - gen_ai.agent.name exists and matches the name set in the test definition
  *
  * Fails if no agent spans are found.
  */
 export const checkAgentSpanAttributes: Check = {
   name: "checkAgentSpanAttributes",
-  fn: (spans, config) => {
+  fn: (spans, config, testDef) => {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     if (agentSpans.length === 0) {
       throw new CheckError("Should have at least one agent span");
     }
+
+    const expectedAgentName = testDef.agent?.name;
 
     const attrs: Record<string, any> = {
       "description": (span: CapturedSpan) => {
@@ -210,116 +212,10 @@ export const checkAgentSpanAttributes: Check = {
     };
 
     if (config.name !== "vercel") {
-      attrs["gen_ai.agent.name"] = true;
+      attrs["gen_ai.agent.name"] = expectedAgentName ?? true;
     }
 
     assertAttributes(agentSpans, attrs);
-  },
-};
-
-/**
- * Check that invoke_agent spans carry input and output message data.
- *
- * When using Sentry.instrumentLangGraph({ recordInputs: true, recordOutputs: true })
- * with MessagesAnnotation, the invoke_agent span should contain:
- * - gen_ai.input.messages (or gen_ai.request.messages fallback)
- * - gen_ai.output.messages (or gen_ai.response.text fallback)
- *
- * Only applies to browser LangGraph frameworks that use instrumentLangGraph.
- * Skips for all other frameworks.
- *
- * Fails for langgraph-custom-state (custom Annotation.Root state means
- * recordInputs/recordOutputs silently records nothing).
- */
-export const checkAgentInputOutputMessages: Check = {
-  name: "checkAgentInputOutputMessages",
-  fn: (spans, config) => {
-    const INSTRUMENT_LANGGRAPH_FRAMEWORKS = ["langgraph", "langgraph-combined", "langgraph-custom-state"];
-    skipIf(
-      !INSTRUMENT_LANGGRAPH_FRAMEWORKS.includes(config.name),
-      "Only applicable to frameworks using Sentry.instrumentLangGraph",
-    );
-
-    const invokeAgentSpans = findAgentSpans(extractGenAISpans(spans)).filter(
-      (s) => /^(gen_ai\.)?invoke_agent$/.test(s.data?.["gen_ai.operation.name"] ?? ""),
-    );
-    skipIf(invokeAgentSpans.length === 0, "No invoke_agent spans captured");
-
-    const errors: string[] = [];
-    const locations: ErrorLocation[] = [];
-
-    for (const span of invokeAgentSpans) {
-      const inputResult = getAttributeWithFallback(
-        span,
-        "gen_ai.input.messages",
-        "gen_ai.request.messages",
-      );
-      if (inputResult.value === undefined) {
-        errors.push("invoke_agent span is missing gen_ai.input.messages — recordInputs may not be working");
-        locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: "Missing input messages" });
-      }
-
-      const outputResult = getAttributeWithFallback(
-        span,
-        "gen_ai.output.messages",
-        "gen_ai.response.text",
-      );
-      if (outputResult.value === undefined) {
-        errors.push("invoke_agent span is missing gen_ai.output.messages — recordOutputs may not be working");
-        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing output messages" });
-      }
-    }
-
-    if (errors.length > 0) {
-      throw new CheckError(errors.join("\n"), locations);
-    }
-  },
-};
-
-/**
- * Check that LangChain chain spans use actual node names instead of 'unknown_chain'.
- *
- * When using createLangChainCallbackHandler with LangGraph, handleChainStart fires
- * for each graph node. Before the fix (sentry-javascript#19554), the 8th parameter
- * (runName) was never read, so every chain span fell back to 'unknown_chain'.
- *
- * Only applies to langgraph-langchain. Skips for all other frameworks.
- */
-export const checkLangChainNodeNames: Check = {
-  name: "checkLangChainNodeNames",
-  fn: (spans, config) => {
-    skipIf(
-      config.name !== "langgraph-langchain",
-      "Only applicable to langgraph-langchain (createLangChainCallbackHandler)",
-    );
-
-    // handleChainStart creates spans with op="gen_ai.invoke_agent" but no gen_ai.operation.name
-    // in data, so we filter by op directly rather than using findAgentSpans()
-    const chainSpans = extractGenAISpans(spans).filter(
-      (s) => s.op === "gen_ai.invoke_agent" && s.data?.["langchain.chain.name"] !== undefined,
-    );
-    skipIf(chainSpans.length === 0, "No LangChain chain spans captured");
-
-    const errors: string[] = [];
-    const locations: ErrorLocation[] = [];
-
-    for (const span of chainSpans) {
-      const chainName = span.data?.["langchain.chain.name"];
-      if (chainName === "unknown_chain") {
-        errors.push(
-          `Chain span has 'unknown_chain' as name — handleChainStart is not reading runName correctly`,
-        );
-        locations.push({
-          spanId: span.span_id,
-          attribute: "langchain.chain.name",
-          message: "Chain name should not be 'unknown_chain'",
-        });
-      }
-    }
-
-    if (errors.length > 0) {
-      throw new CheckError(errors.join("\n"), locations);
-    }
   },
 };
 

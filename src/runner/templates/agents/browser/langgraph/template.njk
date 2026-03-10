@@ -1,3 +1,11 @@
+{#
+  LangGraph browser template with variants controlled by the `variant` option:
+    - graph:        Sentry.instrumentLangGraph() only
+    - langchain:    Sentry.createLangChainCallbackHandler() only
+    - combined:     Both APIs together
+    - compiled:     instrumentLangGraph on an already-compiled graph (createReactAgent)
+    - custom-state: instrumentLangGraph with custom Annotation.Root state
+#}
 {% extends "base.browser.njk" %}
 
 {# Macro to render message content - handles both string and multimodal array #}
@@ -18,33 +26,90 @@
 {% endmacro %}
 
 {% block setup %}
-    // LangGraph classes and compiled graph will be initialized after dynamic import
+{% if variant == "compiled" %}
+    let agent;
+{% else %}
     let compiledGraph;
+{% endif %}
+{% if variant == "langchain" or variant == "combined" %}
+    let callbackHandler;
+{% endif %}
     let HumanMessage, SystemMessage;
 {% endblock %}
 
 {% block dynamic_imports %}
-          // Import LangGraph and LangChain from local node_modules (bundled by Vite)
+{% if variant == "compiled" %}
+          const langgraphPrebuilt = await import("@langchain/langgraph/prebuilt");
+{% endif %}
+{% if variant != "compiled" %}
           const langgraphModule = await import("@langchain/langgraph/web");
+{% endif %}
           const langchainOpenAI = await import("@langchain/openai");
           const langchainMessages = await import("@langchain/core/messages");
 
+{% if variant == "compiled" %}
+          HumanMessage = langchainMessages.HumanMessage;
+          SystemMessage = langchainMessages.SystemMessage;
+{% elif variant == "custom-state" %}
+          const { StateGraph, Annotation, START, END } = langgraphModule;
+          HumanMessage = langchainMessages.HumanMessage;
+          SystemMessage = langchainMessages.SystemMessage;
+{% else %}
           const { StateGraph, MessagesAnnotation, START, END } = langgraphModule;
           HumanMessage = langchainMessages.HumanMessage;
           SystemMessage = langchainMessages.SystemMessage;
+{% endif %}
 
-          // Get API key from window (injected by Playwright)
           const OPENAI_API_KEY = window.OPENAI_API_KEY;
           if (!OPENAI_API_KEY) {
             throw new Error('OPENAI_API_KEY not provided');
           }
 
+{% if variant == "langchain" or variant == "combined" %}
+          callbackHandler = Sentry.createLangChainCallbackHandler();
+{% endif %}
+
+{% if variant == "compiled" %}
+          const llm = new langchainOpenAI.ChatOpenAI({
+            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+            openAIApiKey: OPENAI_API_KEY,
+          });
+
+          agent = langgraphPrebuilt.createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
+          Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
+
+          log('LangGraph initialized with instrumentLangGraph on compiled graph');
+{% elif variant == "custom-state" %}
           const llm = new langchainOpenAI.ChatOpenAI({
             modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
             apiKey: OPENAI_API_KEY,
           });
 
-          // Build graph with agent node — no callback handler (graph instrumentation only)
+          const CustomState = Annotation.Root({
+            userInput: Annotation(),
+            response: Annotation(),
+          });
+
+          async function agentNode(state) {
+            const response = await llm.invoke([new HumanMessage(state.userInput)]);
+            return { response: response.content };
+          }
+
+          const graph = new StateGraph(CustomState)
+            .addNode("agent", agentNode)
+            .addEdge(START, "agent")
+            .addEdge("agent", END);
+
+          Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
+          compiledGraph = graph.compile({ name: "{{ agent.name }}" });
+
+          log('LangGraph initialized with custom Annotation.Root state');
+{% else %}
+          const llm = new langchainOpenAI.ChatOpenAI({
+            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+            apiKey: OPENAI_API_KEY,
+          });
+
           async function agentNode(state) {
             const response = await llm.invoke(state.messages);
             return { messages: [response] };
@@ -55,12 +120,20 @@
             .addEdge(START, "agent")
             .addEdge("agent", END);
 
-          // instrumentLangGraph must be called BEFORE compile()
+{% if variant == "graph" or variant == "combined" %}
           Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
+{% endif %}
 
           compiledGraph = graph.compile({ name: "{{ agent.name }}" });
 
+{% if variant == "graph" %}
           log('LangGraph initialized with Sentry.instrumentLangGraph (graph instrumentation only)');
+{% elif variant == "langchain" %}
+          log('LangGraph initialized with Sentry.createLangChainCallbackHandler (callback instrumentation only)');
+{% elif variant == "combined" %}
+          log('LangGraph initialized with both Sentry.instrumentLangGraph and Sentry.createLangChainCallbackHandler');
+{% endif %}
+{% endif %}
 {% endblock %}
 
 {% block test %}
@@ -72,6 +145,31 @@
 {% endif %}
           // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
+{% if variant == "custom-state" %}
+          const userInput{{ loop.index }} = {% if input.messages[0].content is string %}"{{ input.messages[0].content }}"{% else %}"{{ input.messages[0].content[0].text }}"{% endif %};
+
+          try {
+{% if isStreaming %}
+            log('Starting streaming request {{ loop.index }}...');
+            const stream = await compiledGraph.stream({ userInput: userInput{{ loop.index }} });
+            let lastResponse;
+            for await (const chunk of stream) {
+              if (chunk.agent?.response) {
+                lastResponse = chunk.agent.response;
+              }
+            }
+            log('Response {{ loop.index }}:', lastResponse);
+{% else %}
+            log('Starting request {{ loop.index }}...');
+            const result = await compiledGraph.invoke({ userInput: userInput{{ loop.index }} });
+            log('Response {{ loop.index }}:', result.response);
+{% endif %}
+          } catch (error) {
+            Sentry.captureException(error);
+            log('Error in request {{ loop.index }}:', error.message);
+            console.error("Error:", error);
+          }
+{% elif variant == "compiled" %}
           const messages{{ loop.index }} = [
 {% for message in input.messages %}
 {% if message.role == 'system' %}
@@ -85,8 +183,7 @@
           try {
 {% if isStreaming %}
             log('Starting streaming request {{ loop.index }}...');
-            // stream() is not patched by instrumentLangGraph — no invoke_agent span will be created
-            const stream = await compiledGraph.stream({ messages: messages{{ loop.index }} });
+            const stream = await agent.stream({ messages: messages{{ loop.index }} });
             const chunks = [];
             for await (const chunk of stream) {
               const agentOutput = chunk.agent;
@@ -97,7 +194,7 @@
             log('Response {{ loop.index }}:', chunks.join(""));
 {% else %}
             log('Starting request {{ loop.index }}...');
-            const result = await compiledGraph.invoke({ messages: messages{{ loop.index }} });
+            const result = await agent.invoke({ messages: messages{{ loop.index }} });
             const lastMessage = result.messages[result.messages.length - 1];
             log('Response {{ loop.index }}:', lastMessage.content);
 {% endif %}
@@ -106,5 +203,40 @@
             log('Error in request {{ loop.index }}:', error.message);
             console.error("Error:", error);
           }
+{% else %}
+          const messages{{ loop.index }} = [
+{% for message in input.messages %}
+{% if message.role == 'system' %}
+            new SystemMessage("{{ message.content }}"),
+{% elif message.role == 'user' %}
+            new HumanMessage({ content: {{ renderLangChainContent(message.content) }} }),
+{% endif %}
+{% endfor %}
+          ];
+
+          try {
+{% if isStreaming %}
+            log('Starting streaming request {{ loop.index }}...');
+            const stream = await compiledGraph.stream({ messages: messages{{ loop.index }} }{% if variant == "langchain" or variant == "combined" %}, { callbacks: [callbackHandler] }{% endif %});
+            const chunks = [];
+            for await (const chunk of stream) {
+              const agentOutput = chunk.agent;
+              if (agentOutput?.messages?.length) {
+                chunks.push(agentOutput.messages[agentOutput.messages.length - 1].content);
+              }
+            }
+            log('Response {{ loop.index }}:', chunks.join(""));
+{% else %}
+            log('Starting request {{ loop.index }}...');
+            const result = await compiledGraph.invoke({ messages: messages{{ loop.index }} }{% if variant == "langchain" or variant == "combined" %}, { callbacks: [callbackHandler] }{% endif %});
+            const lastMessage = result.messages[result.messages.length - 1];
+            log('Response {{ loop.index }}:', lastMessage.content);
+{% endif %}
+          } catch (error) {
+            Sentry.captureException(error);
+            log('Error in request {{ loop.index }}:', error.message);
+            console.error("Error:", error);
+          }
+{% endif %}
 {% endfor %}
 {% endblock %}

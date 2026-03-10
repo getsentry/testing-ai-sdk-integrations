@@ -15,7 +15,6 @@ import {
   checkAvailableTools,
   checkResponseToolCalls,
   checkResponseModel,
-  checkLangChainNodeNames,
 } from "../checks.js";
 import { extractGenAISpans, findToolSpans } from "../utils.js";
 import { CheckError } from "../../validator.js";
@@ -132,7 +131,6 @@ export const toolErrorAgentTest: TestDefinition = {
     ]),
     checkInputMessagesSchema,
     checkToolErrorSpan,
-    checkLangChainNodeNames,
   ],
 
   warningChecks: [

@@ -117,11 +117,7 @@ src/runner/templates/
 │   │   ├── mastra/
 │   │   └── vercel/
 │   ├── browser/
-│   │   ├── langgraph/                # instrumentLangGraph only; streaming: no invoke_agent span
-│   │   ├── langgraph-langchain/      # createLangChainCallbackHandler only; chain spans previously named unknown_chain
-│   │   ├── langgraph-combined/       # both APIs together; chat spans dropped intermittently, duplicate invoke_agent spans
-│   │   ├── langgraph-compiled/       # instrumentLangGraph on compiled graph; crashes with TypeError
-│   │   └── langgraph-custom-state/   # custom Annotation.Root state; recordInputs/recordOutputs silently empty
+│   │   └── langgraph/                # 5 variants via options: graph, langchain, combined, compiled, custom-state
 │   └── python/
 │   │   ├── google-genai/
 │   │   ├── langgraph/
@@ -286,11 +282,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Browser           | `anthropic`     | llm      | llm-only | both      | -               |
 | Browser           | `google-genai`  | llm      | llm-only | both      | -               |
 | Browser           | `langchain`     | llm      | llm-only | both      | -               |
-| Browser           | `langgraph`           | agents | agentic | both      | -               |
-| Browser           | `langgraph-langchain` | agents | agentic | -         | -               |
-| Browser           | `langgraph-combined`  | agents | agentic | -         | -               |
-| Browser           | `langgraph-compiled`  | agents | agentic | -         | -               |
-| Browser           | `langgraph-custom-state` | agents | agentic | -      | -               |
+| Browser           | `langgraph`     | agents   | agentic  | both      | -               |
 | Next.js           | `openai`        | llm      | llm-only | both      | -               |
 | Next.js           | `anthropic`     | llm      | llm-only | both      | -               |
 | Next.js           | `google-genai`  | llm      | llm-only | both      | -               |
@@ -441,7 +433,6 @@ interface Check {
 | `checkResponseModel`         | Warns when gen_ai.response.model is missing (warning) |
 | `checkEmbeddingSpanAttributes` | Validates embedding spans (model, input, description) |
 | `checkEmbeddingTokenUsage`   | Embedding token usage (input_tokens, total_tokens)  |
-| `checkAgentInputOutputMessages` | Validates `gen_ai.input.messages` + `gen_ai.output.messages` on `invoke_agent` spans; skips for non-`instrumentLangGraph` frameworks; fails for `langgraph-custom-state` (recordInputs/recordOutputs silently empty with custom state) |
 
 ## Attribute Deprecation System
 
@@ -799,17 +790,20 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
 
 ### LangGraph Browser Variants
 
-LangGraph browser tests are split into five framework folders — each isolating a specific known instrumentation gap so failures are independently observable:
+LangGraph browser tests use a single `langgraph` framework folder with a generic `variant` option that expands the test matrix. Each variant isolates a specific instrumentation approach:
 
-| Framework | AI Platform | Sentry API Used | Known issue |
-|-----------|-------------|-----------------|-------------|
-| `langgraph` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` only | Blocking: produces `invoke_agent` spans; streaming: no span at all |
-| `langgraph-langchain` | LangGraph + OpenAI | `Sentry.createLangChainCallbackHandler()` only | Chain spans previously named `unknown_chain` instead of node name (fixed in sentry-javascript#19554) |
-| `langgraph-combined` | LangGraph + OpenAI | Both APIs together | Combined use drops `chat` spans intermittently and produces duplicate `invoke_agent` spans |
-| `langgraph-compiled` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` on compiled graph | Crashes with `TypeError` — mirrors the pattern shown in official docs |
-| `langgraph-custom-state` | LangGraph + OpenAI | `Sentry.instrumentLangGraph()` with custom state | `recordInputs`/`recordOutputs` silently records nothing (no `messages` key in custom state) |
+| Variant | Sentry API Used | Known issue |
+|---------|-----------------|-------------|
+| `graph` | `Sentry.instrumentLangGraph()` only | Blocking: produces `invoke_agent` spans; streaming: no span at all |
+| `langchain` | `Sentry.createLangChainCallbackHandler()` only | Chain spans previously named `unknown_chain` (fixed in sentry-javascript#19554) |
+| `combined` | Both APIs together | Chat spans dropped intermittently; duplicate `invoke_agent` spans |
+| `compiled` | `instrumentLangGraph()` on compiled graph | Crashes with `TypeError` — mirrors official docs pattern |
+| `custom-state` | `instrumentLangGraph()` with custom state | `recordInputs`/`recordOutputs` silently records nothing |
 
-`langgraph`, `langgraph-langchain`, and `langgraph-combined` use `StateGraph(MessagesAnnotation)`. `langgraph-compiled` uses `createReactAgent` to reproduce the exact crash. `langgraph-custom-state` uses `Annotation.Root` to reproduce the silent recording failure. Tool Call and Tool Error tests are skipped across all variants (no ReAct loop implemented).
+All variants run both streaming and blocking modes. Use `--option variant=<name>` to filter:
+```bash
+npm run test -- --framework langgraph --platform browser --option variant=graph
+```
 
 ### Laravel
 

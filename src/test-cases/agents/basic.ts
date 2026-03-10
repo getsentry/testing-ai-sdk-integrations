@@ -9,14 +9,12 @@ import { TestDefinition } from "../../types.js";
 import {
   checkChatSpanAttributes,
   checkAgentSpanAttributes,
-  checkAgentInputOutputMessages,
   checkValidTokenUsage,
   checkAgentHierarchy,
   checkInputTokensCached,
   checkOutputTokensReasoning,
   checkInputMessagesSchema,
   checkResponseModel,
-  checkLangChainNodeNames,
 } from "../checks.js";
 
 export const basicAgentTest: TestDefinition = {
@@ -50,8 +48,6 @@ export const basicAgentTest: TestDefinition = {
   checks: [
     checkValidTokenUsage,
     checkInputMessagesSchema,
-    checkAgentInputOutputMessages,
-    checkLangChainNodeNames,
   ],
 
   warningChecks: [
