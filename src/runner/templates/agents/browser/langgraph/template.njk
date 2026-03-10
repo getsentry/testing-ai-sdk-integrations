@@ -90,8 +90,8 @@
             response: Annotation(),
           });
 
-          async function agentNode(state) {
-            const response = await llm.invoke([new HumanMessage(state.userInput)]);
+          async function agentNode(state, config) {
+            const response = await llm.invoke([new HumanMessage(state.userInput)], config);
             return { response: response.content };
           }
 
@@ -110,8 +110,8 @@
             apiKey: OPENAI_API_KEY,
           });
 
-          async function agentNode(state) {
-            const response = await llm.invoke(state.messages);
+          async function agentNode(state, config) {
+            const response = await llm.invoke(state.messages, config);
             return { messages: [response] };
           }
 
