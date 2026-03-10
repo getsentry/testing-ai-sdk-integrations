@@ -72,7 +72,7 @@
 {% if variant == "compiled" %}
           const llm = new langchainOpenAI.ChatOpenAI({
             modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-            openAIApiKey: OPENAI_API_KEY,
+            apiKey: OPENAI_API_KEY,
           });
 
           agent = langgraphPrebuilt.createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
