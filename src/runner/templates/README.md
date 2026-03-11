@@ -46,6 +46,10 @@ templates/
     │   └── mastra/
     │       ├── template.njk
     │       └── config.json
+    ├── browser/
+    │   └── langgraph/
+    │       ├── template.njk
+    │       └── config.json
     ├── python/
     │   ├── openai-agents/
     │   │   ├── template.njk
