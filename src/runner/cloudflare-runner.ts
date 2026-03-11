@@ -247,7 +247,7 @@ export class CloudflareRunner {
 
         wranglerProcess = spawn(
           "npx",
-          ["wrangler", "dev", "--config", wranglerConfigFile, "--port", String(port)],
+          ["wrangler", "dev", "--config", wranglerConfigFile, "--port", String(port), "--inspector-port", "0"],
           {
             cwd: workDir,
             env: {
