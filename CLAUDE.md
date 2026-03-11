@@ -794,10 +794,10 @@ LangGraph browser tests use a single `langgraph` framework folder with a generic
 
 | Variant | Sentry API Used | Known issue |
 |---------|-----------------|-------------|
-| `graph` | `Sentry.instrumentLangGraph()` only | Blocking: produces `invoke_agent` spans; streaming: no span at all |
-| `langchain` | `Sentry.createLangChainCallbackHandler()` only | Chain spans previously named `unknown_chain` (fixed in sentry-javascript#19554) |
-| `combined` | Both APIs together | Chat spans dropped intermittently; duplicate `invoke_agent` spans |
-| `compiled` | `instrumentLangGraph()` on compiled graph | Crashes with `TypeError` — mirrors official docs pattern |
+| `graph` | `Sentry.instrumentLangGraph()` only | No chat spans; streaming produces no `invoke_agent` span |
+| `langchain` | `Sentry.createLangChainCallbackHandler()` only | Chat spans missing token usage and input messages; agent spans missing `gen_ai.agent.name` |
+| `combined` | Both APIs together | Duplicate `invoke_agent` spans; attribute gaps |
+| `compiled` | `instrumentLangGraph()` on compiled graph | Crashes with `TypeError` |
 | `custom-state` | `instrumentLangGraph()` with custom state | `recordInputs`/`recordOutputs` silently records nothing |
 
 All variants run both streaming and blocking modes. Use `--option variant=<name>` to filter:
