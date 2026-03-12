@@ -12,5 +12,18 @@
     }
   ],
   "versions": ["1.52.0"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "options": {
+    "modelSetup": [
+      "single",
+      {
+        "value": "fallback",
+        "overrides": {
+          "modelOverrides": {
+            "request": "fallback:definitely-not-a-real-model,gpt5-nano"
+          }
+        }
+      }
+    ]
+  }
 }
