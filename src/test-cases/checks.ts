@@ -189,17 +189,19 @@ export const checkChatSpanAttributes: Check = {
  * Validates:
  * - description equals "<gen_ai.operation.name> <gen_ai.agent.name>"
  * - gen_ai.operation.name matches AGENT_OPERATION_NAME_PATTERN
- * - gen_ai.agent.name exists
+ * - gen_ai.agent.name exists and matches the name set in the test definition
  *
  * Fails if no agent spans are found.
  */
 export const checkAgentSpanAttributes: Check = {
   name: "checkAgentSpanAttributes",
-  fn: (spans, config) => {
+  fn: (spans, config, testDef) => {
     const agentSpans = findAgentSpans(extractGenAISpans(spans));
     if (agentSpans.length === 0) {
       throw new CheckError("Should have at least one agent span");
     }
+
+    const expectedAgentName = testDef.agent?.name;
 
     const attrs: Record<string, any> = {
       "description": (span: CapturedSpan) => {
@@ -210,7 +212,7 @@ export const checkAgentSpanAttributes: Check = {
     };
 
     if (config.name !== "vercel") {
-      attrs["gen_ai.agent.name"] = true;
+      attrs["gen_ai.agent.name"] = expectedAgentName ?? true;
     }
 
     assertAttributes(agentSpans, attrs);

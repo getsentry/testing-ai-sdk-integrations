@@ -33,6 +33,13 @@ templates/
 │           └── config.json
 ├── agents/                  # Agentic framework templates
 │   ├── node/
+│   ├── cloudflare/
+│   │   ├── openai/
+│   │   ├── google-genai/
+│   │   └── vercel/
+│   └── ...
+├── agents/                  # Agentic framework templates
+│   ├── node/
 │   │   ├── vercel/
 │   │   │   ├── template.njk
 │   │   │   └── config.json
@@ -40,6 +47,10 @@ templates/
 │   │   │   ├── template.njk
 │   │   │   └── config.json
 │   │   └── mastra/
+│   │       ├── template.njk
+│   │       └── config.json
+│   ├── browser/
+│   │   └── langgraph/
 │   │       ├── template.njk
 │   │       └── config.json
 │   ├── python/
@@ -53,6 +64,10 @@ templates/
 │   │   │   ├── template.njk
 │   │   │   └── config.json
 │   │   └── google-genai/
+│   │       ├── template.njk
+│   │       └── config.json
+│   ├── cloudflare/
+│   │   └── vercel/
 │   │       ├── template.njk
 │   │       └── config.json
 │   └── php/
