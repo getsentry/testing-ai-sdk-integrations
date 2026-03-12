@@ -20,7 +20,7 @@ from pydantic_ai.models.fallback import FallbackModel
 # Create Pydantic AI agent with system prompt
 agent = Agent(
 {% if modelSetup == "fallback" %}
-    FallbackModel("openai:definitely-not-a-real-model", "openai:gpt5-nano"),
+    FallbackModel("openai:gpt-4o-mini-bad-model-name", "openai:gpt-5-nano"),
 {% else %}
     "openai:{{ inputs[0].model }}",
 {% endif %}

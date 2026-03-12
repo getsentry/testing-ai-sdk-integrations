@@ -20,7 +20,8 @@
         "value": "fallback",
         "overrides": {
           "modelOverrides": {
-            "request": "fallback:definitely-not-a-real-model,gpt5-nano"
+            "request": "fallback:gpt-4o-mini-bad-model-name,gpt-5-nano",
+            "response": "gpt-5-nano*"
           }
         }
       }
