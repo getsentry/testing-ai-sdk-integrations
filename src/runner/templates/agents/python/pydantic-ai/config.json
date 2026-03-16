@@ -12,5 +12,19 @@
     }
   ],
   "versions": ["1.52.0"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "options": {
+    "modelSetup": [
+      "single",
+      {
+        "value": "fallback",
+        "overrides": {
+          "modelOverrides": {
+            "request": "fallback:gpt-4o-mini-bad-model-name,gpt-5-nano",
+            "response": "gpt-5-nano*"
+          }
+        }
+      }
+    ]
+  }
 }

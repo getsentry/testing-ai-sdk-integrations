@@ -3,6 +3,9 @@
 {% block imports %}
 {{ super() }}
 from pydantic_ai import Agent, ImageUrl, RunContext
+{% if modelSetup == "fallback" %}
+from pydantic_ai.models.fallback import FallbackModel
+{% endif %}
 {% endblock %}
 
 {% block setup %}
@@ -16,7 +19,11 @@ from pydantic_ai import Agent, ImageUrl, RunContext
 
 # Create Pydantic AI agent with system prompt
 agent = Agent(
+{% if modelSetup == "fallback" %}
+    FallbackModel("openai:gpt-4o-mini-bad-model-name", "openai:gpt-5-nano"),
+{% else %}
     "openai:{{ inputs[0].model }}",
+{% endif %}
     system_prompt="{{ system_content }}",
     name="{{ agent.name }}"
 )
