@@ -1,4 +1,17 @@
 /**
+ * An option value can be a plain string or an object with overrides.
+ * Overrides are merged into the framework config for that option combination.
+ */
+export type OptionValue =
+  | string
+  | {
+      value: string;
+      overrides: Partial<
+        Pick<FrameworkConfig, "modelOverrides" | "skip" | "toolNameMapping">
+      >;
+    };
+
+/**
  * Framework configuration schema
  */
 
@@ -36,11 +49,17 @@ export interface FrameworkConfig {
   /**
    * Generic options that expand the test matrix.
    * Each key maps to an array of possible values.
-   * Example: { "apiStyle": ["highlevel", "lowlevel"] }
-   * This would double the tests, running each once per value.
-   * Values are exposed to templates as variables (e.g., {{ apiStyle }}).
+   * Values can be plain strings or objects with overrides:
+   *   - string: simple value (e.g., "highlevel")
+   *   - { value: string, overrides: {...} }: value with config overrides
+   *
+   * Overrides are merged into the framework config for that option combination.
+   * Supported override fields: modelOverrides, skip, toolNameMapping.
+   *
+   * Example: { "modelSetup": ["single", { "value": "fallback", "overrides": { "modelOverrides": { "request": "gpt-4o" } } }] }
+   * Values are exposed to templates as variables (e.g., {{ modelSetup }}).
    */
-  options?: Record<string, string[]>;
+  options?: Record<string, OptionValue[]>;
 
   /** Model overrides: Some frameworks use different models than requested */
   modelOverrides?: {

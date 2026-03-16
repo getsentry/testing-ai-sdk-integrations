@@ -145,6 +145,15 @@ export interface CapturedSpan {
   [key: string]: any;
 }
 
+export type OptionValue =
+  | string
+  | {
+      value: string;
+      overrides: Partial<
+        Pick<FrameworkConfig, "modelOverrides" | "skip" | "toolNameMapping">
+      >;
+    };
+
 export interface FrameworkConfig {
   name: string;
   platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
@@ -162,7 +171,8 @@ export interface FrameworkConfig {
   // MCP only: transport mode for server communication
   transportMode?: "stdio" | "sse" | "both";
   // Generic options that expand the test matrix (config-level: arrays of values)
-  options?: Record<string, string[]>;
+  // Values can be plain strings or objects: { value: string, overrides: {...} }
+  options?: Record<string, OptionValue[]>;
   // Resolved option values after matrix expansion (runtime: single values per key)
   resolvedOptions?: Record<string, string>;
   // Model overrides: Some frameworks use different models than requested

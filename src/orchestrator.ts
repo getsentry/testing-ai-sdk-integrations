@@ -661,36 +661,32 @@ export class Orchestrator {
         for (const execMode of executionModes) {
           for (const streamMode of streamingModes) {
             for (const transportMode of transportModes) {
-              for (const resolvedOptions of optionCombinations) {
+              for (const optionCombo of optionCombinations) {
                 const runId = this.generateRunId();
+                const resolvedOptions = optionCombo?.resolved;
+                const optionOverrides = optionCombo?.overrides || {};
                 matrix.push({
                   id: runId,
                   index: matrix.length, // Track original order for consistent reporting
                   framework: {
                     ...framework,
+                    ...optionOverrides,
                     executionMode: execMode,
                     streamingMode: streamMode,
                     transportMode: transportMode,
                     resolvedOptions,
+                    // Deep-merge modelOverrides from framework config and option overrides
+                    modelOverrides: optionOverrides.modelOverrides
+                      ? {
+                          ...framework.modelOverrides,
+                          ...optionOverrides.modelOverrides,
+                        }
+                      : framework.modelOverrides,
                   },
                   testDefinition,
                   status: "pending",
                 });
               }
-            for (const resolvedOptions of optionCombinations) {
-              const runId = this.generateRunId();
-              matrix.push({
-                id: runId,
-                index: matrix.length, // Track original order for consistent reporting
-                framework: {
-                  ...framework,
-                  executionMode: execMode,
-                  streamingMode: streamMode,
-                  resolvedOptions,
-                },
-                testDefinition,
-                status: "pending",
-              });
             }
           }
         }
@@ -883,12 +879,21 @@ export class Orchestrator {
 
   /**
    * Get all combinations of generic options for a framework.
-   * Returns an array of resolved option objects (cartesian product of all option values).
+   * Returns an array of { resolved, overrides } objects (cartesian product of all option values).
+   * Option values can be plain strings or objects with overrides that are merged into the framework config.
    * If no options are defined, returns [undefined] so the loop runs once.
    */
   private getOptionCombinations(
     framework: FrameworkConfig,
-  ): Array<Record<string, string> | undefined> {
+  ): Array<
+    | {
+        resolved: Record<string, string>;
+        overrides: Partial<
+          Pick<FrameworkConfig, "modelOverrides" | "skip" | "toolNameMapping">
+        >;
+      }
+    | undefined
+  > {
     if (!framework.options || Object.keys(framework.options).length === 0) {
       return [undefined];
     }
@@ -896,18 +901,40 @@ export class Orchestrator {
     const keys = Object.keys(framework.options).sort();
     const valueSets = keys.map((k) => framework.options![k]);
 
-    // Compute cartesian product
-    let combinations: Record<string, string>[] = [{}];
+    // Cartesian product, collecting overrides from object-style option values
+    type Combo = {
+      resolved: Record<string, string>;
+      overrides: Partial<
+        Pick<FrameworkConfig, "modelOverrides" | "skip" | "toolNameMapping">
+      >;
+    };
+    const combinations: Combo[] = [{ resolved: {}, overrides: {} }];
     for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      const values = valueSets[i];
-      const expanded: Record<string, string>[] = [];
+      const newCombinations: Combo[] = [];
       for (const combo of combinations) {
-        for (const value of values) {
-          expanded.push({ ...combo, [key]: value });
+        for (const optionValue of valueSets[i]) {
+          const value =
+            typeof optionValue === "string" ? optionValue : optionValue.value;
+          const itemOverrides =
+            typeof optionValue === "string" ? {} : optionValue.overrides;
+          newCombinations.push({
+            resolved: { ...combo.resolved, [keys[i]]: value },
+            overrides: {
+              ...combo.overrides,
+              ...itemOverrides,
+              // Deep-merge modelOverrides
+              ...(itemOverrides.modelOverrides && {
+                modelOverrides: {
+                  ...(combo.overrides.modelOverrides || {}),
+                  ...itemOverrides.modelOverrides,
+                },
+              }),
+            },
+          });
         }
       }
-      combinations = expanded;
+      combinations.length = 0;
+      combinations.push(...newCombinations);
     }
 
     return combinations;
