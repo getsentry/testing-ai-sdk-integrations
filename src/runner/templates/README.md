@@ -31,13 +31,13 @@ templates/
 │       └── anthropic/
 │           ├── template.njk
 │           └── config.json
-├── agents/                  # Agentic framework templates
+├── embeddings/              # Embedding framework templates
 │   ├── node/
+│   ├── python/
+│   ├── browser/
 │   ├── cloudflare/
-│   │   ├── openai/
-│   │   ├── google-genai/
-│   │   └── vercel/
-│   └── ...
+│   ├── nextjs/
+│   └── php/
 ├── agents/                  # Agentic framework templates
 │   ├── node/
 │   │   ├── vercel/
@@ -178,7 +178,7 @@ Framework-specific templates extend base templates and implement SDK-specific co
 - **LLM frameworks:** `llm/{node,python,browser,nextjs,cloudflare}/{framework}/`
 - **Agent frameworks:** `agents/{node,python,nextjs,cloudflare,php}/{framework}/`
 - **Embedding frameworks:** `embeddings/{node,python,browser,nextjs,cloudflare,php}/{framework}/`
-- **MCP frameworks:** `mcp/{python}/{framework}.njk`
+- **MCP frameworks:** `mcp/{python}/{framework}/`
 
 ### Example: OpenAI Python LLM Template
 

@@ -166,7 +166,8 @@ src/runner/templates/
 |       └── laravel/
 └── mcp/                              # MCP server frameworks
     └── python/
-        └── mcp/  
+        ├── fastmcp/
+        └── mcp/
 ```
 
 ## Quick Start
@@ -244,7 +245,6 @@ Options:
   --live-status              Enable live status display (real-time tree view)
   --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --open                     Open HTML report in browser after test run
-  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
@@ -335,6 +335,7 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Cloudflare Workers | `vercel`       | embeddings | embeddings | -      | -               |
 | PHP (Laravel)     | `laravel`       | embeddings | embeddings | -      | -               |
 | Python            | `mcp`           | mcp        | mcp-server | -      | async           |
+| Python            | `fastmcp`       | mcp        | mcp-server | -      | async           |
 
 ## Test Cases
 

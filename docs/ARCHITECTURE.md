@@ -204,9 +204,17 @@ src/runner/templates/
 │   │   └── google-genai/
 │   └── php/
 │       └── laravel/
+├── embeddings/                       # Embedding frameworks
+│   ├── node/
+│   ├── python/
+│   ├── browser/
+│   ├── cloudflare/
+│   ├── nextjs/
+│   └── php/
 └── mcp/                              # MCP server frameworks
     └── python/
-        └── fastmcp/
+        ├── fastmcp/
+        └── mcp/
 ```
 
 ### Framework Configuration (`config.json`)
@@ -241,7 +249,7 @@ src/runner/templates/
 | `name`           | Framework identifier                                  |
 | `displayName`    | Human-readable name                                   |
 | `type`           | `"llm-only"`, `"agentic"`, `"embeddings"`, or `"mcp-server"` |
-| `platform`       | `"node"`, `"python"`, `"browser"`, `"nextjs"`, or `"php"` |
+| `platform`       | `"node"`, `"python"`, `"browser"`, `"nextjs"`, `"php"`, or `"cloudflare"` |
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`              |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`         |
 | `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`              |
@@ -488,9 +496,10 @@ interface Check {
 
 ### MCP (Python)
 
-| Type       | Framework | Transport  | Execution | Notes                           |
-| ---------- | --------- | ---------- | --------- | ------------------------------- |
-| mcp-server | fastmcp   | stdio/sse  | async     | FastMCP via sentry MCPIntegration |
+| Type       | Framework | Transport  | Execution | Notes                                        |
+| ---------- | --------- | ---------- | --------- | -------------------------------------------- |
+| mcp-server | fastmcp   | stdio/sse  | async     | FastMCP via sentry MCPIntegration              |
+| mcp-server | mcp       | stdio/sse  | async     | MCP Python SDK (highlevel + lowlevel options)  |
 
 ## CLI Commands
 
