@@ -16,11 +16,21 @@ export class PythonRunner {
    * Check if Python environment needs setup
    */
   async needsSetup(workDir: string): Promise<boolean> {
-    const venvPath = path.join(workDir, '.venv');
+    const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
     try {
-      await fs.access(venvPath);
+      // Check that the Python binary exists AND is executable (not a broken symlink)
+      await fs.access(pythonPath, fs.constants.X_OK);
+      // Verify it actually runs (catches broken symlinks to moved interpreters)
+      await execAsync(`${pythonPath} --version`);
       return false;
     } catch {
+      // Remove broken venv so it gets recreated cleanly
+      const venvPath = path.join(workDir, '.venv');
+      try {
+        await fs.rm(venvPath, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
       return true;
     }
   }
