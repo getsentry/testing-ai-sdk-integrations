@@ -397,6 +397,39 @@ const STYLES = `
     border: 1px solid var(--warn-border);
   }
 
+  /* ---- Filters ---- */
+  .filter-bar {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 12px 16px; margin: 20px 0 4px; display: flex; align-items: center;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .filter-bar-label {
+    font-size: 12px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .filter-select {
+    appearance: none; -webkit-appearance: none;
+    background: var(--bg-alt) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23656d76'/%3E%3C/svg%3E") no-repeat right 8px center;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 5px 26px 5px 10px; font-size: 12px; font-family: var(--mono);
+    color: var(--text); cursor: pointer; transition: border-color var(--transition);
+    min-width: 100px;
+  }
+  .filter-select:hover { border-color: var(--border-heavy); }
+  .filter-select:focus { outline: none; border-color: var(--text-muted); }
+  .filter-reset {
+    background: none; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 5px 10px; font-size: 12px; font-family: var(--mono); color: var(--text-muted);
+    cursor: pointer; transition: background var(--transition), color var(--transition);
+    margin-left: auto;
+  }
+  .filter-reset:hover { background: var(--bg-alt); color: var(--text); }
+  .filter-count {
+    font-size: 11px; color: var(--text-muted); font-family: var(--mono);
+  }
+  .test-item-hidden { display: none !important; }
+  .section-hidden { display: none !important; }
+
   /* ---- pre ---- */
   pre {
     background: var(--bg-alt); padding: 10px 14px; border-radius: var(--radius);
@@ -817,7 +850,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
   if (failedTests.length === 0) return html``;
 
   return html`
-    <h2 class="section-title">Failed Tests (${failedTests.length})</h2>
+    <h2 class="section-title" data-section="failed">Failed Tests (<span class="section-count">${failedTests.length}</span>)</h2>
     ${failedTests.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
       const extra = test.extra as Record<string, unknown> | undefined;
@@ -826,6 +859,9 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       const checkResults = extra?.checkResults as ReportCheckResult[] | undefined;
       const audit = extra?.attributeAudit as ReportAttributeAudit | undefined;
       const isTimeout = extra?.originalStatus === "timeout";
+      const testType = (extra?.testType as string) || "";
+      const platform = (extra?.platform as string) || "";
+      const framework = (extra?.framework as string) || "";
 
       const severityCounts = { critical: 0, normal: 0, warning: 0 };
       if (checkResults) {
@@ -838,7 +874,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       }
 
       return html`
-        <details class="${isTimeout ? "failed-test timeout-test" : "failed-test"}">
+        <details class="${isTimeout ? "failed-test timeout-test" : "failed-test"}" data-filterable data-type="${testType}" data-platform="${platform}" data-framework="${framework}" data-status="failed">
           <summary>
             <span class="failed-icon">${isTimeout ? "\u23F1" : "\u2717"}</span>
             <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
@@ -888,7 +924,7 @@ function WarningsSection({ tests }: { tests: Test[] }) {
   if (testsWithWarnings.length === 0) return html``;
 
   return html`
-    <h2 class="section-title">Warnings (${testsWithWarnings.length} test${testsWithWarnings.length !== 1 ? "s" : ""})</h2>
+    <h2 class="section-title" data-section="warnings">Warnings (<span class="section-count">${testsWithWarnings.length}</span> test${testsWithWarnings.length !== 1 ? "s" : ""})</h2>
     <p class="warnings-section-desc">Passed tests with warning-level check failures.</p>
     ${testsWithWarnings.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
@@ -896,6 +932,10 @@ function WarningsSection({ tests }: { tests: Test[] }) {
       const checkResults = extra.checkResults as ReportCheckResult[];
       const spans = extra.spans as unknown[] | undefined;
       const warningResults = checkResults.filter((cr) => cr.status === "failed" && cr.severity === "warning");
+
+      const wTestType = (extra?.testType as string) || "";
+      const wPlatform = (extra?.platform as string) || "";
+      const wFramework = (extra?.framework as string) || "";
 
       const spanById = new Map<string, unknown>();
       if (spans) {
@@ -906,7 +946,7 @@ function WarningsSection({ tests }: { tests: Test[] }) {
       }
 
       return html`
-        <details class="warning-test">
+        <details class="warning-test" data-filterable data-type="${wTestType}" data-platform="${wPlatform}" data-framework="${wFramework}" data-status="passed">
           <summary>
             <span class="warning-icon">${"\u26A0\uFE0E"}</span>
             <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
@@ -936,7 +976,7 @@ function AttributeAuditSection({ tests }: { tests: Test[] }) {
   if (testsWithFindings.length === 0) return html``;
 
   return html`
-    <h2 class="section-title">Attribute Audit (${testsWithFindings.length} test${testsWithFindings.length !== 1 ? "s" : ""})</h2>
+    <h2 class="section-title" data-section="audit">Attribute Audit (<span class="section-count">${testsWithFindings.length}</span> test${testsWithFindings.length !== 1 ? "s" : ""})</h2>
     <p class="audit-section-desc">Audit of <code>gen_ai.*</code> attributes found on captured spans.</p>
     ${testsWithFindings.map((test) => {
       const caseId = test.name.split(" :: ")[1] || test.name;
@@ -944,9 +984,12 @@ function AttributeAuditSection({ tests }: { tests: Test[] }) {
       const audit = extra.attributeAudit as ReportAttributeAudit;
       const deprecated = audit.deprecatedAttributes.length;
       const unknown = audit.unknownAttributes.length;
+      const aTestType = (extra?.testType as string) || "";
+      const aPlatform = (extra?.platform as string) || "";
+      const aFramework = (extra?.framework as string) || "";
 
       return html`
-        <details class="audit-test">
+        <details class="audit-test" data-filterable data-type="${aTestType}" data-platform="${aPlatform}" data-framework="${aFramework}" data-status="passed">
           <summary>
             <span class="audit-icon">${"\u26A0\uFE0E"}</span>
             <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
@@ -959,6 +1002,41 @@ function AttributeAuditSection({ tests }: { tests: Test[] }) {
         </details>
       `;
     })}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Filter Bar
+// ---------------------------------------------------------------------------
+
+function FilterBar({ tests }: { tests: Test[] }) {
+  const types = [...new Set(tests.map((t) => (t.extra as Record<string, unknown>)?.testType as string).filter(Boolean))].sort();
+  const platforms = [...new Set(tests.map((t) => (t.extra as Record<string, unknown>)?.platform as string).filter(Boolean))].sort();
+  const frameworks = [...new Set(tests.map((t) => (t.extra as Record<string, unknown>)?.framework as string).filter(Boolean))].sort();
+  const statuses = [...new Set(tests.map((t) => t.status).filter(Boolean))].sort();
+
+  return html`
+    <div class="filter-bar" id="filter-bar">
+      <span class="filter-bar-label">Filters</span>
+      <select class="filter-select" id="filter-type" onchange="applyFilters()">
+        <option value="">All types</option>
+        ${types.map((t) => html`<option value="${t}">${t}</option>`)}
+      </select>
+      <select class="filter-select" id="filter-platform" onchange="applyFilters()">
+        <option value="">All platforms</option>
+        ${platforms.map((p) => html`<option value="${p}">${p}</option>`)}
+      </select>
+      <select class="filter-select" id="filter-framework" onchange="applyFilters()">
+        <option value="">All frameworks</option>
+        ${frameworks.map((f) => html`<option value="${f}">${f}</option>`)}
+      </select>
+      <select class="filter-select" id="filter-status" onchange="applyFilters()">
+        <option value="">All statuses</option>
+        ${statuses.map((s) => html`<option value="${s}">${s}</option>`)}
+      </select>
+      <span class="filter-count" id="filter-count"></span>
+      <button class="filter-reset" onclick="resetFilters()">Reset</button>
+    </div>
   `;
 }
 
@@ -1035,6 +1113,7 @@ export function generateHTML(report: Report): string {
 
         <div class="main">
           ${TestMatrix({ report })}
+          ${FilterBar({ tests: report.results.tests })}
           ${FailedTestsDetails({ tests: report.results.tests })}
           ${WarningsSection({ tests: report.results.tests })}
           ${AttributeAuditSection({ tests: report.results.tests })}
@@ -1049,6 +1128,74 @@ export function generateHTML(report: Report): string {
             var showing = pre.style.display !== 'none';
             pre.style.display = showing ? 'none' : 'block';
             btn.classList.toggle('open', !showing);
+          }
+
+          function applyFilters() {
+            var type = document.getElementById('filter-type').value;
+            var platform = document.getElementById('filter-platform').value;
+            var framework = document.getElementById('filter-framework').value;
+            var status = document.getElementById('filter-status').value;
+            var items = document.querySelectorAll('[data-filterable]');
+            var shown = 0;
+            var total = items.length;
+
+            items.forEach(function(el) {
+              var match = true;
+              if (type && el.dataset.type !== type) match = false;
+              if (platform && el.dataset.platform !== platform) match = false;
+              if (framework && el.dataset.framework !== framework) match = false;
+              if (status && el.dataset.status !== status) match = false;
+              if (match) {
+                el.classList.remove('test-item-hidden');
+                shown++;
+              } else {
+                el.classList.add('test-item-hidden');
+              }
+            });
+
+            // Update section counts and visibility
+            var sections = document.querySelectorAll('[data-section]');
+            sections.forEach(function(heading) {
+              var sectionName = heading.dataset.section;
+              var sibling = heading.nextElementSibling;
+              var visibleCount = 0;
+              while (sibling && !sibling.matches('[data-section]')) {
+                if (sibling.hasAttribute('data-filterable') && !sibling.classList.contains('test-item-hidden')) {
+                  visibleCount++;
+                }
+                sibling = sibling.nextElementSibling;
+              }
+              var countEl = heading.querySelector('.section-count');
+              if (countEl) countEl.textContent = visibleCount;
+              // Hide section heading + description if no visible items
+              var isFiltering = type || platform || framework || status;
+              if (isFiltering && visibleCount === 0) {
+                heading.classList.add('section-hidden');
+                // Also hide the description paragraph if present
+                var next = heading.nextElementSibling;
+                if (next && (next.classList.contains('warnings-section-desc') || next.classList.contains('audit-section-desc'))) {
+                  next.classList.add('section-hidden');
+                }
+              } else {
+                heading.classList.remove('section-hidden');
+                var next = heading.nextElementSibling;
+                if (next && (next.classList.contains('warnings-section-desc') || next.classList.contains('audit-section-desc'))) {
+                  next.classList.remove('section-hidden');
+                }
+              }
+            });
+
+            var countEl = document.getElementById('filter-count');
+            var isFiltering = type || platform || framework || status;
+            countEl.textContent = isFiltering ? shown + ' of ' + total : '';
+          }
+
+          function resetFilters() {
+            document.getElementById('filter-type').value = '';
+            document.getElementById('filter-platform').value = '';
+            document.getElementById('filter-framework').value = '';
+            document.getElementById('filter-status').value = '';
+            applyFilters();
           }
         ` }}></script>
       </body>
