@@ -339,9 +339,30 @@ export class CloudflareRunner {
       }
 
       if (!response.ok) {
-        throw new Error(
-          `Worker returned HTTP ${response.status}: ${responseText}`,
+        // Extract error message and stack trace from wrangler HTML error page
+        const h2Match = responseText.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+        const errorText = h2Match
+          ? h2Match[1].replace(/<[^>]+>/g, "").trim()
+          : `HTTP ${response.status}`;
+
+        // Extract raw stack trace from <div id="stack-frames-raw"><pre>...</pre></div>
+        let stackTrace = "";
+        const rawFramesMatch = responseText.match(
+          /id="stack-frames-raw"[\s\S]*?<pre[^>]*>([\s\S]*?)<\/pre>/i,
         );
+        if (rawFramesMatch) {
+          stackTrace = rawFramesMatch[1]
+            .replace(/<[^>]+>/g, "")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&amp;/g, "&")
+            .replace(/&#\d+;/g, "")
+            .trim();
+        }
+
+        const message = `Worker returned HTTP ${response.status}: ${errorText}`;
+        throw new Error(stackTrace ? `${message}\n${stackTrace}` : message);
       }
 
       // Wait for Sentry spans to flush
