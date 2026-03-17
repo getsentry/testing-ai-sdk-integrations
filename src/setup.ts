@@ -112,7 +112,7 @@ Usage:
   npm run setup [options]
 
 Options:
-  -p, --platform <node|python|browser|php|js>  Only setup for specific platform (js = node + browser)
+  -p, --platform <node|python|browser|php|js>  Only setup for specific platform (js = node + browser + cloudflare + nextjs)
   -f, --framework <name>      Only setup for specific framework
   -t, --test <name>           Only setup for specific test
   --sync                      Only setup sync tests (Python only)
