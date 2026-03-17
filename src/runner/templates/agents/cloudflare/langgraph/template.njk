@@ -30,7 +30,7 @@
         openAIApiKey: env.OPENAI_API_KEY,
       });
       const agent = createReactAgent({ llm, tools: [] });
-      const callbackHandler = Sentry.createLangChainCallbackHandler();
+      Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
 {% endblock %}
 
 {% block test %}
@@ -48,7 +48,7 @@
       ];
 
       try {
-        const result = await agent.invoke({ messages: messages{{ loop.index }} }, { callbacks: [callbackHandler] });
+        const result = await agent.invoke({ messages: messages{{ loop.index }} });
         const lastMessage = result.messages[result.messages.length - 1];
         console.log("Response:", lastMessage.content);
       } catch (error) {
