@@ -177,19 +177,20 @@ const TOOLS = {{ agent.tools | dump }};
         });
 
         // Tool spans (children of agent)
+{% set turnIndex = loop.index %}
 {% for tool in agent.tools %}
 {% if tool.result is defined or tool.error is defined %}
-        const toolDesc{{ loop.parent.loop.index }}_{{ loop.index }} = "execute_tool {{ tool.name }}";
-        await Sentry.startSpan({ op: "gen_ai.execute_tool", name: toolDesc{{ loop.parent.loop.index }}_{{ loop.index }} }, async (toolSpan) => {
-          toolSpan.setAttribute("description", toolDesc{{ loop.parent.loop.index }}_{{ loop.index }});
+        const toolDesc{{ turnIndex }}_{{ loop.index }} = "execute_tool {{ tool.name }}";
+        await Sentry.startSpan({ op: "gen_ai.execute_tool", name: toolDesc{{ turnIndex }}_{{ loop.index }} }, async (toolSpan) => {
+          toolSpan.setAttribute("description", toolDesc{{ turnIndex }}_{{ loop.index }});
           toolSpan.setAttribute("gen_ai.operation.name", "execute_tool");
           toolSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
           toolSpan.setAttribute("gen_ai.tool.name", "{{ tool.name }}");
           toolSpan.setAttribute("gen_ai.tool.type", "function");
           toolSpan.setAttribute("gen_ai.tool.description", "{{ tool.description }}");
 
-          const toolInputJson{{ loop.parent.loop.index }}_{{ loop.index }} = JSON.stringify({{ tool.arguments | dump }});
-          toolSpan.setAttribute("gen_ai.tool.call.arguments", toolInputJson{{ loop.parent.loop.index }}_{{ loop.index }});
+          const toolInputJson{{ turnIndex }}_{{ loop.index }} = JSON.stringify({{ tool.arguments | dump }});
+          toolSpan.setAttribute("gen_ai.tool.call.arguments", toolInputJson{{ turnIndex }}_{{ loop.index }});
 {% if tool.result is defined %}
 
           toolSpan.setAttribute("gen_ai.tool.call.result", JSON.stringify({{ tool.result | dump }}));
