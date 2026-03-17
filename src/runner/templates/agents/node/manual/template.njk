@@ -100,95 +100,96 @@ const TOOLS = {{ agent.tools | dump }};
       }
 {% endif %}
       // ── Turn {{ loop.index }} ──
-      const model = "{{ input.model }}";
-      const messages = {{ input.messages | dump }};
+      const model{{ loop.index }} = "{{ input.model }}";
+      const messages{{ loop.index }} = {{ input.messages | dump }};
 
-      const { sentryMessages, systemInstructions } = buildSentryMessages(messages);
+      const { sentryMessages: sentry{{ loop.index }}, systemInstructions: system{{ loop.index }} } =
+        buildSentryMessages(messages{{ loop.index }});
 
-      const otel = trimMessages(sentryMessages);
-      const otelJson = JSON.stringify(otel.messages);
+      const otel{{ loop.index }} = trimMessages(sentry{{ loop.index }});
+      const otelJson{{ loop.index }} = JSON.stringify(otel{{ loop.index }}.messages);
 
-      const contentLen = messagesContentLength(messages);
-      const inputTokens = estimateTokens(contentLen) + 10;
-      const outputTokens = 20;
-      const totalTokens = inputTokens + outputTokens;
-      const responseText = "This is a simulated agent response for turn {{ loop.index }}.";
+      const contentLen{{ loop.index }} = messagesContentLength(messages{{ loop.index }});
+      const inputTokens{{ loop.index }} = estimateTokens(contentLen{{ loop.index }}) + 10;
+      const outputTokens{{ loop.index }} = 20;
+      const totalTokens{{ loop.index }} = inputTokens{{ loop.index }} + outputTokens{{ loop.index }};
+      const responseText{{ loop.index }} = "This is a simulated agent response for turn {{ loop.index }}.";
 
       // Build tool definitions and output tool call parts
-      const toolDefinitions = [];
-      const outputToolCallParts = [];
+      const toolDefinitions{{ loop.index }} = [];
+      const outputToolCallParts{{ loop.index }} = [];
       for (const tool of TOOLS) {
-        toolDefinitions.push({
+        toolDefinitions{{ loop.index }}.push({
           name: tool.name,
           description: tool.description,
           parameters: tool.parameters || {},
         });
         if (tool.result !== undefined || tool.error !== undefined) {
           const toolArgs = tool.arguments || {};
-          outputToolCallParts.push({
+          outputToolCallParts{{ loop.index }}.push({
             type: "tool_call",
             name: tool.name,
             arguments: JSON.stringify(toolArgs),
           });
         }
       }
-      const toolDefinitionsJson = JSON.stringify(toolDefinitions);
+      const toolDefinitionsJson{{ loop.index }} = JSON.stringify(toolDefinitions{{ loop.index }});
 
-      const outputParts = [{ type: "text", text: responseText }, ...outputToolCallParts];
-      const outputMessages = JSON.stringify([{ role: "assistant", parts: outputParts }]);
+      const outputParts{{ loop.index }} = [{ type: "text", text: responseText{{ loop.index }} }, ...outputToolCallParts{{ loop.index }}];
+      const outputMessages{{ loop.index }} = JSON.stringify([{ role: "assistant", parts: outputParts{{ loop.index }} }]);
 
       // Agent span (parent)
-      const agentDesc = `invoke_agent ${AGENT_NAME}`;
-      await Sentry.startSpan({ op: "gen_ai.invoke_agent", name: agentDesc }, async (agentSpan) => {
-        agentSpan.setAttribute("description", agentDesc);
+      const agentDesc{{ loop.index }} = `invoke_agent ${AGENT_NAME}`;
+      await Sentry.startSpan({ op: "gen_ai.invoke_agent", name: agentDesc{{ loop.index }} }, async (agentSpan) => {
+        agentSpan.setAttribute("description", agentDesc{{ loop.index }});
         agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
         agentSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
-        agentSpan.setAttribute("gen_ai.request.model", model);
-        agentSpan.setAttribute("gen_ai.usage.input_tokens", inputTokens);
-        agentSpan.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens / 3)));
-        agentSpan.setAttribute("gen_ai.usage.output_tokens", outputTokens);
-        agentSpan.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens / 4)));
-        agentSpan.setAttribute("gen_ai.usage.total_tokens", totalTokens);
+        agentSpan.setAttribute("gen_ai.request.model", model{{ loop.index }});
+        agentSpan.setAttribute("gen_ai.usage.input_tokens", inputTokens{{ loop.index }});
+        agentSpan.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens{{ loop.index }} / 3)));
+        agentSpan.setAttribute("gen_ai.usage.output_tokens", outputTokens{{ loop.index }});
+        agentSpan.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens{{ loop.index }} / 4)));
+        agentSpan.setAttribute("gen_ai.usage.total_tokens", totalTokens{{ loop.index }});
 
         // Chat span (child of agent)
-        const chatDesc = `chat ${model}`;
-        await Sentry.startSpan({ op: "gen_ai.chat", name: chatDesc }, async (chatSpan) => {
-          chatSpan.setAttribute("description", chatDesc);
+        const chatDesc{{ loop.index }} = `chat ${model{{ loop.index }}}`;
+        await Sentry.startSpan({ op: "gen_ai.chat", name: chatDesc{{ loop.index }} }, async (chatSpan) => {
+          chatSpan.setAttribute("description", chatDesc{{ loop.index }});
           chatSpan.setAttribute("gen_ai.operation.name", "chat");
           chatSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
-          chatSpan.setAttribute("gen_ai.request.model", model);
-          chatSpan.setAttribute("gen_ai.response.model", model);
-          chatSpan.setAttribute("gen_ai.usage.input_tokens", inputTokens);
-          chatSpan.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens / 3)));
-          chatSpan.setAttribute("gen_ai.usage.output_tokens", outputTokens);
-          chatSpan.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens / 4)));
-          chatSpan.setAttribute("gen_ai.usage.total_tokens", totalTokens);
+          chatSpan.setAttribute("gen_ai.request.model", model{{ loop.index }});
+          chatSpan.setAttribute("gen_ai.response.model", model{{ loop.index }});
+          chatSpan.setAttribute("gen_ai.usage.input_tokens", inputTokens{{ loop.index }});
+          chatSpan.setAttribute("gen_ai.usage.input_tokens.cached", Math.max(0, Math.floor(inputTokens{{ loop.index }} / 3)));
+          chatSpan.setAttribute("gen_ai.usage.output_tokens", outputTokens{{ loop.index }});
+          chatSpan.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens{{ loop.index }} / 4)));
+          chatSpan.setAttribute("gen_ai.usage.total_tokens", totalTokens{{ loop.index }});
 
-          chatSpan.setAttribute("gen_ai.input.messages", otelJson);
-          chatSpan.setAttribute("gen_ai.output.messages", outputMessages);
-          if (systemInstructions !== null) {
-            chatSpan.setAttribute("gen_ai.system_instructions", systemInstructions);
+          chatSpan.setAttribute("gen_ai.input.messages", otelJson{{ loop.index }});
+          chatSpan.setAttribute("gen_ai.output.messages", outputMessages{{ loop.index }});
+          if (system{{ loop.index }} !== null) {
+            chatSpan.setAttribute("gen_ai.system_instructions", system{{ loop.index }});
           }
 
-          if (toolDefinitions.length > 0) {
-            chatSpan.setAttribute("gen_ai.tool.definitions", toolDefinitionsJson);
+          if (toolDefinitions{{ loop.index }}.length > 0) {
+            chatSpan.setAttribute("gen_ai.tool.definitions", toolDefinitionsJson{{ loop.index }});
           }
         });
 
         // Tool spans (children of agent)
 {% for tool in agent.tools %}
 {% if tool.result is defined or tool.error is defined %}
-        const toolDesc{{ loop.index }} = "execute_tool {{ tool.name }}";
-        await Sentry.startSpan({ op: "gen_ai.execute_tool", name: toolDesc{{ loop.index }} }, async (toolSpan) => {
-          toolSpan.setAttribute("description", toolDesc{{ loop.index }});
+        const toolDesc{{ loop.parent.loop.index }}_{{ loop.index }} = "execute_tool {{ tool.name }}";
+        await Sentry.startSpan({ op: "gen_ai.execute_tool", name: toolDesc{{ loop.parent.loop.index }}_{{ loop.index }} }, async (toolSpan) => {
+          toolSpan.setAttribute("description", toolDesc{{ loop.parent.loop.index }}_{{ loop.index }});
           toolSpan.setAttribute("gen_ai.operation.name", "execute_tool");
           toolSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
           toolSpan.setAttribute("gen_ai.tool.name", "{{ tool.name }}");
           toolSpan.setAttribute("gen_ai.tool.type", "function");
           toolSpan.setAttribute("gen_ai.tool.description", "{{ tool.description }}");
 
-          const toolInputJson{{ loop.index }} = JSON.stringify({{ tool.arguments | dump }});
-          toolSpan.setAttribute("gen_ai.tool.call.arguments", toolInputJson{{ loop.index }});
+          const toolInputJson{{ loop.parent.loop.index }}_{{ loop.index }} = JSON.stringify({{ tool.arguments | dump }});
+          toolSpan.setAttribute("gen_ai.tool.call.arguments", toolInputJson{{ loop.parent.loop.index }}_{{ loop.index }});
 {% if tool.result is defined %}
 
           toolSpan.setAttribute("gen_ai.tool.call.result", JSON.stringify({{ tool.result | dump }}));
@@ -203,6 +204,6 @@ const TOOLS = {{ agent.tools | dump }};
 {% endfor %}
       });
 
-      console.log(`Turn {{ loop.index }} Agent result: ${responseText}`);
+      console.log(`Turn {{ loop.index }} Agent result: ${responseText{{ loop.index }}}`);
 {% endfor %}
 {% endblock %}
