@@ -34,6 +34,8 @@ function getStatusIcon(status: string): string {
       return "\u23F1";
     case "skipped":
       return "\u25CB";
+    case "error":
+      return "\u26D4";
     default:
       return "-";
   }
@@ -201,6 +203,7 @@ const STYLES = `
   .status-fill-pass { background: var(--pass); }
   .status-fill-fail { background: var(--fail); }
   .status-fill-skip { background: var(--warn); }
+  .status-fill-error { background: var(--skip); }
 
   /* ---- Main Content ---- */
   .main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 48px; }
@@ -247,6 +250,8 @@ const STYLES = `
   .mini-status.status-timeout { background: var(--warn-bg); color: var(--warn); }
   .mini-status.status-skipped { background: var(--skip-bg); color: var(--skip); }
   .mini-status.status-other { background: var(--bg-alt); color: var(--text-muted); }
+  .matrix td.status-error { background: var(--skip-bg); color: var(--skip); }
+  .mini-status.status-error { background: var(--skip-bg); color: var(--skip); }
 
   /* ---- Failed Tests Details ---- */
   .failed-test {
@@ -429,6 +434,31 @@ const STYLES = `
   }
   .test-item-hidden { display: none !important; }
   .section-hidden { display: none !important; }
+
+  /* ---- Setup Errors ---- */
+  .setup-error {
+    margin: 8px 0; border: 1px solid var(--skip);
+    border-radius: var(--radius-lg); overflow: hidden; background: var(--bg);
+  }
+  .setup-error summary {
+    padding: 10px 14px; cursor: pointer; background: var(--bg);
+    user-select: none; font-size: 13px; transition: background var(--transition);
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .setup-error summary:hover { background: var(--bg-hover); }
+  .setup-error[open] summary { border-bottom: 1px solid var(--border); }
+  .setup-error-icon { color: var(--skip); flex-shrink: 0; font-family: var(--mono); font-variant-emoji: text; }
+  .setup-error summary strong { font-family: var(--mono); font-size: 12px; }
+  .setup-error-details { padding: 12px 14px; }
+  .setup-error-msg {
+    font-size: 12px; color: var(--text-secondary);
+    white-space: pre-wrap; font-family: var(--mono);
+    max-height: 200px; overflow: auto; line-height: 1.5;
+    background: var(--bg-alt); padding: 10px 14px;
+    border-radius: var(--radius); border: 1px solid var(--border);
+  }
+  .sev-badge-error { background: var(--skip-bg); color: var(--skip); border: 1px solid var(--skip); }
+  .stat-errors .stat-value { color: var(--skip); }
 
   /* ---- pre ---- */
   pre {
@@ -846,7 +876,7 @@ function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
 // ---------------------------------------------------------------------------
 
 function FailedTestsDetails({ tests }: { tests: Test[] }) {
-  const failedTests = tests.filter((t) => t.status === "failed" || t.status === "other");
+  const failedTests = tests.filter((t) => (t.status === "failed" || t.status === "other") && !isSetupError(t));
   if (failedTests.length === 0) return html``;
 
   return html`
@@ -902,6 +932,46 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
               : spanCount === 0
                 ? html`<div class="no-spans">No spans captured</div>`
                 : ""}
+          </div>
+        </details>
+      `;
+    })}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Setup Errors Section
+// ---------------------------------------------------------------------------
+
+function isSetupError(test: Test): boolean {
+  const extra = test.extra as Record<string, unknown> | undefined;
+  return extra?.originalStatus === "error";
+}
+
+function SetupErrorsSection({ tests }: { tests: Test[] }) {
+  const errorTests = tests.filter(isSetupError);
+  if (errorTests.length === 0) return html``;
+
+  return html`
+    <h2 class="section-title" data-section="setup-errors">Setup Errors (<span class="section-count">${errorTests.length}</span>)</h2>
+    ${errorTests.map((test) => {
+      const caseId = test.name.split(" :: ")[1] || test.name;
+      const extra = test.extra as Record<string, unknown> | undefined;
+      const testType = (extra?.testType as string) || "";
+      const platform = (extra?.platform as string) || "";
+      const framework = (extra?.framework as string) || "";
+
+      return html`
+        <details class="setup-error" data-filterable data-type="${testType}" data-platform="${platform}" data-framework="${framework}" data-status="error">
+          <summary>
+            <span class="setup-error-icon">\u26D4</span>
+            <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
+            <span>\u00A0::\u00A0${caseId}</span>
+            <span class="sev-badge sev-badge-error">Setup</span>
+            <span class="duration">${test.duration}ms</span>
+          </summary>
+          <div class="setup-error-details">
+            ${test.trace ? html`<pre class="setup-error-msg">${test.trace}</pre>` : test.message ? html`<pre class="setup-error-msg">${test.message}</pre>` : ""}
           </div>
         </details>
       `;
@@ -1013,7 +1083,10 @@ function FilterBar({ tests }: { tests: Test[] }) {
   const types = [...new Set(tests.map((t) => (t.extra as Record<string, unknown>)?.testType as string).filter(Boolean))].sort();
   const platforms = [...new Set(tests.map((t) => (t.extra as Record<string, unknown>)?.platform as string).filter(Boolean))].sort();
   const frameworks = [...new Set(tests.map((t) => (t.extra as Record<string, unknown>)?.framework as string).filter(Boolean))].sort();
-  const statuses = [...new Set(tests.map((t) => t.status).filter(Boolean))].sort();
+  const statuses = [...new Set(tests.map((t) => {
+    if (isSetupError(t)) return "error";
+    return t.status;
+  }).filter(Boolean))].sort();
 
   return html`
     <div class="filter-bar" id="filter-bar">
@@ -1065,15 +1138,17 @@ export function generateHTML(report: Report): string {
     month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 
-  const passWidth = total > 0 ? ((summary.passed / total) * 100).toFixed(1) : "0";
-  const failWidth = total > 0 ? ((summary.failed / total) * 100).toFixed(1) : "0";
-  const skipWidth = total > 0 ? ((summary.skipped / total) * 100).toFixed(1) : "0";
-
-  // Count total warnings
+  // Count total warnings and setup errors
   const totalWarnings = report.results.tests.reduce((sum, t) => {
     const extra = t.extra as Record<string, unknown> | undefined;
     return sum + ((extra?.warningCount as number) || 0);
   }, 0);
+  const totalErrors = report.results.tests.filter(isSetupError).length;
+
+  const passWidth = total > 0 ? ((summary.passed / total) * 100).toFixed(1) : "0";
+  const failWidth = total > 0 ? ((summary.failed / total) * 100).toFixed(1) : "0";
+  const skipWidth = total > 0 ? ((summary.skipped / total) * 100).toFixed(1) : "0";
+  const errorWidth = total > 0 ? ((totalErrors / total) * 100).toFixed(1) : "0";
 
   const htmlContent = html`
     <!DOCTYPE html>
@@ -1100,6 +1175,7 @@ export function generateHTML(report: Report): string {
             <div class="stat stat-passed"><span class="stat-value">${summary.passed}</span><span class="stat-label">passed</span></div>
             <div class="stat stat-failed"><span class="stat-value">${summary.failed}</span><span class="stat-label">failed</span></div>
             <div class="stat stat-skipped"><span class="stat-value">${summary.skipped}</span><span class="stat-label">skipped</span></div>
+            ${totalErrors > 0 ? html`<div class="stat stat-errors"><span class="stat-value">${totalErrors}</span><span class="stat-label">setup errors</span></div>` : ""}
             ${totalWarnings > 0 ? html`<div class="stat"><span class="stat-value" style="color:var(--warn)">${totalWarnings}</span><span class="stat-label">warnings</span></div>` : ""}
             <div class="stat"><span class="stat-value">${passRate}%</span><span class="stat-label">pass rate</span></div>
             <div class="stat"><span class="stat-value">${formatDuration(duration)}</span><span class="stat-label">duration</span></div>
@@ -1108,12 +1184,14 @@ export function generateHTML(report: Report): string {
             <div class="status-fill-pass" style="width:${passWidth}%"></div>
             <div class="status-fill-fail" style="width:${failWidth}%"></div>
             <div class="status-fill-skip" style="width:${skipWidth}%"></div>
+            <div class="status-fill-error" style="width:${errorWidth}%"></div>
           </div>
         </div>
 
         <div class="main">
           ${TestMatrix({ report })}
           ${FilterBar({ tests: report.results.tests })}
+          ${SetupErrorsSection({ tests: report.results.tests })}
           ${FailedTestsDetails({ tests: report.results.tests })}
           ${WarningsSection({ tests: report.results.tests })}
           ${AttributeAuditSection({ tests: report.results.tests })}
