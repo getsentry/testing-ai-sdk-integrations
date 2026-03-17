@@ -365,8 +365,7 @@ function abbreviateMode(mode) {
     .replace("sync", "s")
     .replace("stdio", "io")
     .replace("highlevel", "hi")
-    .replace("lowlevel", "lo")
-    .replace("sse", "sse");
+    .replace("lowlevel", "lo");
 }
 
 // Group all tests by type, separately for main and PR
