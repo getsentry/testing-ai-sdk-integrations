@@ -221,6 +221,9 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         // Add version specifier if not "latest"
         if (version === 'latest') {
           requirements.push(dep.package);
+        } else if (/^[<>=!~]/.test(version)) {
+          // Version already contains an operator (e.g., "<2.12", ">=1.0")
+          requirements.push(`${dep.package}${version}`);
         } else {
           requirements.push(`${dep.package}==${version}`);
         }

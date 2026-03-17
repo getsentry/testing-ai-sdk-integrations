@@ -41,7 +41,6 @@ Options:
   --open                     Open HTML report in browser after test run
   --sentry-python <path>     Use local Sentry Python SDK (editable install)
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
-  --option <key=value>       Filter by framework option (repeatable, e.g., --option apiStyle=highlevel)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
   --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
   --help, -h                 Show this help message
