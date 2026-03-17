@@ -82,6 +82,7 @@ export function generateCTRFReport(testReport: TestReport): Report {
       testType: run.testDefinition.type,
       platform: run.framework.platform,
       ...(run.status === "timeout" && { originalStatus: "timeout" }),
+      ...(run.status === "error" && { originalStatus: "error" }),
       ...(run.framework.executionMode && {
         executionMode: run.framework.executionMode,
       }),

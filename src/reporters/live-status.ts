@@ -15,7 +15,7 @@ interface TestState {
   testName: string;
   executionMode?: string;
   resolvedOptions?: Record<string, string>;
-  status: "pending" | "running" | "passed" | "failed" | "skipped" | "timeout";
+  status: "pending" | "running" | "passed" | "failed" | "skipped" | "timeout" | "error";
   currentCheck?: string;
   checkResults: CheckResult[];
   attributeAudit?: AttributeAudit;
@@ -84,7 +84,7 @@ export class LiveStatusReporter {
    */
   updateTestStatus(
     testRun: TestRun,
-    status: "running" | "passed" | "failed" | "skipped" | "timeout",
+    status: "running" | "passed" | "failed" | "skipped" | "timeout" | "error",
     error?: string,
   ): void {
     const key = this.getKey(testRun);

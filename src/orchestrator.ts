@@ -1016,9 +1016,11 @@ export class Orchestrator {
         testRun.checkResults = error.checkResults;
         testRun.error = error.message;
       } else {
+        // Any non-ValidationError is an infrastructure/execution error
+        // (test code crashed, runner failed, etc.) — not a check failure
         const errorMsg = error instanceof Error ? error.message : String(error);
         const isTimeout = errorMsg.includes("timed out");
-        testRun.status = isTimeout ? "timeout" : "failed";
+        testRun.status = isTimeout ? "timeout" : "error";
         testRun.error = errorMsg;
       }
 
@@ -1034,7 +1036,7 @@ export class Orchestrator {
         }
         this.liveStatus.updateTestStatus(
           testRun,
-          testRun.status as "failed" | "timeout",
+          testRun.status as "failed" | "timeout" | "error",
           testRun.error,
         );
       }
