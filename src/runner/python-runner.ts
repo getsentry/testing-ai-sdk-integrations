@@ -5,11 +5,12 @@
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { RunnerContext } from '../types.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export class PythonRunner {
   /**
@@ -21,7 +22,7 @@ export class PythonRunner {
       // Check that the Python binary exists AND is executable (not a broken symlink)
       await fs.access(pythonPath, fs.constants.X_OK);
       // Verify it actually runs (catches broken symlinks to moved interpreters)
-      await execAsync(`${pythonPath} --version`);
+      await execFileAsync(pythonPath, ['--version']);
       return false;
     } catch {
       // Remove broken venv so it gets recreated cleanly
