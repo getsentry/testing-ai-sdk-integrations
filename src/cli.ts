@@ -29,7 +29,7 @@ Options:
   --framework <name>         Filter by framework name (repeatable, OR-combined)
   --test <name>              Filter by test name (repeatable, OR-combined)
   --type <type>              Filter by framework type (llm, agents, embeddings) (repeatable, OR-combined)
-  --platform <node|python|browser|php|cloudflare|js>  Filter by platform (repeatable, OR-combined)
+  --platform <node|python|browser|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare + nextjs) (repeatable, OR-combined)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -54,7 +54,7 @@ Examples:
   npm run test -- --platform python --async --verbose
   npm run test -- --platform browser --framework openai
   npm run test -- --platform php                         # PHP platform (Laravel)
-  npm run test -- --platform js                         # all JS platforms (node + browser)
+  npm run test -- --platform js                         # all JS platforms (node + browser + cloudflare + nextjs)
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
   npm run test -- --framework openai --open

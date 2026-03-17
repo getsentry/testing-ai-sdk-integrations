@@ -40,7 +40,7 @@ testing-ai-sdk-integrations/
 │   │       └── long-input.ts         # Long input agent test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
-│   │   ├── javascript-runner.ts      # JS (Node) execution
+│   │   ├── javascript-runner.ts      # JS (Node + Next.js) execution
 │   │   ├── browser-runner.ts         # Browser execution (Playwright)
 │   │   ├── python-runner.ts          # Python execution
 │   │   ├── php-runner.ts             # PHP (Laravel) execution
