@@ -846,7 +846,7 @@ function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
 // ---------------------------------------------------------------------------
 
 function FailedTestsDetails({ tests }: { tests: Test[] }) {
-  const failedTests = tests.filter((t) => t.status === "failed");
+  const failedTests = tests.filter((t) => t.status === "failed" || t.status === "other");
   if (failedTests.length === 0) return html``;
 
   return html`
@@ -874,7 +874,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
       }
 
       return html`
-        <details class="${isTimeout ? "failed-test timeout-test" : "failed-test"}" data-filterable data-type="${testType}" data-platform="${platform}" data-framework="${framework}" data-status="failed">
+        <details class="${isTimeout ? "failed-test timeout-test" : "failed-test"}" data-filterable data-type="${testType}" data-platform="${platform}" data-framework="${framework}" data-status="${test.status}">
           <summary>
             <span class="failed-icon">${isTimeout ? "\u23F1" : "\u2717"}</span>
             <strong>${test.suite && test.suite.length > 0 ? test.suite[0] : "unknown"}</strong>
