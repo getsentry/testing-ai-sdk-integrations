@@ -85,7 +85,6 @@ function parseCliArgs() {
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
       "sentry-laravel": { type: "string" },
-      option: { type: "string", multiple: true },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -329,7 +328,6 @@ async function main() {
           modelOverrides: df.modelOverrides,
           toolNameMapping: df.toolNameMapping,
           minimumPlatformVersion: df.minimumPlatformVersion,
-          options: df.options,
           skip: df.skip,
         };
       });
