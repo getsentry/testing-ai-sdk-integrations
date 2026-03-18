@@ -38,6 +38,7 @@ jobs:
         run: |
           echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
           echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
+          echo "php=$(curl -s https://repo.packagist.org/p2/sentry/sentry-laravel.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["packages"]["sentry/sentry-laravel"][0]["version"])')" >> $GITHUB_OUTPUT
 
       - name: Cache Node test environments
         uses: actions/cache@v4
@@ -75,9 +76,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: runs/php
-          key: php-envs-main-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
+          key: php-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
           restore-keys: |
-            php-envs-main-${{ runner.os }}-
+            php-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -136,6 +137,7 @@ jobs:
         run: |
           echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
           echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
+          echo "php=$(curl -s https://repo.packagist.org/p2/sentry/sentry-laravel.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["packages"]["sentry/sentry-laravel"][0]["version"])')" >> $GITHUB_OUTPUT
 
       - name: Cache Node test environments
         uses: actions/cache@v4
@@ -173,9 +175,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: runs/php
-          key: php-envs-pr-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
+          key: php-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
           restore-keys: |
-            php-envs-pr-${{ runner.os }}-
+            php-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
