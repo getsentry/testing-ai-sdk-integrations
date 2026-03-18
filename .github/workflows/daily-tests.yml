@@ -43,7 +43,7 @@ jobs:
         id: sentry-versions
         run: |
           echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
-          echo "python=$(pip index versions sentry-sdk 2>/dev/null | head -1 | sed 's/.*(\(.*\))/\1/' || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
 
       - name: Cache Node test environments
         uses: actions/cache@v4
