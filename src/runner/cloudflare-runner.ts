@@ -69,17 +69,6 @@ export class CloudflareRunner {
       console.log("  ✓ wrangler.json generated");
     }
 
-    // Create .dev.vars with API keys only (SENTRY_DSN is per-test in wrangler config)
-    const devVars = [
-      `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ""}`,
-      `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ""}`,
-      `GOOGLE_GENAI_API_KEY=${process.env.GOOGLE_GENAI_API_KEY || ""}`,
-    ].join("\n");
-    await fs.writeFile(path.join(workDir, ".dev.vars"), devVars);
-    if (verbose) {
-      console.log("  ✓ .dev.vars generated");
-    }
-
     // Install dependencies
     if (verbose) {
       console.log("  Installing dependencies...");
@@ -197,6 +186,14 @@ export class CloudflareRunner {
     if (verbose) {
       console.log("  Executing Cloudflare Workers test...");
     }
+
+    // Always regenerate .dev.vars with current API keys (setup may be cached)
+    const devVars = [
+      `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ""}`,
+      `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ""}`,
+      `GOOGLE_GENAI_API_KEY=${process.env.GOOGLE_GENAI_API_KEY || ""}`,
+    ].join("\n");
+    await fs.writeFile(path.join(workDir, ".dev.vars"), devVars);
 
     // Generate test case ID and determine filename
     const testCaseId = this.generateTestCaseId(testDefinition.name);
