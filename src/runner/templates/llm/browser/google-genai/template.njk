@@ -48,10 +48,13 @@
 {% block test %}
 {% for input in inputs %}
 {% set system_content = "" %}
-{% set user_content = null %}
+{% set non_system_messages = [] %}
 {% for message in input.messages %}
-{% if message.role == 'system' %}{% set system_content = message.content %}{% endif %}
-{% if message.role == 'user' %}{% set user_content = message.content %}{% endif %}
+{% if message.role == 'system' %}
+{% set system_content = message.content %}
+{% else %}
+{% set _ = non_system_messages.push(message) %}
+{% endif %}
 {% endfor %}
 {% if input.conversationId %}
           if (typeof Sentry.setConversationId === "function") {
@@ -61,12 +64,18 @@
           // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
           try {
+            const contents = [
+{% for message in non_system_messages %}
+              { role: "{% if message.role == 'assistant' %}model{% else %}{{ message.role }}{% endif %}", parts: {{ renderContents(message.content) }} },
+{% endfor %}
+            ];
+
 {% if isStreaming %}
             log('Starting streaming request {{ loop.index }}...');
 
             const stream = await client.models.generateContentStream({
               model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
-              contents: {{ renderContents(user_content) }},
+              contents: contents,
 {% if system_content %}
               config: { systemInstruction: ["{{ system_content }}"] },
 {% endif %}
@@ -84,7 +93,7 @@
 
             const response = await client.models.generateContent({
               model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
-              contents: {{ renderContents(user_content) }},
+              contents: contents,
 {% if system_content %}
               config: { systemInstruction: ["{{ system_content }}"] },
 {% endif %}
