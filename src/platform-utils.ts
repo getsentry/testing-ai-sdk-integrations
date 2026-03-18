@@ -8,7 +8,7 @@ import { FrameworkConfig } from "./types.js";
 export type Platform = "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
 
 /** Platforms considered JavaScript-based (matched by the "js" meta-platform filter) */
-export const JS_PLATFORMS: readonly Platform[] = ["node", "browser", "cloudflare"] as const;
+export const JS_PLATFORMS: readonly Platform[] = ["node", "browser", "cloudflare", "nextjs"] as const;
 
 /**
  * Resolve a CLI platform value to the concrete platform(s) it represents.

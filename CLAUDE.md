@@ -58,7 +58,7 @@ testing-ai-sdk-integrations/
 │   │       └── prompt-get.ts         # Prompt retrieval test
 │   ├── runner/                       # Test execution
 │   │   ├── runner.ts                 # Main runner
-│   │   ├── javascript-runner.ts      # JS (Node) execution
+│   │   ├── javascript-runner.ts      # JS (Node + Next.js) execution
 │   │   ├── python-runner.ts          # Python execution
 │   │   ├── browser-runner.ts         # Browser execution (Playwright)
 │   │   ├── cloudflare-runner.ts      # Cloudflare Workers execution (wrangler dev)

@@ -62,8 +62,9 @@ export class JavaScriptRunner {
         cwd: workDir,
         env: { ...process.env, npm_config_loglevel: "error" },
       });
-      // Link local Sentry SDK
-      await execAsync(`npm link "${localSentryPath}/packages/node"`, {
+      // Link local Sentry SDK (use platform-specific package)
+      const sentryPackageDir = framework.platform === "nextjs" ? "nextjs" : "node";
+      await execAsync(`npm link "${localSentryPath}/packages/${sentryPackageDir}"`, {
         cwd: workDir,
         env: { ...process.env, npm_config_loglevel: "error" },
       });

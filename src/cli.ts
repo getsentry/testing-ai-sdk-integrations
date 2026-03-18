@@ -26,10 +26,10 @@ Commands:
   list            List discovered frameworks
 
 Options:
-  --framework <name>         Filter by framework name
-  --test <name>              Filter by test name
-  --type <type>              Filter by framework type (llm, agents, embeddings, mcp)
-  --platform <node|python|browser|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare)
+  --framework <name>         Filter by framework name (repeatable, OR-combined)
+  --test <name>              Filter by test name (repeatable, OR-combined)
+  --type <type>              Filter by framework type (llm, agents, embeddings, mcp) (repeatable, OR-combined)
+  --platform <node|python|browser|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare + nextjs) (repeatable, OR-combined)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
   --streaming                Run only streaming tests (default: both)
@@ -54,7 +54,7 @@ Examples:
   npm run test -- --platform python --async --verbose
   npm run test -- --platform browser --framework openai
   npm run test -- --platform php                         # PHP platform (Laravel)
-  npm run test -- --platform js                         # all JS platforms (node + browser)
+  npm run test -- --platform js                         # all JS platforms (node + browser + cloudflare + nextjs)
   npm run test -- --framework openai --live-status
   npm run test -- --framework openai -j=4
   npm run test -- --framework openai --open
@@ -67,10 +67,10 @@ function parseCliArgs() {
   const { values, positionals } = parseArgs({
     args: process.argv.slice(2),
     options: {
-      framework: { type: "string" },
-      test: { type: "string" },
-      type: { type: "string" },
-      platform: { type: "string" },
+      framework: { type: "string", multiple: true },
+      test: { type: "string", multiple: true },
+      type: { type: "string", multiple: true },
+      platform: { type: "string", multiple: true },
       sync: { type: "boolean", default: false },
       async: { type: "boolean", default: false },
       streaming: { type: "boolean", default: false },
@@ -112,30 +112,39 @@ function parseCliArgs() {
     parallel = parsed;
   }
 
-  // Validate and resolve type
-  const typeArg = values.type;
+  // Validate and resolve type(s)
+  const typeArgs = values.type;
   const typeMap: Record<string, "llm-only" | "agentic" | "embeddings" | "mcp-server"> = {
     "llm": "llm-only",
     "agents": "agentic",
     "embeddings": "embeddings",
     "mcp": "mcp-server",
   };
-  if (typeArg && !(typeArg in typeMap)) {
-    console.error(
-      `Error: --type must be one of: ${Object.keys(typeMap).join(", ")}`,
-    );
-    process.exit(1);
+  const resolvedTypes: Array<"llm-only" | "agentic" | "embeddings" | "mcp-server"> = [];
+  if (typeArgs) {
+    for (const t of typeArgs) {
+      if (!(t in typeMap)) {
+        console.error(
+          `Error: --type must be one of: ${Object.keys(typeMap).join(", ")}`,
+        );
+        process.exit(1);
+      }
+      resolvedTypes.push(typeMap[t]);
+    }
   }
-  const resolvedType = typeArg ? typeMap[typeArg] : undefined;
 
-  // Validate platform
-  const platformArg = values.platform;
+  // Validate platform(s)
+  const platformArgs = values.platform;
   const validPlatforms = ["node", "python", "browser", "js", "nextjs", "php", "cloudflare"];
-  if (platformArg && !validPlatforms.includes(platformArg)) {
-    console.error(
-      `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
-    );
-    process.exit(1);
+  if (platformArgs) {
+    for (const p of platformArgs) {
+      if (!validPlatforms.includes(p)) {
+        console.error(
+          `Error: --platform must be one of: ${validPlatforms.join(", ")}`,
+        );
+        process.exit(1);
+      }
+    }
   }
 
   // Parse --option key=value filters
@@ -155,10 +164,10 @@ function parseCliArgs() {
 
   return {
     command,
-    framework: values.framework,
-    test: values.test,
-    type: resolvedType,
-    platform: platformArg,
+    frameworks: values.framework,
+    tests: values.test,
+    types: resolvedTypes.length > 0 ? resolvedTypes : undefined,
+    platforms: platformArgs,
     sync: values.sync,
     async: values.async,
     streaming: values.streaming,
@@ -216,21 +225,21 @@ async function main() {
     // Discover frameworks
     let discoveredFrameworks = discoverFrameworks();
 
-    // Apply filters
-    if (options.platform) {
-      const platforms = resolvePlatformFilter(options.platform);
+    // Apply filters (multiple values for the same flag are OR-combined)
+    if (options.platforms) {
+      const allPlatforms = options.platforms.flatMap((p) => resolvePlatformFilter(p));
       discoveredFrameworks = discoveredFrameworks.filter((f) =>
-        platforms.includes(f.platform),
+        allPlatforms.includes(f.platform),
       );
     }
-    if (options.type) {
+    if (options.types) {
       discoveredFrameworks = discoveredFrameworks.filter(
-        (f) => f.type === options.type,
+        (f) => options.types!.includes(f.type),
       );
     }
-    if (options.framework) {
+    if (options.frameworks) {
       discoveredFrameworks = discoveredFrameworks.filter(
-        (f) => f.name === options.framework,
+        (f) => options.frameworks!.includes(f.name),
       );
     }
 
@@ -242,8 +251,8 @@ async function main() {
 
     // Load test definitions
     let testDefinitions = getAllTests();
-    if (options.test) {
-      testDefinitions = testDefinitions.filter((t) => t.name === options.test);
+    if (options.tests) {
+      testDefinitions = testDefinitions.filter((t) => options.tests!.includes(t.name));
     }
 
     if (testDefinitions.length === 0) {
