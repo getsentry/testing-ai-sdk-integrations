@@ -531,6 +531,53 @@ export function findEmbeddingSpans(spans: CapturedSpan[]): CapturedSpan[] {
   });
 }
 
+// =============================================================================
+// MCP Span Filtering Helpers
+// =============================================================================
+
+/**
+ * Extract MCP operation spans (tools/call, resources/read, prompts/get)
+ * Excludes protocol spans like initialize and notification spans
+ */
+const MCP_OPERATION_METHODS = new Set(["tools/call", "resources/read", "prompts/get"]);
+
+export function extractMCPSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) =>
+    s.op === "mcp.server" && MCP_OPERATION_METHODS.has(s.data?.["mcp.method.name"]),
+  );
+}
+
+/**
+ * Find MCP tool call spans (mcp.method.name === "tools/call")
+ */
+export function findMCPToolSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    return s.op === "mcp.server" && s.data?.["mcp.method.name"] === "tools/call";
+  });
+}
+
+/**
+ * Find MCP resource read spans (mcp.method.name === "resources/read")
+ */
+export function findMCPResourceSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    return s.op === "mcp.server" && s.data?.["mcp.method.name"] === "resources/read";
+  });
+}
+
+/**
+ * Find MCP prompt get spans (mcp.method.name === "prompts/get")
+ */
+export function findMCPPromptSpans(spans: CapturedSpan[]): CapturedSpan[] {
+  return spans.filter((s) => {
+    return s.op === "mcp.server" && s.data?.["mcp.method.name"] === "prompts/get";
+  });
+}
+
+// =============================================================================
+// Gen AI Tool Input Helpers
+// =============================================================================
+
 /**
  * Schema for tool input validation
  * - true: argument must exist (any value)

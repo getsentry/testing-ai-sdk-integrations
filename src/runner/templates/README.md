@@ -26,53 +26,64 @@ templates/
 │   │       └── config.json
 │   └── cloudflare/
 │       ├── openai/
-│       ├── anthropic/
-│       └── google-genai/
+│       │   ├── template.njk
+│       │   └── config.json
+│       └── anthropic/
+│           ├── template.njk
+│           └── config.json
 ├── embeddings/              # Embedding framework templates
 │   ├── node/
+│   ├── python/
+│   ├── browser/
 │   ├── cloudflare/
-│   │   ├── openai/
-│   │   ├── google-genai/
+│   ├── nextjs/
+│   └── php/
+├── agents/                  # Agentic framework templates
+│   ├── node/
+│   │   ├── vercel/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   ├── langgraph/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   └── mastra/
+│   │       ├── template.njk
+│   │       └── config.json
+│   ├── browser/
+│   │   └── langgraph/
+│   │       ├── template.njk
+│   │       └── config.json
+│   ├── python/
+│   │   ├── openai-agents/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   ├── langgraph/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   ├── pydantic-ai/
+│   │   │   ├── template.njk
+│   │   │   └── config.json
+│   │   └── google-genai/
+│   │       ├── template.njk
+│   │       └── config.json
+│   ├── cloudflare/
 │   │   └── vercel/
-│   └── ...
-└── agents/                  # Agentic framework templates
-    ├── node/
-    │   ├── vercel/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   ├── langgraph/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   └── mastra/
-    │       ├── template.njk
-    │       └── config.json
-    ├── browser/
-    │   └── langgraph/
-    │       ├── template.njk
-    │       └── config.json
-    ├── python/
-    │   ├── openai-agents/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   ├── langgraph/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   ├── pydantic-ai/
-    │   │   ├── template.njk
-    │   │   └── config.json
-    │   └── google-genai/
-    │       ├── template.njk
-    │       └── config.json
-    ├── cloudflare/
-    │   └── vercel/
-    │       ├── template.njk
-    │       └── config.json
-    └── php/
-        └── laravel/
-            ├── config.json
-            ├── template.njk       # Artisan command
-            ├── agent.php.njk      # Agent class
-            └── tool.php.njk       # Tool class
+│   │       ├── template.njk
+│   │       └── config.json
+│   └── php/
+│       └── laravel/
+│           ├── config.json
+│           ├── template.njk       # Artisan command
+│           ├── agent.php.njk      # Agent class
+│           └── tool.php.njk       # Tool class
+└── mcp/                     # MCP server framework templates
+    └── python/
+        ├── fastmcp/         # FastMCP high-level SDK
+        │   ├── template.njk
+        │   └── config.json
+        └── mcp/             # MCP Python SDK (highlevel + lowlevel via options)
+            ├── template.njk
+            └── config.json
 ```
 
 ## Base Templates
@@ -167,6 +178,7 @@ Framework-specific templates extend base templates and implement SDK-specific co
 - **LLM frameworks:** `llm/{node,python,browser,nextjs,cloudflare}/{framework}/`
 - **Agent frameworks:** `agents/{node,python,nextjs,cloudflare,php}/{framework}/`
 - **Embedding frameworks:** `embeddings/{node,python,browser,nextjs,cloudflare,php}/{framework}/`
+- **MCP frameworks:** `mcp/{python}/{framework}/`
 
 ### Example: OpenAI Python LLM Template
 
@@ -238,6 +250,28 @@ print(response.choices[0].message.content)
 {% endblock %}
 ```
 
+### Example: MCP Python Template
+
+**File:** `mcp/python/mcp/template.njk`
+
+The MCP template uses the generic **options** system to support two API styles (`highlevel` and `lowlevel`) from a single template. The `config.json` declares:
+
+```json
+{
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+This expands the test matrix so each test runs with both `apiStyle=highlevel` and `apiStyle=lowlevel`. The resolved option value is available as a top-level template variable (`{{ apiStyle }}`).
+
+The template conditionally renders different server setup code:
+- **highlevel**: Uses `FastMCP` with decorator-based tool/resource/prompt registration
+- **lowlevel**: Uses `Server` with manual handler registration (`@server.list_tools()`, `@server.call_tool()`, etc.)
+
+Both styles use `ClientSession` from `mcp.client.session` with `anyio` memory streams for in-process communication (stdio mode) or `sse_client` for SSE transport.
+
 ### Template Context Variables
 
 Framework templates receive:
@@ -246,7 +280,8 @@ Framework templates receive:
 - `frameworkName` - Framework identifier
 - `system` - System message (LLM tests only)
 - `agent` - Agent config with tools (agent tests only)
-- `input` - Test input with model, prompt, etc.
+- `mcpServer` - MCP server definition with tools, resources, prompts (MCP tests only)
+- `input` / `inputs` - Test input(s) with model, prompt, action, etc.
 - `input.model` - Model identifier
 - `input.prompt` - User prompt
 - Any resolved option values as top-level variables (see Generic Options below)
@@ -288,7 +323,7 @@ This doubles the test count — each test runs once per `apiStyle` value. Multip
 
 1. Determine framework type (LLM or agent)
 2. Choose platform (node, python, browser, nextjs, php, or cloudflare)
-3. Create framework directory: `{llm,agents,embeddings}/{node,python,browser,nextjs,php,cloudflare}/{framework}/`
+3. Create framework directory: `{llm,agents,embeddings,mcp}/{node,python,browser,nextjs,php,cloudflare}/{framework}/`
 4. Create template file: `template.njk`
 5. Create config file: `config.json`
 6. Extend appropriate base template
@@ -301,6 +336,23 @@ All templates receive a context object with:
 - `testName` - Name of the test
 - `frameworkName` - Name of the framework being tested
 - Additional variables can be passed as needed
+
+## Generic Options System
+
+Frameworks can declare `options` in their `config.json` to expand the test matrix with additional dimensions beyond the built-in ones (streaming/blocking, sync/async, transport mode).
+
+```json
+{
+  "options": {
+    "apiStyle": ["highlevel", "lowlevel"]
+  }
+}
+```
+
+- Each option key/value combination is expanded via cartesian product into the test matrix
+- Resolved option values are passed as top-level Nunjucks template variables
+- Filter from the CLI with `--option apiStyle=highlevel`
+- Multiple options can be declared; they multiply the matrix accordingly
 
 ## Notes
 

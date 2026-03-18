@@ -164,6 +164,9 @@ export class JavaScriptRunner {
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? "streaming" : "blocking");
     }
+    if (context.transportMode) {
+      modeParts.push(context.transportMode);
+    }
     // Add resolved options (sorted by key for consistent ordering)
     if (resolvedOptions) {
       for (const key of Object.keys(resolvedOptions).sort()) {

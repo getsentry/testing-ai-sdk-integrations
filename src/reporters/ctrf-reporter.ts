@@ -27,6 +27,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
     if (run.framework.streamingMode) {
       modeParts.push(run.framework.streamingMode);
     }
+    if (run.framework.transportMode) {
+      modeParts.push(run.framework.transportMode);
+    }
     if (run.framework.resolvedOptions) {
       for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
         modeParts.push(run.framework.resolvedOptions[key]);
@@ -56,6 +59,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
     }
     if (run.framework.streamingMode) {
       tags.push(run.framework.streamingMode); // 'streaming' or 'blocking'
+    }
+    if (run.framework.transportMode) {
+      tags.push(run.framework.transportMode); // 'stdio' or 'sse'
     }
     if (run.framework.resolvedOptions) {
       for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
@@ -88,6 +94,9 @@ export function generateCTRFReport(testReport: TestReport): Report {
       }),
       ...(run.framework.streamingMode && {
         streamingMode: run.framework.streamingMode,
+      }),
+      ...(run.framework.transportMode && {
+        transportMode: run.framework.transportMode,
       }),
       ...(run.framework.resolvedOptions && {
         resolvedOptions: run.framework.resolvedOptions,

@@ -18,6 +18,11 @@ import { longInputAgentTest } from "./agents/long-input.js";
 import { conversationIdLLMTest } from "./llm/conversation-id.js";
 import { conversationIdAgentTest } from "./agents/conversation-id.js";
 import { basicEmbeddingsTest } from "./embeddings/basic.js";
+import { basicMCPToolTest } from "./mcp/basic-tool.js";
+import { toolErrorMCPTest } from "./mcp/tool-error.js";
+import { multiToolMCPTest } from "./mcp/multi-tool.js";
+import { resourceReadMCPTest } from "./mcp/resource-read.js";
+import { promptGetMCPTest } from "./mcp/prompt-get.js";
 
 /**
  * All available test cases
@@ -41,6 +46,13 @@ export const testCases = {
   },
   embeddings: {
     basic: basicEmbeddingsTest,
+  },
+  mcp: {
+    basicTool: basicMCPToolTest,
+    toolError: toolErrorMCPTest,
+    multiTool: multiToolMCPTest,
+    resourceRead: resourceReadMCPTest,
+    promptGet: promptGetMCPTest,
   },
 };
 
@@ -66,10 +78,17 @@ export function getEmbeddingsTests(): TestDefinition[] {
 }
 
 /**
+ * Get all MCP test cases
+ */
+export function getMCPTests(): TestDefinition[] {
+  return Object.values(testCases.mcp);
+}
+
+/**
  * Get all test cases
  */
 export function getAllTests(): TestDefinition[] {
-  return [...getLLMTests(), ...getAgentTests(), ...getEmbeddingsTests()];
+  return [...getLLMTests(), ...getAgentTests(), ...getEmbeddingsTests(), ...getMCPTests()];
 }
 
 /**

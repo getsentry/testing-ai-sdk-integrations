@@ -213,14 +213,14 @@ export class Runner {
       console.log(`  Rendering template for ${context.framework.name}...`);
     }
 
-    const { workDir, framework, testDefinition, isAsync, isStreaming, resolvedOptions } =
+    const { workDir, framework, testDefinition, isAsync, isStreaming, transportMode, resolvedOptions } =
       context;
 
     // Generate test case ID from test name
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix for filename
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, resolvedOptions);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, transportMode, resolvedOptions);
 
     // Determine test filename based on platform and modes
     const extension = getFileExtension(framework.platform);
@@ -258,9 +258,14 @@ export class Runner {
       runId: context.runId,
       isAsync: isAsync || false, // Boolean flag for templates
       isStreaming: isStreaming || false, // Boolean flag for streaming mode
+      isStdio: transportMode === "stdio", // Boolean flag for stdio transport
+      isSse: transportMode === "sse", // Boolean flag for SSE transport
+      transportMode: transportMode || undefined, // Transport mode string
+      // Spread resolved options as top-level template variables
+      ...(resolvedOptions || {}),
       causeAPIError: testDefinition.causeAPIError || false, // Flag to intentionally cause API errors
       ...(testDefinition.agent && { agent: testDefinition.agent }),
-      ...(resolvedOptions || {}), // Spread resolved options as top-level template variables
+      ...(testDefinition.mcpServer && { mcpServer: testDefinition.mcpServer }),
       inputs: processedInputs,
     };
 
@@ -280,7 +285,7 @@ export class Runner {
     if (framework.category && framework.templatePath) {
       // Use discovered framework template
       rendered = this.renderer.renderFramework(
-        framework.category as "llm" | "agents",
+        framework.category as string,
         framework.platform,
         framework.name,
         templateContext,
@@ -317,7 +322,7 @@ export class Runner {
     templateContext: TemplateContext,
     workDir: string,
   ): Promise<void> {
-    const category = framework.category as "llm" | "agents";
+    const category = framework.category as string;
     const platform = framework.platform;
     const name = framework.name;
     const templateDir = `${category}/${platform}/${name}`;

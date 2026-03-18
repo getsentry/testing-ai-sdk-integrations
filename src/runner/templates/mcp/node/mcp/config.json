@@ -1,0 +1,13 @@
+{
+  "name": "mcp",
+  "displayName": "MCP TypeScript SDK",
+  "type": "mcp-server",
+  "platform": "node",
+  "transportMode": "both",
+  "dependencies": [
+    { "package": "@modelcontextprotocol/sdk", "version": "framework" },
+    { "package": "zod", "version": "3" }
+  ],
+  "versions": ["1.27.1"],
+  "sentryVersions": ["latest"]
+}

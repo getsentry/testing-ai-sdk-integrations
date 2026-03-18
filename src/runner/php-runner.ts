@@ -272,7 +272,7 @@ return [
     const testCaseId = this.generateTestCaseId(testDefinition.name);
 
     // Build mode suffix to match the generated command signature
-    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, resolvedOptions);
+    const modeSuffix = buildModeSuffix(framework, isAsync, isStreaming, context.transportMode, resolvedOptions);
 
     // Build the artisan command name from the test case ID + mode suffix
     const commandName = `test:${testCaseId}${modeSuffix}`;

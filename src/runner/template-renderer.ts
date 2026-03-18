@@ -66,7 +66,7 @@ export class TemplateRenderer {
    * @param context - Template context
    */
   renderFramework(
-    type: "llm" | "agents",
+    type: string,
     platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
     frameworkName: string,
     context: TemplateContext,

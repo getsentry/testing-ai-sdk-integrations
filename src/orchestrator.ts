@@ -231,6 +231,7 @@ export class Orchestrator {
           workDir,
           isAsync,
           isStreaming,
+          transportMode: firstRun.framework.transportMode as "stdio" | "sse" | undefined,
           resolvedOptions: firstRun.framework.resolvedOptions,
           timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
@@ -275,6 +276,7 @@ export class Orchestrator {
             workDir,
             isAsync: testIsAsync,
             isStreaming: testIsStreaming,
+            transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
             resolvedOptions: testRun.framework.resolvedOptions,
             timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
@@ -486,6 +488,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
         resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
@@ -649,37 +652,41 @@ export class Orchestrator {
           continue;
         }
 
-        // Generate test runs for all combinations of execution mode, streaming mode, and options
+        // Generate test runs for all combinations of execution mode, streaming mode, transport mode, and API style
         const executionModes = this.getExecutionModes(framework);
         const streamingModes = this.getStreamingModes(framework);
+        const transportModes = this.getTransportModes(framework);
         const optionCombinations = this.getOptionCombinations(framework);
 
         for (const execMode of executionModes) {
           for (const streamMode of streamingModes) {
-            for (const optionCombo of optionCombinations) {
-              const runId = this.generateRunId();
-              const resolvedOptions = optionCombo?.resolved;
-              const optionOverrides = optionCombo?.overrides || {};
-              matrix.push({
-                id: runId,
-                index: matrix.length, // Track original order for consistent reporting
-                framework: {
-                  ...framework,
-                  ...optionOverrides,
-                  executionMode: execMode,
-                  streamingMode: streamMode,
-                  resolvedOptions,
-                  // Deep-merge modelOverrides from framework config and option overrides
-                  modelOverrides: optionOverrides.modelOverrides
-                    ? {
-                        ...framework.modelOverrides,
-                        ...optionOverrides.modelOverrides,
-                      }
-                    : framework.modelOverrides,
-                },
-                testDefinition,
-                status: "pending",
-              });
+            for (const transportMode of transportModes) {
+              for (const optionCombo of optionCombinations) {
+                const runId = this.generateRunId();
+                const resolvedOptions = optionCombo?.resolved;
+                const optionOverrides = optionCombo?.overrides || {};
+                matrix.push({
+                  id: runId,
+                  index: matrix.length, // Track original order for consistent reporting
+                  framework: {
+                    ...framework,
+                    ...optionOverrides,
+                    executionMode: execMode,
+                    streamingMode: streamMode,
+                    transportMode: transportMode,
+                    resolvedOptions,
+                    // Deep-merge modelOverrides from framework config and option overrides
+                    modelOverrides: optionOverrides.modelOverrides
+                      ? {
+                          ...framework.modelOverrides,
+                          ...optionOverrides.modelOverrides,
+                        }
+                      : framework.modelOverrides,
+                  },
+                  testDefinition,
+                  status: "pending",
+                });
+              }
             }
           }
         }
@@ -754,7 +761,9 @@ export class Orchestrator {
           if (run.framework.streamingMode) {
             modeParts.push(run.framework.streamingMode);
           }
-          // Add resolved options
+          if (run.framework.transportMode) {
+            modeParts.push(run.framework.transportMode);
+          }
           if (run.framework.resolvedOptions) {
             for (const key of Object.keys(run.framework.resolvedOptions).sort()) {
               modeParts.push(run.framework.resolvedOptions[key]);
@@ -808,6 +817,14 @@ export class Orchestrator {
       };
     }
 
+    // MCP tests can only run on mcp-server frameworks
+    if (test.type === "mcp" && framework.type !== "mcp-server") {
+      return {
+        compatible: false,
+        reason: "MCP test requires mcp-server framework",
+      };
+    }
+
     return { compatible: true };
   }
 
@@ -843,6 +860,21 @@ export class Orchestrator {
 
     // Return single mode or undefined (for frameworks that don't specify streaming)
     return [framework.streamingMode];
+  }
+
+  /**
+   * Get transport modes to test for a framework
+   */
+  private getTransportModes(
+    framework: FrameworkConfig,
+  ): Array<"stdio" | "sse" | undefined> {
+    // If transport mode is "both", expand to both variants
+    if (framework.transportMode === "both") {
+      return ["stdio", "sse"];
+    }
+
+    // Return single mode or undefined (for frameworks that don't specify transport)
+    return [framework.transportMode];
   }
 
   /**
@@ -953,6 +985,7 @@ export class Orchestrator {
         workDir: this.runner.getWorkDir(testRun.framework),
         isAsync,
         isStreaming,
+        transportMode: testRun.framework.transportMode as "stdio" | "sse" | undefined,
         resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
@@ -1137,6 +1170,11 @@ export class Orchestrator {
       modeParts.push(testRun.framework.streamingMode);
     }
 
+    // Add transport mode if specified
+    if (testRun.framework.transportMode) {
+      modeParts.push(testRun.framework.transportMode);
+    }
+
     // Add resolved options
     if (testRun.framework.resolvedOptions) {
       for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
@@ -1171,6 +1209,9 @@ export class Orchestrator {
       }
       if (testRun.framework.streamingMode) {
         modeParts.push(testRun.framework.streamingMode);
+      }
+      if (testRun.framework.transportMode) {
+        modeParts.push(testRun.framework.transportMode);
       }
       if (testRun.framework.resolvedOptions) {
         for (const key of Object.keys(testRun.framework.resolvedOptions).sort()) {
@@ -1266,13 +1307,16 @@ export class Orchestrator {
     console.log(colors.gray + "─".repeat(70) + colors.reset);
 
     for (const run of report.runs) {
-      // Build mode string with execution mode (Python), streaming mode, and resolved options
+      // Build mode string with execution mode (Python), streaming mode, transport mode, and resolved options
       const modeParts: string[] = [];
       if (run.framework.platform === "python" && run.framework.executionMode) {
         modeParts.push(run.framework.executionMode);
       }
       if (run.framework.streamingMode) {
         modeParts.push(run.framework.streamingMode);
+      }
+      if (run.framework.transportMode) {
+        modeParts.push(run.framework.transportMode);
       }
       if (run.framework.resolvedOptions) {
         for (const key of Object.keys(run.framework.resolvedOptions).sort()) {

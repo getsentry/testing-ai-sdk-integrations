@@ -188,6 +188,9 @@ export class PythonRunner {
         // Add version specifier
         if (version === 'latest') {
           dependencies.push(`"${dep.package}"`);
+        } else if (/^[<>=!~]/.test(version)) {
+          // Version already has a comparison operator (e.g., "<2.12", ">=1.0")
+          dependencies.push(`"${dep.package}${version}"`);
         } else {
           dependencies.push(`"${dep.package}==${version}"`);
         }
@@ -229,6 +232,9 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
         // Add version specifier if not "latest"
         if (version === 'latest') {
           requirements.push(dep.package);
+        } else if (/^[<>=!~]/.test(version)) {
+          // Version already contains an operator (e.g., "<2.12", ">=1.0")
+          requirements.push(`${dep.package}${version}`);
         } else {
           requirements.push(`${dep.package}==${version}`);
         }
@@ -255,7 +261,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
    * Execute Python test
    */
   async executeTest(context: RunnerContext): Promise<void> {
-    const { workDir, sentryDsn, runId, isAsync, isStreaming, resolvedOptions, testDefinition, framework } = context;
+    const { workDir, sentryDsn, runId, isAsync, isStreaming, transportMode, resolvedOptions, testDefinition, framework } = context;
     const verbose = context.verbose === true;
 
     if (verbose) {
@@ -271,7 +277,9 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
     if (framework.streamingMode) {
       modeParts.push(isStreaming ? 'streaming' : 'blocking');
     }
-    // Add resolved options (sorted by key for consistent ordering)
+    if (transportMode) {
+      modeParts.push(transportMode);
+    }
     if (resolvedOptions) {
       for (const key of Object.keys(resolvedOptions).sort()) {
         modeParts.push(resolvedOptions[key]);

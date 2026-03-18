@@ -28,7 +28,7 @@ Commands:
 Options:
   --framework <name>         Filter by framework name (repeatable, OR-combined)
   --test <name>              Filter by test name (repeatable, OR-combined)
-  --type <type>              Filter by framework type (llm, agents, embeddings) (repeatable, OR-combined)
+  --type <type>              Filter by framework type (llm, agents, embeddings, mcp) (repeatable, OR-combined)
   --platform <node|python|browser|php|cloudflare|js>  Filter by platform (js = node + browser + cloudflare + nextjs) (repeatable, OR-combined)
   --sync                     Run only sync tests (default: both)
   --async                    Run only async tests (default: both)
@@ -79,11 +79,11 @@ function parseCliArgs() {
       verbose: { type: "boolean", short: "v", default: false },
       "live-status": { type: "boolean", default: false },
       open: { type: "boolean", default: false },
+      option: { type: "string", multiple: true },
       "sentry-python": { type: "string" },
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
       "sentry-laravel": { type: "string" },
-      option: { type: "string", multiple: true },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -114,12 +114,13 @@ function parseCliArgs() {
 
   // Validate and resolve type(s)
   const typeArgs = values.type;
-  const typeMap: Record<string, "llm-only" | "agentic" | "embeddings"> = {
+  const typeMap: Record<string, "llm-only" | "agentic" | "embeddings" | "mcp-server"> = {
     "llm": "llm-only",
     "agents": "agentic",
     "embeddings": "embeddings",
+    "mcp": "mcp-server",
   };
-  const resolvedTypes: Array<"llm-only" | "agentic" | "embeddings"> = [];
+  const resolvedTypes: Array<"llm-only" | "agentic" | "embeddings" | "mcp-server"> = [];
   if (typeArgs) {
     for (const t of typeArgs) {
       if (!(t in typeMap)) {
@@ -151,13 +152,13 @@ function parseCliArgs() {
   if (values.option) {
     for (const opt of values.option) {
       const eqIdx = opt.indexOf("=");
-      if (eqIdx === -1) {
+      if (eqIdx <= 0) {
         console.error(
           `Error: --option must be in key=value format, got: ${opt}`,
         );
         process.exit(1);
       }
-      optionFilters[opt.slice(0, eqIdx)] = opt.slice(eqIdx + 1);
+      optionFilters[opt.substring(0, eqIdx)] = opt.substring(eqIdx + 1);
     }
   }
 
@@ -330,10 +331,11 @@ async function main() {
           dependencies: df.dependencies,
           executionMode: df.executionMode,
           streamingMode: df.streamingMode,
+          transportMode: df.transportMode,
+          options: df.options,
           modelOverrides: df.modelOverrides,
           toolNameMapping: df.toolNameMapping,
           minimumPlatformVersion: df.minimumPlatformVersion,
-          options: df.options,
           skip: df.skip,
         };
       });
