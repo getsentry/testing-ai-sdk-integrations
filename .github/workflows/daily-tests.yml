@@ -39,45 +39,52 @@ jobs:
       - name: Install uv (Python package manager)
         uses: astral-sh/setup-uv@v5
 
+      - name: Get latest Sentry SDK versions
+        id: sentry-versions
+        run: |
+          echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
+          echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
+          echo "php=$(curl -s https://repo.packagist.org/p2/sentry/sentry-laravel.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["packages"]["sentry/sentry-laravel"][0]["version"])')" >> $GITHUB_OUTPUT
+
       - name: Cache Node test environments
         uses: actions/cache@v4
         with:
           path: runs/node
-          key: node-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
+          key: node-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
           restore-keys: |
-            node-envs-daily-${{ runner.os }}-
+            node-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
 
       - name: Cache Browser test environments
         uses: actions/cache@v4
         with:
           path: runs/browser
-          key: browser-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
+          key: browser-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
           restore-keys: |
-            browser-envs-daily-${{ runner.os }}-
+            browser-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
 
       - name: Cache Next.js test environments
         uses: actions/cache@v4
         with:
           path: runs/nextjs
-          key: nextjs-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/nextjs/**/config.json') }}
+          key: nextjs-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/nextjs/**/config.json') }}
           restore-keys: |
-            nextjs-envs-daily-${{ runner.os }}-
+            nextjs-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
 
       - name: Cache Python test environments
         uses: actions/cache@v4
         with:
           path: runs/python
-          key: python-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
+          key: python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
           restore-keys: |
-            python-envs-daily-${{ runner.os }}-
+            python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-
 
       - name: Cache PHP test environments
         uses: actions/cache@v4
         with:
           path: runs/php
-          key: php-envs-daily-${{ runner.os }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
+          key: php-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
           restore-keys: |
-            php-envs-daily-${{ runner.os }}-
+            php-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
