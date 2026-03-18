@@ -21,18 +21,38 @@ const checkErrorCaptured: Check = {
       throw new CheckError("Should have at least one AI span but found none");
     }
 
+    // Any non-ok span status from Sentry's SpanStatusType is valid
+    // See: sentry-javascript/packages/core/src/types-hoist/spanStatus.ts
+    const errorStatuses = new Set([
+      "deadline_exceeded",
+      "unauthenticated",
+      "permission_denied",
+      "not_found",
+      "resource_exhausted",
+      "invalid_argument",
+      "unimplemented",
+      "unavailable",
+      "internal_error",
+      "unknown_error",
+      "cancelled",
+      "already_exists",
+      "failed_precondition",
+      "aborted",
+      "out_of_range",
+      "data_loss",
+    ]);
+
     // Find a span with error status or error data
     const errorSpan = aiSpans.find(
       (span) =>
-        span.status === "internal_error" ||
-        span.status === "unknown_error" ||
+        errorStatuses.has(span.status ?? "") ||
         span.data?.["error.type"] !== undefined ||
         span.data?.["http.status_code"] === 500,
     );
 
     if (!errorSpan) {
       throw new CheckError(
-        "Expected to find a span with error information (internal_error, unknown_error, error.type, or http.status_code=500)",
+        "Expected to find a span with an error status or error data",
         aiSpans.map((span) => ({
           spanId: span.span_id,
           message: `Span has status="${span.status}" with no error indicators`,
