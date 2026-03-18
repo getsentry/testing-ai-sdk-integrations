@@ -8,14 +8,9 @@ import * as fs from "fs/promises";
 import { exec, spawn, ChildProcess } from "child_process";
 import { promisify } from "util";
 import { RunnerContext } from "../types.js";
+import { allocatePort } from "./port-allocator.js";
 
 const execAsync = promisify(exec);
-
-// Module-level port counter to avoid collisions when running tests in parallel
-let nextPort = 10000 + Math.floor(Math.random() * 40000);
-function allocatePort(): number {
-  return nextPort++;
-}
 
 export class CloudflareRunner {
   /**
