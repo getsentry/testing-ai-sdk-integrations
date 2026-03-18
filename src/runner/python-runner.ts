@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { RunnerContext } from '../types.js';
+import { allocatePort } from './port-allocator.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -289,14 +290,19 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
     const testFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.py`);
     const logFile = path.join(workDir, `test-${testCaseId}-${modeSuffix}.log`);
 
-    const env = {
-      ...process.env,
+    const env: Record<string, string> = {
+      ...process.env as Record<string, string>,
       SENTRY_DSN: sentryDsn,
       RUN_ID: runId,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY || '',
     };
+
+    // Assign a unique port for MCP SSE transport tests
+    if (transportMode === 'sse') {
+      env.MCP_SSE_PORT = String(allocatePort());
+    }
 
     try {
       const { stdout, stderr } = await execAsync(`${pythonPath} ${testFile}`, {
