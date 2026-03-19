@@ -39,32 +39,15 @@ export class PythonRunner {
    * Setup Python virtual environment and install dependencies from scratch.
    */
   async setupEnvironment(context: RunnerContext): Promise<void> {
-    const { workDir } = context;
-    const verbose = context.verbose === true;
-
-    if (verbose) {
-      console.log(`  Setting up Python environment in ${workDir}...`);
-    }
-
-    await this.writePyprojectToml(context);
-    await execAsync('uv sync', { cwd: workDir });
-    await this.installLocalSentrySdk(context);
-
-    if (verbose) {
-      console.log('  ✓ Dependencies installed');
-    }
+    await this.syncDependencies(context);
   }
 
   /**
-   * Sync dependencies against pyproject.toml.
-   * Fast no-op when everything is already up to date.
+   * Sync dependencies against pyproject.toml via uv sync.
+   * Idempotent: creates venv on first run, fast no-op when already up to date.
    */
   async syncDependencies(context: RunnerContext): Promise<void> {
     const verbose = context.verbose === true;
-
-    if (verbose) {
-      console.log('  Syncing dependencies...');
-    }
 
     await this.writePyprojectToml(context);
     await execAsync('uv sync', { cwd: context.workDir });
@@ -110,7 +93,7 @@ export class PythonRunner {
       dependencies.push(`"sentry-sdk==${framework.sentryVersion}"`);
     }
 
-    const minPythonVersion = framework.minimumPlatformVersion ?? '3.9';
+    const minPythonVersion = framework.minimumPlatformVersion ?? '3.10';
 
     const pyproject = `[project]
 name = "sentry-test-${framework.name}"
