@@ -11,8 +11,7 @@
  */
 
 import * as Sentry from "@sentry/cloudflare";
-
-{% block setup %}{% endblock %}
+{% block imports %}{% endblock %}
 
 export default Sentry.withSentry(
   (env) => ({
