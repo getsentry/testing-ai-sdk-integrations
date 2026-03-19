@@ -253,7 +253,7 @@ src/runner/templates/
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`              |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`         |
 | `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`              |
-| `dependencies`   | NPM/pip packages to install                           |
+| `dependencies`   | NPM/uv packages to install                            |
 | `versions`       | Framework versions to test                            |
 | `sentryVersions` | Sentry SDK versions to test against                   |
 | `modelOverrides` | Override model names for validation                   |

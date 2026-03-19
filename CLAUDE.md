@@ -529,7 +529,7 @@ Each framework has a `config.json` file that defines its capabilities:
 | `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`                                                                |
 | `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`                                                           |
 | `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`                                                               |
-| `dependencies`   | NPM/pip packages to install                                                                             |
+| `dependencies`   | NPM/uv packages to install                                                                              |
 | `versions`       | Framework versions to test                                                                              |
 | `sentryVersions` | Sentry SDK versions to test against                                                                     |
 | `options`        | Generic options expanding the test matrix (e.g., `{ "apiStyle": ["highlevel", "lowlevel"] }`)           |

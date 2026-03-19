@@ -80,9 +80,6 @@ Testing 1 framework(s) with 1 test(s)
 
 [openai] Running: Basic LLM Test
    Setting up Python environment in runs/python/openai-1.57.0-sentry-local...
-  Using uv for dependency management
-  ✓ pyproject.toml generated
-  ✓ Virtual environment created
   Installing dependencies...
   Installing local Sentry SDK from: /Users/you/sentry-python
   ✓ Dependencies installed
@@ -97,10 +94,6 @@ rm -rf runs/
 npm start run -- --framework openai --sentry-python ~/sentry-python
 ```
 
-## Fallback
+## Requirements
 
-If `uv` is not available for Python, the runner automatically falls back to using `pip`:
-
-```bash
-pip install -e "${SENTRY_PYTHON_PATH}"
-```
+Python dependency management requires **uv** (`pip install uv` or `brew install uv`). There is no pip fallback.

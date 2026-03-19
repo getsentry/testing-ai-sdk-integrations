@@ -28,7 +28,7 @@ export class PhpRunner {
    * Check if PHP/Laravel environment needs setup
    * We check for the vendor/ directory as the marker.
    */
-  async needsSetup(workDir: string): Promise<boolean> {
+  async needsSetup(workDir: string, _context?: RunnerContext): Promise<boolean> {
     const vendorPath = path.join(workDir, "vendor");
     try {
       await fs.access(vendorPath);
