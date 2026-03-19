@@ -21,7 +21,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["1.10.0"],
+  "versions": ["1.14.0"],
   "sentryVersions": ["latest"],
   "skip": {
     "tests": ["Long Input Agent Test"],
