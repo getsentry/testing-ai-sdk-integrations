@@ -17,39 +17,22 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-// Callback handler and chat model will be initialized after dynamic import
-let callbackHandler;
-let chat;
-let HumanMessage, SystemMessage, AIMessage;
-{% endblock %}
-
 {% block dynamic_imports %}
-      // Import LangChain from local node_modules
-      const langchainOpenAI = await import("@langchain/openai");
-      const langchainMessages = await import("@langchain/core/messages");
+const { ChatOpenAI } = await import("@langchain/openai");
+const { HumanMessage, SystemMessage, AIMessage } = await import("@langchain/core/messages");
 
-      HumanMessage = langchainMessages.HumanMessage;
-      SystemMessage = langchainMessages.SystemMessage;
-      AIMessage = langchainMessages.AIMessage;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+  console.error('ERROR: OPENAI_API_KEY not found in environment');
+  throw new Error('OPENAI_API_KEY not provided');
+}
 
-      // Get API key from environment
-      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      if (!OPENAI_API_KEY) {
-        console.error('ERROR: OPENAI_API_KEY not found in environment');
-        throw new Error('OPENAI_API_KEY not provided');
-      }
-
-      // Create LangChain callback handler for Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-      callbackHandler = Sentry.createLangChainCallbackHandler();
-
-      // Create chat model
-      chat = new langchainOpenAI.ChatOpenAI({
-        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-        openAIApiKey: OPENAI_API_KEY,
-      });
-
-      console.log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
+const callbackHandler = Sentry.createLangChainCallbackHandler();
+const chat = new ChatOpenAI({
+  modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+  openAIApiKey: OPENAI_API_KEY,
+});
+console.log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
 {% endblock %}
 
 {% block test %}

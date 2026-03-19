@@ -25,113 +25,94 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-{% if variant == "compiled" %}
-    let agent;
-{% else %}
-    let compiledGraph;
-{% endif %}
-{% if variant == "langchain" or variant == "combined" %}
-    let callbackHandler;
-{% endif %}
-    let HumanMessage, SystemMessage;
-{% endblock %}
-
 {% block dynamic_imports %}
 {% if variant == "compiled" %}
-          const langgraphPrebuilt = await import("@langchain/langgraph/prebuilt");
+    const { createReactAgent } = await import("@langchain/langgraph/prebuilt");
 {% endif %}
 {% if variant != "compiled" %}
-          const langgraphModule = await import("@langchain/langgraph/web");
+    const langgraphModule = await import("@langchain/langgraph/web");
 {% endif %}
-          const langchainOpenAI = await import("@langchain/openai");
-          const langchainMessages = await import("@langchain/core/messages");
+    const { ChatOpenAI } = await import("@langchain/openai");
+    const { HumanMessage, SystemMessage } = await import("@langchain/core/messages");
 
-{% if variant == "compiled" %}
-          HumanMessage = langchainMessages.HumanMessage;
-          SystemMessage = langchainMessages.SystemMessage;
-{% elif variant == "custom-state" %}
-          const { StateGraph, Annotation, START, END } = langgraphModule;
-          HumanMessage = langchainMessages.HumanMessage;
-          SystemMessage = langchainMessages.SystemMessage;
-{% else %}
-          const { StateGraph, MessagesAnnotation, START, END } = langgraphModule;
-          HumanMessage = langchainMessages.HumanMessage;
-          SystemMessage = langchainMessages.SystemMessage;
+{% if variant == "custom-state" %}
+    const { StateGraph, Annotation, START, END } = langgraphModule;
+{% elif variant != "compiled" %}
+    const { StateGraph, MessagesAnnotation, START, END } = langgraphModule;
 {% endif %}
 
-          const OPENAI_API_KEY = window.OPENAI_API_KEY;
-          if (!OPENAI_API_KEY) {
-            throw new Error('OPENAI_API_KEY not provided');
-          }
+    const OPENAI_API_KEY = window.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not provided');
+    }
 
 {% if variant == "langchain" or variant == "combined" %}
-          callbackHandler = Sentry.createLangChainCallbackHandler();
+    const callbackHandler = Sentry.createLangChainCallbackHandler();
 {% endif %}
 
 {% if variant == "compiled" %}
-          const llm = new langchainOpenAI.ChatOpenAI({
-            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-            apiKey: OPENAI_API_KEY,
-          });
+    const llm = new ChatOpenAI({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      apiKey: OPENAI_API_KEY,
+    });
 
-          agent = langgraphPrebuilt.createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
-          Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
+    const agent = createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
+    Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
 
-          log('LangGraph initialized with instrumentLangGraph on compiled graph');
+    log('LangGraph initialized with instrumentLangGraph on compiled graph');
 {% elif variant == "custom-state" %}
-          const llm = new langchainOpenAI.ChatOpenAI({
-            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-            apiKey: OPENAI_API_KEY,
-          });
+    const llm = new ChatOpenAI({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      apiKey: OPENAI_API_KEY,
+    });
 
-          const CustomState = Annotation.Root({
-            userInput: Annotation(),
-            response: Annotation(),
-          });
+    const CustomState = Annotation.Root({
+      userInput: Annotation(),
+      response: Annotation(),
+    });
 
-          async function agentNode(state, config) {
-            const response = await llm.invoke([new HumanMessage(state.userInput)], config);
-            return { response: response.content };
-          }
+    async function agentNode(state, config) {
+      const response = await llm.invoke([new HumanMessage(state.userInput)], config);
+      return { response: response.content };
+    }
 
-          const graph = new StateGraph(CustomState)
-            .addNode("agent", agentNode)
-            .addEdge(START, "agent")
-            .addEdge("agent", END);
+    const graph = new StateGraph(CustomState)
+      .addNode("agent", agentNode)
+      .addEdge(START, "agent")
+      .addEdge("agent", END);
 
-          Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
-          compiledGraph = graph.compile({ name: "{{ agent.name }}" });
+    Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
+    const compiledGraph = graph.compile({ name: "{{ agent.name }}" });
 
-          log('LangGraph initialized with custom Annotation.Root state');
+    log('LangGraph initialized with custom Annotation.Root state');
 {% else %}
-          const llm = new langchainOpenAI.ChatOpenAI({
-            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-            apiKey: OPENAI_API_KEY,
-          });
+    const llm = new ChatOpenAI({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      apiKey: OPENAI_API_KEY,
+    });
 
-          async function agentNode(state, config) {
-            const response = await llm.invoke(state.messages, config);
-            return { messages: [response] };
-          }
+    async function agentNode(state, config) {
+      const response = await llm.invoke(state.messages, config);
+      return { messages: [response] };
+    }
 
-          const graph = new StateGraph(MessagesAnnotation)
-            .addNode("agent", agentNode)
-            .addEdge(START, "agent")
-            .addEdge("agent", END);
+    const graph = new StateGraph(MessagesAnnotation)
+      .addNode("agent", agentNode)
+      .addEdge(START, "agent")
+      .addEdge("agent", END);
 
 {% if variant == "graph" or variant == "combined" %}
-          Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
+    Sentry.instrumentLangGraph(graph, { recordInputs: true, recordOutputs: true });
 {% endif %}
 
-          compiledGraph = graph.compile({ name: "{{ agent.name }}" });
+    const compiledGraph = graph.compile({ name: "{{ agent.name }}" });
 
 {% if variant == "graph" %}
-          log('LangGraph initialized with Sentry.instrumentLangGraph (graph instrumentation only)');
+    log('LangGraph initialized with Sentry.instrumentLangGraph (graph instrumentation only)');
 {% elif variant == "langchain" %}
-          log('LangGraph initialized with Sentry.createLangChainCallbackHandler (callback instrumentation only)');
+    log('LangGraph initialized with Sentry.createLangChainCallbackHandler (callback instrumentation only)');
 {% elif variant == "combined" %}
-          log('LangGraph initialized with both Sentry.instrumentLangGraph and Sentry.createLangChainCallbackHandler');
+    log('LangGraph initialized with both Sentry.instrumentLangGraph and Sentry.createLangChainCallbackHandler');
 {% endif %}
 {% endif %}
 {% endblock %}

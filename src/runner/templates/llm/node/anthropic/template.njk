@@ -17,15 +17,9 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-// Client will be initialized after dynamic import
-let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-      // Dynamic import of anthropic AFTER Sentry.init() to ensure instrumentation
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
-      client = new Anthropic();
+const { default: Anthropic } = await import("@anthropic-ai/sdk");
+const client = new Anthropic();
 {% endblock %}
 
 {% block test %}

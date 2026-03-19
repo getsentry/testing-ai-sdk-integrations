@@ -1,24 +1,20 @@
 {% extends "base.browser.njk" %}
 
-{% block setup %}
-    let embeddings;
-{% endblock %}
-
 {% block dynamic_imports %}
-          const langchainOpenAI = await import("@langchain/openai");
+    const { OpenAIEmbeddings } = await import("@langchain/openai");
 
-          const OPENAI_API_KEY = window.OPENAI_API_KEY;
-          if (!OPENAI_API_KEY) {
-            log('ERROR: OPENAI_API_KEY not found in window');
-            throw new Error('OPENAI_API_KEY not provided');
-          }
+    const OPENAI_API_KEY = window.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      log('ERROR: OPENAI_API_KEY not found in window');
+      throw new Error('OPENAI_API_KEY not provided');
+    }
 
-          embeddings = new langchainOpenAI.OpenAIEmbeddings({
-            modelName: "{{ inputs[0].model }}",
-            openAIApiKey: OPENAI_API_KEY,
-          });
+    const embeddings = new OpenAIEmbeddings({
+      modelName: "{{ inputs[0].model }}",
+      openAIApiKey: OPENAI_API_KEY,
+    });
 
-          log('LangChain OpenAIEmbeddings initialized');
+    log('LangChain OpenAIEmbeddings initialized');
 {% endblock %}
 
 {% block test %}

@@ -1,14 +1,8 @@
 {% extends "base.node.njk" %}
 
-{% block setup %}
-let embed, openai;
-{% endblock %}
-
 {% block dynamic_imports %}
-      const ai = await import("ai");
-      const aiSdkOpenai = await import("@ai-sdk/openai");
-      embed = ai.embed;
-      openai = aiSdkOpenai.openai;
+const { embed } = await import("ai");
+const { openai } = await import("@ai-sdk/openai");
 {% endblock %}
 
 {% block test %}

@@ -1,14 +1,10 @@
 {% extends "base.node.njk" %}
 
-{% block setup %}
-let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-      const { GoogleGenAI } = await import("@google/genai");
-      client = new GoogleGenAI({
-        apiKey: process.env.GOOGLE_GENAI_API_KEY,
-      });
+const { GoogleGenAI } = await import("@google/genai");
+const client = new GoogleGenAI({
+  apiKey: process.env.GOOGLE_GENAI_API_KEY,
+});
 {% endblock %}
 
 {% block test %}

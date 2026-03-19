@@ -17,32 +17,22 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-    // Client will be initialized after dynamic import
-    let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-          // Import Google Gen AI from local node_modules (bundled by Vite)
-          const { GoogleGenAI } = await import("@google/genai");
+    const { GoogleGenAI } = await import("@google/genai");
 
-          // Get API key from window (injected by Playwright)
-          const GOOGLE_API_KEY = window.GOOGLE_GENAI_API_KEY;
-          if (!GOOGLE_API_KEY) {
-            log('ERROR: GOOGLE_GENAI_API_KEY not found in window');
-            throw new Error('GOOGLE_GENAI_API_KEY not provided');
-          }
+    const GOOGLE_API_KEY = window.GOOGLE_GENAI_API_KEY;
+    if (!GOOGLE_API_KEY) {
+      log('ERROR: GOOGLE_GENAI_API_KEY not found in window');
+      throw new Error('GOOGLE_GENAI_API_KEY not provided');
+    }
 
-          // Create Google Gen AI client
-          // WARNING: API key is exposed in browser - this is for testing only!
-          const genAI = new GoogleGenAI({
-            apiKey: GOOGLE_API_KEY,
-          });
+    // WARNING: API key is exposed in browser - this is for testing only!
+    const genAI = new GoogleGenAI({
+      apiKey: GOOGLE_API_KEY,
+    });
 
-          // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-          client = Sentry.instrumentGoogleGenAIClient(genAI);
-
-          log('Google Gen AI client initialized and instrumented');
+    const client = Sentry.instrumentGoogleGenAIClient(genAI);
+    log('Google Gen AI client initialized and instrumented');
 {% endblock %}
 
 {% block test %}

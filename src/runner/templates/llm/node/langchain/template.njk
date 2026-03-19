@@ -17,23 +17,12 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-// Classes and client will be initialized after dynamic import
-let ChatOpenAI, HumanMessage, SystemMessage, AIMessage;
-let chat;
-{% endblock %}
-
 {% block dynamic_imports %}
-      // Dynamic import of langchain AFTER Sentry.init() to ensure instrumentation
-      const langchainOpenAI = await import("@langchain/openai");
-      const langchainMessages = await import("@langchain/core/messages");
-      ChatOpenAI = langchainOpenAI.ChatOpenAI;
-      HumanMessage = langchainMessages.HumanMessage;
-      SystemMessage = langchainMessages.SystemMessage;
-      AIMessage = langchainMessages.AIMessage;
-      chat = new ChatOpenAI({
-        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-      });
+const { ChatOpenAI } = await import("@langchain/openai");
+const { HumanMessage, SystemMessage, AIMessage } = await import("@langchain/core/messages");
+const chat = new ChatOpenAI({
+  modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+});
 {% endblock %}
 
 {% block test %}

@@ -5,31 +5,16 @@
 {% if type_str == 'number' %}z.number(){% elif type_str == 'integer' %}z.number().int(){% elif type_str == 'boolean' %}z.boolean(){% else %}z.string(){% endif %}
 {%- endmacro %}
 
-{% block setup %}
-// Variables initialized after dynamic import
-let McpServer, InMemoryTransport, Client, z, Sentry_wrapMcp;
-{% if isSse %}
-let SSEServerTransport, SSEClientTransport, http;
-{% endif %}
-{% endblock %}
-
 {% block dynamic_imports %}
-      const mcpServerMod = await import("@modelcontextprotocol/sdk/server/mcp.js");
-      const inMemoryMod = await import("@modelcontextprotocol/sdk/inMemory.js");
-      const clientMod = await import("@modelcontextprotocol/sdk/client/index.js");
-      const zodMod = await import("zod");
-      McpServer = mcpServerMod.McpServer;
-      InMemoryTransport = inMemoryMod.InMemoryTransport;
-      Client = clientMod.Client;
-      z = zodMod.z;
-      Sentry_wrapMcp = Sentry.wrapMcpServerWithSentry;
+const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
+const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+const { z } = await import("zod");
+const Sentry_wrapMcp = Sentry.wrapMcpServerWithSentry;
 {% if isSse %}
-      const sseMod = await import("@modelcontextprotocol/sdk/server/sse.js");
-      const sseClientMod = await import("@modelcontextprotocol/sdk/client/sse.js");
-      const httpMod = await import("node:http");
-      SSEServerTransport = sseMod.SSEServerTransport;
-      SSEClientTransport = sseClientMod.SSEClientTransport;
-      http = httpMod.default;
+const { SSEServerTransport } = await import("@modelcontextprotocol/sdk/server/sse.js");
+const { SSEClientTransport } = await import("@modelcontextprotocol/sdk/client/sse.js");
+const { default: http } = await import("node:http");
 {% endif %}
 {% endblock %}
 

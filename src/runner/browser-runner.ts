@@ -178,6 +178,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 export default defineConfig({
   plugins: [viteSingleFile()],
   build: {
+    target: 'esnext',
     outDir: 'dist',
     emptyOutDir: ${i === 0 ? "true" : "false"},
     rollupOptions: {
