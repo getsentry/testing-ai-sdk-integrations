@@ -15,7 +15,7 @@ export class JavaScriptRunner {
   /**
    * Check if JavaScript environment needs setup
    */
-  async needsSetup(workDir: string): Promise<boolean> {
+  async needsSetup(workDir: string, _context?: RunnerContext): Promise<boolean> {
     const nodeModulesPath = path.join(workDir, "node_modules");
     try {
       await fs.access(nodeModulesPath);

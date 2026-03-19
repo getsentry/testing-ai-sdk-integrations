@@ -78,19 +78,14 @@ export class Runner {
     // Ensure work directory exists
     await fs.mkdir(workDir, { recursive: true });
 
-    // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
-
-    // Check if environment needs setup
-    const needsSetup = await platformRunner.needsSetup(workDir);
-    if (needsSetup) {
-      await platformRunner.setupEnvironment(context);
-    } else if (verbose) {
-      console.log("  Using cached environment");
-    }
+    // Setup or sync environment
+    await this.ensureEnvironment(context, workDir, verbose);
 
     // Render template
     await this.renderTemplate(context);
+
+    // Get platform-specific runner
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
 
     // Execute test
     await platformRunner.executeTest(context);
@@ -106,16 +101,8 @@ export class Runner {
     // Ensure work directory exists
     await fs.mkdir(workDir, { recursive: true });
 
-    // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
-
-    // Check if environment needs setup
-    const needsSetup = await platformRunner.needsSetup(workDir);
-    if (needsSetup) {
-      await platformRunner.setupEnvironment(context);
-    } else if (verbose) {
-      console.log("  Using cached environment");
-    }
+    // Setup or sync environment
+    await this.ensureEnvironment(context, workDir, verbose);
 
     // Render template
     await this.renderTemplate(context);
@@ -132,13 +119,28 @@ export class Runner {
     // Ensure work directory exists
     await fs.mkdir(workDir, { recursive: true });
 
-    // Get platform-specific runner
-    const platformRunner = this.getPlatformRunner(context.framework.platform);
+    // Setup or sync environment
+    await this.ensureEnvironment(context, workDir, verbose);
+  }
 
-    // Check if environment needs setup
-    const needsSetup = await platformRunner.needsSetup(workDir);
+  /**
+   * Ensure environment is set up and dependencies are in sync.
+   * For Python with uv: uses uv sync to reconcile deps (fast no-op when up to date).
+   * For other platforms: full setup only when environment doesn't exist yet.
+   */
+  private async ensureEnvironment(
+    context: RunnerContext,
+    workDir: string,
+    verbose: boolean,
+  ): Promise<void> {
+    const platformRunner = this.getPlatformRunner(context.framework.platform);
+    const needsSetup = await platformRunner.needsSetup(workDir, context);
+
     if (needsSetup) {
       await platformRunner.setupEnvironment(context);
+    } else if (context.framework.platform === "python") {
+      // Python: always sync deps to catch stale cached venvs
+      await this.pythonRunner.syncDependencies(context);
     } else if (verbose) {
       console.log("  Using cached environment");
     }

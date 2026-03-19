@@ -1,6 +1,7 @@
 /**
  * Python-specific test runner
- * Handles Python environment setup, dependency installation, and test execution
+ * Handles Python environment setup, dependency installation, and test execution.
+ * Requires uv (https://docs.astral.sh/uv/) for dependency management.
  */
 
 import * as path from 'path';
@@ -15,21 +16,18 @@ const execFileAsync = promisify(execFile);
 
 export class PythonRunner {
   /**
-   * Check if Python environment needs setup
+   * Check if Python environment needs initial setup (no venv at all).
    */
-  async needsSetup(workDir: string): Promise<boolean> {
+  async needsSetup(workDir: string, _context?: RunnerContext): Promise<boolean> {
     const pythonPath = path.join(workDir, '.venv', 'bin', 'python');
     try {
-      // Check that the Python binary exists AND is executable (not a broken symlink)
       await fs.access(pythonPath, fs.constants.X_OK);
-      // Verify it actually runs (catches broken symlinks to moved interpreters)
       await execFileAsync(pythonPath, ['--version']);
       return false;
     } catch {
       // Remove broken venv so it gets recreated cleanly
-      const venvPath = path.join(workDir, '.venv');
       try {
-        await fs.rm(venvPath, { recursive: true, force: true });
+        await fs.rm(path.join(workDir, '.venv'), { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }
@@ -38,172 +36,75 @@ export class PythonRunner {
   }
 
   /**
-   * Setup Python virtual environment and install dependencies
+   * Setup Python virtual environment and install dependencies from scratch.
    */
   async setupEnvironment(context: RunnerContext): Promise<void> {
-    const { workDir, framework } = context;
+    const { workDir } = context;
     const verbose = context.verbose === true;
-    
+
     if (verbose) {
       console.log(`  Setting up Python environment in ${workDir}...`);
     }
 
-    // Check if uv is available
-    const useUv = await this.isUvAvailable();
-    
-    if (useUv) {
-      if (verbose) {
-        console.log('  Using uv for dependency management');
-      }
-      
-      // Create pyproject.toml
-      const pyproject = this.generatePyprojectToml(context);
-      await fs.writeFile(path.join(workDir, 'pyproject.toml'), pyproject);
-      if (verbose) {
-        console.log('  ✓ pyproject.toml generated');
-      }
-      
-      // Create virtual environment with uv
-      await execAsync('uv venv .venv', { cwd: workDir });
-      if (verbose) {
-        console.log('  ✓ Virtual environment created');
-      }
-      
-      // Install dependencies with uv
-      if (verbose) {
-        console.log('  Installing dependencies...');
-      }
-      
-      // Check for local Sentry SDK path
-      const localSentryPath = process.env.SENTRY_PYTHON_PATH;
-      if (localSentryPath && framework.sentryVersion === 'local') {
-        if (verbose) {
-          console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
-        }
-        await execAsync(`uv pip install -e "${localSentryPath}"`, { 
-          cwd: workDir,
-          env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
-        });
-      } else if (framework.sentryVersion === 'latest') {
-        // Install latest Sentry SDK from PyPI (no version pin)
-        await execAsync(`uv pip install sentry-sdk`, { 
-          cwd: workDir,
-          env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
-        });
-      } else {
-        // Install Sentry SDK from PyPI
-        await execAsync(`uv pip install sentry-sdk==${framework.sentryVersion}`, { 
-          cwd: workDir,
-          env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
-        });
-      }
-      
-      // Install project dependencies from pyproject.toml
-      await execAsync('uv pip install .', { 
-        cwd: workDir,
-        env: { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') }
-      });
-      
-      if (verbose) {
-        console.log('  ✓ Dependencies installed');
-      }
-    } else {
-      // Fallback to traditional pip-based approach
-      if (verbose) {
-        console.log('  Using pip for dependency management');
-      }
-      
-      // Create virtual environment
-      await execAsync('python3 -m venv .venv', { cwd: workDir });
-      if (verbose) {
-        console.log('  ✓ Virtual environment created');
-      }
+    // Write pyproject.toml and run uv sync (creates venv + installs deps)
+    await this.writePyprojectToml(context);
+    await execAsync('uv sync', { cwd: workDir });
+    await this.installSentrySdk(context);
 
-      const pipPath = path.join(workDir, '.venv', 'bin', 'pip');
-      await execAsync(`${pipPath} install --upgrade pip`, { cwd: workDir });
-
-      // Check for local Sentry SDK path
-      const localSentryPath = process.env.SENTRY_PYTHON_PATH;
-      if (localSentryPath && framework.sentryVersion === 'local') {
-        if (verbose) {
-          console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
-        }
-        await execAsync(`${pipPath} install -e "${localSentryPath}"`, { cwd: workDir });
-      } else if (framework.sentryVersion === 'latest') {
-        await execAsync(`${pipPath} install sentry-sdk`, { cwd: workDir });
-      } else {
-        await execAsync(`${pipPath} install sentry-sdk==${framework.sentryVersion}`, { cwd: workDir });
-      }
-
-      // Create requirements.txt for other dependencies
-      const requirements = this.generateRequirements(context);
-      await fs.writeFile(path.join(workDir, 'requirements.txt'), requirements);
-      if (verbose) {
-        console.log('  ✓ requirements.txt generated');
-      }
-
-      // Install other dependencies
-      if (verbose) {
-        console.log('  Installing dependencies...');
-      }
-      await execAsync(`${pipPath} install -r requirements.txt`, { 
-        cwd: workDir,
-        env: { ...process.env, PIP_NO_CACHE_DIR: '1' }
-      });
-      if (verbose) {
-        console.log('  ✓ Dependencies installed');
-      }
+    if (verbose) {
+      console.log('  ✓ Dependencies installed');
     }
   }
 
   /**
-   * Check if uv is available
+   * Sync dependencies against pyproject.toml.
+   * Fast no-op when everything is already up to date.
    */
-  private async isUvAvailable(): Promise<boolean> {
-    try {
-      await execAsync('uv --version');
-      return true;
-    } catch {
-      return false;
+  async syncDependencies(context: RunnerContext): Promise<void> {
+    const verbose = context.verbose === true;
+
+    if (verbose) {
+      console.log('  Syncing dependencies...');
+    }
+
+    await this.writePyprojectToml(context);
+    await execAsync('uv sync', { cwd: context.workDir });
+    await this.installSentrySdk(context);
+
+    if (verbose) {
+      console.log('  ✓ Dependencies synced');
     }
   }
 
   /**
-   * Generate pyproject.toml content
+   * Write pyproject.toml to the work directory.
    */
-  private generatePyprojectToml(context: RunnerContext): string {
+  private async writePyprojectToml(context: RunnerContext): Promise<void> {
     const { framework } = context;
-    
     const dependencies: string[] = [];
-    
-    // Add framework dependencies from config
+
     if (framework.dependencies) {
       for (const dep of framework.dependencies) {
         let version = dep.version;
-        
-        // Replace "framework" with actual framework version
         if (version === 'framework') {
           version = framework.version;
         }
-        
-        // Add version specifier
+
         if (version === 'latest') {
           dependencies.push(`"${dep.package}"`);
         } else if (/^[<>=!~]/.test(version)) {
-          // Version already has a comparison operator (e.g., "<2.12", ">=1.0")
           dependencies.push(`"${dep.package}${version}"`);
         } else {
           dependencies.push(`"${dep.package}==${version}"`);
         }
       }
     } else {
-      // Fallback: Add framework package with framework version
       dependencies.push(`"${framework.name}==${framework.version}"`);
     }
 
     const minPythonVersion = framework.minimumPlatformVersion ?? '3.9';
 
-    return `[project]
+    const pyproject = `[project]
 name = "sentry-test-${framework.name}"
 version = "0.1.0"
 requires-python = ">=${minPythonVersion}"
@@ -211,41 +112,30 @@ dependencies = [
 ${dependencies.map(d => `    ${d},`).join('\n')}
 ]
 `;
+
+    await fs.writeFile(path.join(context.workDir, 'pyproject.toml'), pyproject);
   }
 
   /**
-   * Generate requirements.txt content (for pip fallback, without sentry-sdk)
+   * Install sentry-sdk into the venv (managed separately from pyproject.toml
+   * to support local/pinned versions).
    */
-  private generateRequirements(context: RunnerContext): string {
-    const { framework } = context;
-    const requirements: string[] = [];
+  private async installSentrySdk(context: RunnerContext): Promise<void> {
+    const { workDir, framework } = context;
+    const verbose = context.verbose === true;
+    const uvEnv = { ...process.env, VIRTUAL_ENV: path.join(workDir, '.venv') };
 
-    // Add framework dependencies from config (but NOT sentry-sdk, handled separately)
-    if (framework.dependencies && framework.dependencies.length > 0) {
-      for (const dep of framework.dependencies) {
-        let version = dep.version;
-        
-        // Replace "framework" with actual framework version
-        if (version === 'framework') {
-          version = framework.version;
-        }
-        
-        // Add version specifier if not "latest"
-        if (version === 'latest') {
-          requirements.push(dep.package);
-        } else if (/^[<>=!~]/.test(version)) {
-          // Version already contains an operator (e.g., "<2.12", ">=1.0")
-          requirements.push(`${dep.package}${version}`);
-        } else {
-          requirements.push(`${dep.package}==${version}`);
-        }
+    const localSentryPath = process.env.SENTRY_PYTHON_PATH;
+    if (localSentryPath && framework.sentryVersion === 'local') {
+      if (verbose) {
+        console.log(`  Installing local Sentry SDK from: ${localSentryPath}`);
       }
+      await execAsync(`uv pip install -e "${localSentryPath}"`, { cwd: workDir, env: uvEnv });
+    } else if (framework.sentryVersion === 'latest') {
+      await execAsync('uv pip install sentry-sdk', { cwd: workDir, env: uvEnv });
     } else {
-      // Fallback: Add framework package with framework version
-      requirements.push(`${framework.name}==${framework.version}`);
+      await execAsync(`uv pip install sentry-sdk==${framework.sentryVersion}`, { cwd: workDir, env: uvEnv });
     }
-
-    return requirements.join('\n');
   }
 
   /**
@@ -327,7 +217,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
       ].join('\n');
 
       await fs.writeFile(logFile, logContent);
-      
+
       if (verbose) {
         console.log(`  Log written to: ${path.basename(logFile)}`);
 
@@ -366,7 +256,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
 
       try {
         await fs.writeFile(logFile, errorContent);
-        
+
         if (verbose) {
           console.log(`  Log written to: ${path.basename(logFile)}`);
         }
