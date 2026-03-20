@@ -15,7 +15,7 @@
 {% if part.type == 'text' %}
             { type: "text", text: "{{ part.text }}" },
 {% elif part.type == 'image' %}
-            { type: "image", image: "data:{{ part.mediaType }};base64,{{ part.base64 }}" },
+            { type: "image", image: "{{ part.base64 }}", mimeType: "{{ part.mediaType }}" },
 {% endif %}
 {% endfor %}
           ]
@@ -27,7 +27,7 @@
 {% endblock %}
 
 {% block imports %}
-import { generateText } from "ai";
+import { generateText, tool, jsonSchema, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 {% endblock %}
 
@@ -36,6 +36,25 @@ import { createOpenAI } from "@ai-sdk/openai";
 {% endblock %}
 
 {% block test %}
+{% if agent and agent.tools and agent.tools.length > 0 %}
+      const tools = {
+{% for toolDef in agent.tools %}
+        {{ toolDef.name }}: tool({
+          description: "{{ toolDef.description }}",
+          inputSchema: jsonSchema({{ toolDef.parameters | dump }}),
+          execute: async (input) => {
+{% if toolDef.error %}
+            throw new Error("{{ toolDef.error }}");
+{% elif toolDef.result is defined %}
+            return {{ toolDef.result | dump }};
+{% else %}
+            return input;
+{% endif %}
+          },
+        }),
+{% endfor %}
+      };
+{% endif %}
 {% for input in inputs %}
 {% set system_content = "" %}
 {% set user_content = null %}
@@ -64,6 +83,10 @@ import { createOpenAI } from "@ai-sdk/openai";
               content: {{ renderVercelContent(user_content) }},
             },
           ],
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+          stopWhen: stepCountIs(10),
+{% endif %}
           experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
         });
 {% else %}
@@ -74,6 +97,10 @@ import { createOpenAI } from "@ai-sdk/openai";
           system: "{{ system_content }}",
 {% endif %}
           prompt: "{{ user_content }}",
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+          stopWhen: stepCountIs(10),
+{% endif %}
           experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
         });
 {% endif %}
