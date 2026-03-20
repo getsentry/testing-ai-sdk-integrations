@@ -1,24 +1,19 @@
 {% extends "base.nextjs.njk" %}
 
-{% block setup %}
-let embeddings;
-{% endblock %}
-
 {% block dynamic_imports %}
-      const langchainOpenAI = await import("@langchain/openai");
+const { OpenAIEmbeddings } = await import("@langchain/openai");
 
-      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      if (!OPENAI_API_KEY) {
-        console.error('ERROR: OPENAI_API_KEY not found in environment');
-        throw new Error('OPENAI_API_KEY not provided');
-      }
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+  console.error('ERROR: OPENAI_API_KEY not found in environment');
+  throw new Error('OPENAI_API_KEY not provided');
+}
 
-      embeddings = new langchainOpenAI.OpenAIEmbeddings({
-        modelName: "{{ inputs[0].model }}",
-        openAIApiKey: OPENAI_API_KEY,
-      });
-
-      console.log('LangChain OpenAIEmbeddings initialized');
+const embeddings = new OpenAIEmbeddings({
+  modelName: "{{ inputs[0].model }}",
+  openAIApiKey: OPENAI_API_KEY,
+});
+console.log('LangChain OpenAIEmbeddings initialized');
 {% endblock %}
 
 {% block test %}

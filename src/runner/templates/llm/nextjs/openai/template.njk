@@ -17,31 +17,18 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-// Client will be initialized after dynamic import
-let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-      // Import OpenAI from local node_modules
-      const OpenAI = (await import('openai')).default;
+const { default: OpenAI } = await import('openai');
 
-      // Get API key from environment
-      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      if (!OPENAI_API_KEY) {
-        console.error('ERROR: OPENAI_API_KEY not found in environment');
-        throw new Error('OPENAI_API_KEY not provided');
-      }
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+  console.error('ERROR: OPENAI_API_KEY not found in environment');
+  throw new Error('OPENAI_API_KEY not provided');
+}
 
-      // Create OpenAI client
-      const openai = new OpenAI({
-        apiKey: OPENAI_API_KEY,
-      });
-
-      // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-      client = Sentry.instrumentOpenAiClient(openai);
-
-      console.log('OpenAI client initialized and instrumented');
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const client = Sentry.instrumentOpenAiClient(openai);
+console.log('OpenAI client initialized and instrumented');
 {% endblock %}
 
 {% block test %}

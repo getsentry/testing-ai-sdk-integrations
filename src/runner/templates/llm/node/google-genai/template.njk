@@ -17,17 +17,11 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-// Client will be initialized after dynamic import
-let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-      // Dynamic import of google-genai AFTER Sentry.init() to ensure instrumentation
-      const { GoogleGenAI } = await import("@google/genai");
-      client = new GoogleGenAI({
-        apiKey: process.env.GOOGLE_GENAI_API_KEY,
-      });
+const { GoogleGenAI } = await import("@google/genai");
+const client = new GoogleGenAI({
+  apiKey: process.env.GOOGLE_GENAI_API_KEY,
+});
 {% endblock %}
 
 {% block test %}

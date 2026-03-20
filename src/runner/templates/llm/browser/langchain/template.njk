@@ -17,39 +17,25 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-    // Callback handler and chat model will be initialized after dynamic import
-    let callbackHandler;
-    let chat;
-    let HumanMessage, SystemMessage, AIMessage;
-{% endblock %}
-
 {% block dynamic_imports %}
-          // Import LangChain from local node_modules (bundled by Vite)
-          const langchainOpenAI = await import("@langchain/openai");
-          const langchainMessages = await import("@langchain/core/messages");
+    const { ChatOpenAI } = await import("@langchain/openai");
+    const { HumanMessage, SystemMessage, AIMessage } = await import("@langchain/core/messages");
 
-          HumanMessage = langchainMessages.HumanMessage;
-          SystemMessage = langchainMessages.SystemMessage;
-          AIMessage = langchainMessages.AIMessage;
+    const OPENAI_API_KEY = window.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      log('ERROR: OPENAI_API_KEY not found in window');
+      throw new Error('OPENAI_API_KEY not provided');
+    }
 
-          // Get API key from window (injected by Playwright)
-          const OPENAI_API_KEY = window.OPENAI_API_KEY;
-          if (!OPENAI_API_KEY) {
-            log('ERROR: OPENAI_API_KEY not found in window');
-            throw new Error('OPENAI_API_KEY not provided');
-          }
+    const callbackHandler = Sentry.createLangChainCallbackHandler();
 
-          // Create LangChain callback handler for Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-          callbackHandler = Sentry.createLangChainCallbackHandler();
+    // API key exposed in browser - for testing only!
+    const chat = new ChatOpenAI({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      openAIApiKey: OPENAI_API_KEY,
+    });
 
-          // Create chat model (API key exposed in browser - for testing only!)
-          chat = new langchainOpenAI.ChatOpenAI({
-            modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-            openAIApiKey: OPENAI_API_KEY,
-          });
-
-          log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
+    log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
 {% endblock %}
 
 {% block test %}

@@ -17,23 +17,10 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-// Functions will be initialized after dynamic import
-let generateText, streamText, tool, jsonSchema, openai, stepCountIs;
-{% endblock %}
-
 {% block dynamic_imports %}
-      // Dynamic import of Vercel AI SDK AFTER Sentry.init() to ensure instrumentation
-      const ai = await import("ai");
-      const aiSdkOpenai = await import("@ai-sdk/openai");
-      generateText = ai.generateText;
-      streamText = ai.streamText;
-      tool = ai.tool;
-      jsonSchema = ai.jsonSchema;
-      openai = aiSdkOpenai.openai;
-      stepCountIs = ai.stepCountIs;
-
-      console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
+const { generateText, streamText, tool, jsonSchema, stepCountIs } = await import("ai");
+const { openai } = await import("@ai-sdk/openai");
+console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% endblock %}
 
 {% block test %}

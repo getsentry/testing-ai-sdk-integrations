@@ -17,33 +17,23 @@
 {%- endif %}
 {% endmacro %}
 
-{% block setup %}
-    // Client will be initialized after dynamic import
-    let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-          // Import Anthropic from local node_modules (bundled by Vite)
-          const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
-          // Get API key from window (injected by Playwright)
-          const ANTHROPIC_API_KEY = window.ANTHROPIC_API_KEY;
-          if (!ANTHROPIC_API_KEY) {
-            log('ERROR: ANTHROPIC_API_KEY not found in window');
-            throw new Error('ANTHROPIC_API_KEY not provided');
-          }
+    const ANTHROPIC_API_KEY = window.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY) {
+      log('ERROR: ANTHROPIC_API_KEY not found in window');
+      throw new Error('ANTHROPIC_API_KEY not provided');
+    }
 
-          // Create Anthropic client
-          // WARNING: API key is exposed in browser - this is for testing only!
-          const anthropic = new Anthropic({
-            apiKey: ANTHROPIC_API_KEY,
-            dangerouslyAllowBrowser: true
-          });
+    // WARNING: API key is exposed in browser - this is for testing only!
+    const anthropic = new Anthropic({
+      apiKey: ANTHROPIC_API_KEY,
+      dangerouslyAllowBrowser: true
+    });
 
-          // Wrap client with Sentry instrumentation (recordInputs/recordOutputs default to true when sendDefaultPii: true)
-          client = Sentry.instrumentAnthropicAiClient(anthropic);
-
-          log('Anthropic client initialized and instrumented');
+    const client = Sentry.instrumentAnthropicAiClient(anthropic);
+    log('Anthropic client initialized and instrumented');
 {% endblock %}
 
 {% block test %}

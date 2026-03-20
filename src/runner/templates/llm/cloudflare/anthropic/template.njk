@@ -17,8 +17,11 @@
 {%- endif %}
 {% endmacro %}
 
+{% block imports %}
+import Anthropic from "@anthropic-ai/sdk";
+{% endblock %}
+
 {% block dynamic_imports %}
-      const Anthropic = (await import("@anthropic-ai/sdk")).default;
       const rawClient = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
       const client = Sentry.instrumentAnthropicAiClient(rawClient);
 {% endblock %}

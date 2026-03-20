@@ -1,7 +1,10 @@
 {% extends "base.cloudflare.njk" %}
 
+{% block imports %}
+import OpenAI from "openai";
+{% endblock %}
+
 {% block dynamic_imports %}
-      const OpenAI = (await import("openai")).default;
       const rawClient = new OpenAI({ apiKey: env.OPENAI_API_KEY });
       const client = Sentry.instrumentOpenAiClient(rawClient);
 {% endblock %}

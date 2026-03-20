@@ -1,25 +1,21 @@
 {% extends "base.browser.njk" %}
 
-{% block setup %}
-    let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-          const { GoogleGenAI } = await import("@google/genai");
+    const { GoogleGenAI } = await import("@google/genai");
 
-          const GOOGLE_API_KEY = window.GOOGLE_GENAI_API_KEY;
-          if (!GOOGLE_API_KEY) {
-            log('ERROR: GOOGLE_GENAI_API_KEY not found in window');
-            throw new Error('GOOGLE_GENAI_API_KEY not provided');
-          }
+    const GOOGLE_API_KEY = window.GOOGLE_GENAI_API_KEY;
+    if (!GOOGLE_API_KEY) {
+      log('ERROR: GOOGLE_GENAI_API_KEY not found in window');
+      throw new Error('GOOGLE_GENAI_API_KEY not provided');
+    }
 
-          const genAI = new GoogleGenAI({
-            apiKey: GOOGLE_API_KEY,
-          });
+    // WARNING: API key is exposed in browser - this is for testing only!
+    const genAI = new GoogleGenAI({
+      apiKey: GOOGLE_API_KEY,
+    });
 
-          client = Sentry.instrumentGoogleGenAIClient(genAI);
-
-          log('Google Gen AI client initialized and instrumented');
+    const client = Sentry.instrumentGoogleGenAIClient(genAI);
+    log('Google Gen AI client initialized and instrumented');
 {% endblock %}
 
 {% block test %}

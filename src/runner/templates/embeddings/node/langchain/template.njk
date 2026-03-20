@@ -1,16 +1,10 @@
 {% extends "base.node.njk" %}
 
-{% block setup %}
-let OpenAIEmbeddings;
-let embeddings;
-{% endblock %}
-
 {% block dynamic_imports %}
-      const langchainOpenAI = await import("@langchain/openai");
-      OpenAIEmbeddings = langchainOpenAI.OpenAIEmbeddings;
-      embeddings = new OpenAIEmbeddings({
-        modelName: "{{ inputs[0].model }}",
-      });
+const { OpenAIEmbeddings } = await import("@langchain/openai");
+const embeddings = new OpenAIEmbeddings({
+  modelName: "{{ inputs[0].model }}",
+});
 {% endblock %}
 
 {% block test %}

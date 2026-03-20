@@ -48,16 +48,15 @@
 
     log('Sentry initialized');
 
+    // Import framework AFTER Sentry.init() to ensure instrumentation hooks are in place
 {% block setup %}{% endblock %}
+{% block dynamic_imports %}{% endblock %}
 
     async function main() {
       await Sentry.startSpan(
         { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
         async () => {
           log('Starting test...');
-
-          // Dynamic imports AFTER Sentry.init()
-{% block dynamic_imports %}{% endblock %}
 
           // Run test
 {% block test %}{% endblock %}
