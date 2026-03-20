@@ -11,8 +11,7 @@
  */
 
 import * as Sentry from "@sentry/cloudflare";
-
-{% block setup %}{% endblock %}
+{% block imports %}{% endblock %}
 
 export default Sentry.withSentry(
   (env) => ({
@@ -25,10 +24,12 @@ export default Sentry.withSentry(
   }),
   {
     async fetch(request, env, ctx) {
+      // Import framework AFTER Sentry is initialized to ensure instrumentation hooks are in place
+{% block dynamic_imports %}{% endblock %}
+
       await Sentry.startSpan(
         { name: "{{ testName | lower | replace(' ', '-') }}", op: "test" },
         async () => {
-{% block dynamic_imports %}{% endblock %}
 {% block test %}{% endblock %}
         }
       );

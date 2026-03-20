@@ -1,16 +1,9 @@
 {% extends "base.nextjs.njk" %}
 
-{% block setup %}
-let embed, openai;
-{% endblock %}
-
 {% block dynamic_imports %}
-      const ai = await import("ai");
-      const aiSdkOpenai = await import("@ai-sdk/openai");
-      embed = ai.embed;
-      openai = aiSdkOpenai.openai;
-
-      console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
+const { embed } = await import("ai");
+const { openai } = await import("@ai-sdk/openai");
+console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% endblock %}
 
 {% block test %}

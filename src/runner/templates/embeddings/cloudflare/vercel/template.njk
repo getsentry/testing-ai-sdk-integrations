@@ -4,11 +4,13 @@
       Sentry.vercelAIIntegration(),
 {% endblock %}
 
+{% block imports %}
+import { embed } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+{% endblock %}
+
 {% block dynamic_imports %}
-      const ai = await import("ai");
-      const aiSdkOpenai = await import("@ai-sdk/openai");
-      const embed = ai.embed;
-      const openai = aiSdkOpenai.createOpenAI({ apiKey: env.OPENAI_API_KEY });
+      const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 {% endblock %}
 
 {% block test %}

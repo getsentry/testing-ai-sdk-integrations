@@ -17,11 +17,12 @@
 {%- endif %}
 {% endmacro %}
 
+{% block imports %}
+import { GoogleGenAI } from "@google/genai";
+{% endblock %}
+
 {% block dynamic_imports %}
-      const { GoogleGenAI } = await import("@google/genai");
-      const rawClient = new GoogleGenAI({
-        apiKey: env.GOOGLE_GENAI_API_KEY,
-      });
+      const rawClient = new GoogleGenAI({ apiKey: env.GOOGLE_GENAI_API_KEY });
       const client = Sentry.instrumentGoogleGenAIClient(rawClient);
 {% endblock %}
 

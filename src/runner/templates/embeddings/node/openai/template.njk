@@ -1,12 +1,8 @@
 {% extends "base.node.njk" %}
 
-{% block setup %}
-let client;
-{% endblock %}
-
 {% block dynamic_imports %}
-      const OpenAI = (await import("openai")).default;
-      client = new OpenAI();
+const { default: OpenAI } = await import("openai");
+const client = new OpenAI();
 {% endblock %}
 
 {% block test %}

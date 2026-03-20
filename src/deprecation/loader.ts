@@ -61,11 +61,6 @@ export function loadDeprecationMappings(): Map<string, DeprecationMapping> {
       }
     }
 
-    if (mappings.size > 0) {
-      console.log(
-        `✓ Loaded ${mappings.size} deprecation mapping(s) from sentry-conventions`
-      );
-    }
   } catch (error) {
     console.warn(
       "⚠ Warning: Could not load sentry-conventions. Deprecation detection disabled."

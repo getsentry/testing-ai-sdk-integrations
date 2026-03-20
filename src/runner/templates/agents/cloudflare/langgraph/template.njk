@@ -17,14 +17,13 @@
 {%- endif %}
 {% endmacro %}
 
+{% block imports %}
+import { ChatOpenAI } from "@langchain/openai";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+{% endblock %}
+
 {% block dynamic_imports %}
-      const langchainOpenAI = await import("@langchain/openai");
-      const langgraph = await import("@langchain/langgraph/prebuilt");
-      const langchainMessages = await import("@langchain/core/messages");
-      const ChatOpenAI = langchainOpenAI.ChatOpenAI;
-      const createReactAgent = langgraph.createReactAgent;
-      const HumanMessage = langchainMessages.HumanMessage;
-      const SystemMessage = langchainMessages.SystemMessage;
       const llm = new ChatOpenAI({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
         openAIApiKey: env.OPENAI_API_KEY,
