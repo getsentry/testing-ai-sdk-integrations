@@ -33,6 +33,18 @@ if (fs.existsSync(historyPath)) {
   }
 }
 
+// Build per-platform breakdown
+const platforms = {};
+for (const test of ctrf.results.tests) {
+  const platform = (test.extra && test.extra.platform) || "unknown";
+  if (!platforms[platform]) {
+    platforms[platform] = { total: 0, passed: 0, failed: 0 };
+  }
+  platforms[platform].total++;
+  if (test.status === "passed") platforms[platform].passed++;
+  else if (test.status === "failed") platforms[platform].failed++;
+}
+
 // Build today's entry
 const today = new Date().toISOString().split("T")[0];
 const entry = {
@@ -41,6 +53,7 @@ const entry = {
   passed: summary.passed,
   failed: summary.failed,
   duration: summary.stop - summary.start,
+  platforms,
 };
 
 // Replace existing entry for today, or append

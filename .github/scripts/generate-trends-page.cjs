@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Generates a standalone HTML page with trend charts from history.json.
+ * Supports per-platform filtering when history entries contain `platforms` data.
  *
  * Usage:
- *   node .github/scripts/generate-trends-page.cjs <history-json> [output-path]
+ *   node .github/scripts/generate-trends-page.cjs <history-json> [output-path] [reports-dir]
  */
 
 const fs = require("fs");
@@ -16,14 +17,6 @@ function formatDate(dateStr) {
     day: "numeric",
     timeZone: "UTC",
   });
-}
-
-function formatDuration(ms) {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(0)}s`;
-  const m = Math.floor(ms / 60000);
-  const s = Math.round((ms % 60000) / 1000);
-  return `${m}m ${s}s`;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +119,45 @@ const TRENDS_CSS = `
   ${SHARED_CSS}
 
   .main { max-width: 1000px; margin: 0 auto; padding: 16px 24px 48px; }
+
+  /* ---- Filter Bar ---- */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .filter-bar label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .filter-bar select {
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 5px 28px 5px 10px;
+    border: 1px solid var(--border-heavy);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23656d76'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  .filter-bar select:focus {
+    outline: none;
+    border-color: var(--text-secondary);
+  }
+  .filter-note {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-left: 4px;
+  }
 
   /* ---- Summary Stats ---- */
   .summary-row {
@@ -274,210 +306,21 @@ const TRENDS_CSS = `
     border: 1px solid var(--fail-border);
     margin-left: 6px;
   }
+
+  .no-data-msg {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
 `;
 
 // ---------------------------------------------------------------------------
-// SVG Charts
-// ---------------------------------------------------------------------------
-
-function generatePassRateChart(history) {
-  if (history.length === 0) return "<p>No data available yet.</p>";
-
-  const width = 900;
-  const height = 280;
-  const padding = { top: 24, right: 24, bottom: 56, left: 48 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  function x(i) {
-    return (
-      padding.left +
-      (history.length > 1 ? (i / (history.length - 1)) * chartW : chartW / 2)
-    );
-  }
-  function y(pct) {
-    return padding.top + chartH - (pct / 100) * chartH;
-  }
-
-  // Y grid lines (pass rate 0-100%)
-  const yTicks = [0, 25, 50, 75, 100];
-  const yLines = yTicks
-    .map(
-      (val) =>
-        `<line x1="${padding.left}" y1="${y(val)}" x2="${width - padding.right}" y2="${y(val)}" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
-        <text x="${padding.left - 8}" y="${y(val) + 4}" text-anchor="end" font-size="10" fill="#8b949e">${val}%</text>`,
-    )
-    .join("\n");
-
-  // X labels
-  const maxLabels = 15;
-  const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
-  const xLabels = history
-    .map((e, i) => {
-      if (i % labelStep !== 0 && i !== history.length - 1) return "";
-      return `<text x="${x(i)}" y="${padding.top + chartH + 18}" text-anchor="middle" font-size="10" fill="#8b949e" transform="rotate(-40, ${x(i)}, ${padding.top + chartH + 18})">${formatDate(e.date)}</text>`;
-    })
-    .filter(Boolean)
-    .join("\n");
-
-  // Pass rate line + area fill
-  const rates = history.map(
-    (e) => (e.total > 0 ? (e.passed / e.total) * 100 : 0),
-  );
-  const linePoints = rates.map((r, i) => `${x(i)},${y(r)}`).join(" ");
-  const areaPoints = `${x(0)},${y(0)} ${linePoints} ${x(rates.length - 1)},${y(0)}`;
-
-  const dots = rates
-    .map(
-      (r, i) =>
-        `<circle cx="${x(i)}" cy="${y(r)}" r="3" fill="#3fb950" class="dot" data-series="rate" data-idx="${i}"/>`,
-    )
-    .join("\n");
-
-  return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${width}px;height:auto;">
-    ${yLines}
-    <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartH}" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    <line x1="${padding.left}" y1="${padding.top + chartH}" x2="${width - padding.right}" y2="${padding.top + chartH}" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    <polygon points="${areaPoints}" fill="rgba(63,185,80,0.08)"/>
-    <polyline points="${linePoints}" fill="none" stroke="#3fb950" stroke-width="2"/>
-    ${dots}
-    ${xLabels}
-  </svg>`;
-}
-
-function generateCountsChart(history) {
-  if (history.length === 0) return "";
-
-  const width = 900;
-  const height = 220;
-  const padding = { top: 24, right: 24, bottom: 56, left: 48 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const maxVal = Math.max(...history.map((e) => e.total), 1);
-  const yMax = Math.ceil(maxVal / 50) * 50 || 50;
-
-  function x(i) {
-    return (
-      padding.left +
-      (history.length > 1 ? (i / (history.length - 1)) * chartW : chartW / 2)
-    );
-  }
-  function y(val) {
-    return padding.top + chartH - (val / yMax) * chartH;
-  }
-
-  const yTicks = 5;
-  const yLines = [];
-  for (let i = 0; i <= yTicks; i++) {
-    const val = Math.round((yMax / yTicks) * i);
-    yLines.push(
-      `<line x1="${padding.left}" y1="${y(val)}" x2="${width - padding.right}" y2="${y(val)}" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>`,
-    );
-    yLines.push(
-      `<text x="${padding.left - 8}" y="${y(val) + 4}" text-anchor="end" font-size="10" fill="#8b949e">${val}</text>`,
-    );
-  }
-
-  const maxLabels = 15;
-  const labelStep = Math.max(1, Math.ceil(history.length / maxLabels));
-  const xLabels = history
-    .map((e, i) => {
-      if (i % labelStep !== 0 && i !== history.length - 1) return "";
-      return `<text x="${x(i)}" y="${padding.top + chartH + 18}" text-anchor="middle" font-size="10" fill="#8b949e" transform="rotate(-40, ${x(i)}, ${padding.top + chartH + 18})">${formatDate(e.date)}</text>`;
-    })
-    .filter(Boolean)
-    .join("\n");
-
-  function polyline(values, color, id) {
-    const points = values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-    const dots = values
-      .map(
-        (v, i) =>
-          `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${color}" class="dot" data-series="${id}" data-idx="${i}"/>`,
-      )
-      .join("\n");
-    return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" />\n${dots}`;
-  }
-
-  return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${width}px;height:auto;">
-    ${yLines.join("\n")}
-    <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartH}" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    <line x1="${padding.left}" y1="${padding.top + chartH}" x2="${width - padding.right}" y2="${padding.top + chartH}" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    ${polyline(history.map((e) => e.passed), "#3fb950", "passed")}
-    ${polyline(history.map((e) => e.failed), "#f85149", "failed")}
-    ${polyline(history.map((e) => e.total), "#8b949e", "total")}
-    ${xLabels}
-  </svg>`;
-}
-
-// ---------------------------------------------------------------------------
-// History Table with regression detection
-// ---------------------------------------------------------------------------
-
-function generateHistoryTable(history, availableDates) {
-  const reversed = history.slice().reverse();
-
-  const rows = reversed
-    .map((e, i) => {
-      const rate =
-        e.total > 0 ? ((e.passed / e.total) * 100).toFixed(1) : "0.0";
-
-      // Detect regression: pass rate dropped >= 5 points from previous run
-      let isRegression = false;
-      const origIdx = history.length - 1 - i;
-      if (origIdx > 0) {
-        const prev = history[origIdx - 1];
-        const prevRate =
-          prev.total > 0 ? (prev.passed / prev.total) * 100 : 0;
-        const currRate = e.total > 0 ? (e.passed / e.total) * 100 : 0;
-        isRegression = prevRate - currRate >= 5;
-      }
-
-      const rowClass = isRegression ? ' class="regression-row"' : "";
-      const regressionFlag = isRegression
-        ? '<span class="regression-flag">\u25BC regression</span>'
-        : "";
-
-      const hasReport = availableDates.has(e.date);
-      const viewCell = hasReport
-        ? `<a href="reports/${e.date}/index.html" style="color:var(--text-secondary);font-size:11px;">view</a>`
-        : '';
-      return `<tr${rowClass}>
-        <td>${formatDate(e.date)}${regressionFlag}</td>
-        <td>${e.total}</td>
-        <td class="val-pass">${e.passed}</td>
-        <td class="val-fail">${e.failed}</td>
-        <td class="val-rate">${rate}%</td>
-        <td>${formatDuration(e.duration)}</td>
-        <td>${viewCell}</td>
-      </tr>`;
-    })
-    .join("\n");
-
-  return rows;
-}
-
-// ---------------------------------------------------------------------------
-// Page generation
+// Page generation — charts are now rendered client-side via JavaScript
 // ---------------------------------------------------------------------------
 
 function generateHTML(history, availableDates) {
   const latest = history.length > 0 ? history[history.length - 1] : null;
-  const passRate =
-    latest && latest.total > 0
-      ? ((latest.passed / latest.total) * 100).toFixed(1)
-      : "\u2014";
-
-  const tooltipData = history.map((e) => ({
-    date: formatDate(e.date),
-    total: e.total,
-    passed: e.passed,
-    failed: e.failed,
-    rate:
-      e.total > 0 ? ((e.passed / e.total) * 100).toFixed(1) + "%" : "0.0%",
-    duration: formatDuration(e.duration),
-  }));
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -499,28 +342,22 @@ function generateHTML(history, availableDates) {
   </nav>
 
   <div class="main">
-    <div class="summary-row">
-      <div class="stat-card">
-        <div class="stat-card-label">Total</div>
-        <div class="stat-card-value">${latest ? latest.total : "\u2014"}</div>
-      </div>
-      <div class="stat-card pass">
-        <div class="stat-card-label">Passed</div>
-        <div class="stat-card-value">${latest ? latest.passed : "\u2014"}</div>
-      </div>
-      <div class="stat-card fail">
-        <div class="stat-card-label">Failed</div>
-        <div class="stat-card-value">${latest ? latest.failed : "\u2014"}</div>
-      </div>
-      <div class="stat-card rate">
-        <div class="stat-card-label">Pass Rate</div>
-        <div class="stat-card-value">${passRate}%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-label">Runs</div>
-        <div class="stat-card-value">${history.length}</div>
-      </div>
+    <div class="filter-bar">
+      <label for="platform-filter">Platform:</label>
+      <select id="platform-filter">
+        <option value="">All platforms</option>
+        <option value="js">JavaScript (all)</option>
+        <option value="node">Node.js</option>
+        <option value="browser">Browser</option>
+        <option value="nextjs">Next.js</option>
+        <option value="cloudflare">Cloudflare</option>
+        <option value="python">Python</option>
+        <option value="php">PHP</option>
+      </select>
+      <span class="filter-note" id="filter-note"></span>
     </div>
+
+    <div class="summary-row" id="summary-row"></div>
 
     <div class="chart-card">
       <div class="chart-title">Pass Rate Over Time</div>
@@ -528,7 +365,6 @@ function generateHTML(history, availableDates) {
         <div class="legend-item"><span class="legend-dot" style="background:#3fb950"></span> Pass Rate</div>
       </div>
       <div class="chart-container" id="chart-rate">
-        ${generatePassRateChart(history)}
         <div class="tooltip" id="tooltip-rate"></div>
       </div>
     </div>
@@ -541,7 +377,6 @@ function generateHTML(history, availableDates) {
         <div class="legend-item"><span class="legend-dot" style="background:#f85149"></span> Failed</div>
       </div>
       <div class="chart-container" id="chart-counts">
-        ${generateCountsChart(history)}
         <div class="tooltip" id="tooltip-counts"></div>
       </div>
     </div>
@@ -560,17 +395,257 @@ function generateHTML(history, availableDates) {
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          ${generateHistoryTable(history, availableDates)}
-        </tbody>
+        <tbody id="history-tbody"></tbody>
       </table>
     </div>
   </div>
 
   <script>
-    var tooltipData = ${JSON.stringify(tooltipData)};
+    // Embedded data
+    var rawHistory = ${JSON.stringify(history)};
+    var availableDates = ${JSON.stringify([...availableDates])};
+    var availableDateSet = new Set(availableDates);
 
-    function setupTooltips(containerId, tooltipId) {
+    // JS platform groups
+    var JS_PLATFORMS = ['node', 'browser', 'nextjs', 'cloudflare'];
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+    function formatDate(dateStr) {
+      var d = new Date(dateStr + 'T00:00:00Z');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    }
+    function formatDuration(ms) {
+      if (ms < 1000) return ms + 'ms';
+      if (ms < 60000) return (ms / 1000).toFixed(0) + 's';
+      var m = Math.floor(ms / 60000);
+      var s = Math.round((ms % 60000) / 1000);
+      return m + 'm ' + s + 's';
+    }
+    function rate(passed, total) {
+      return total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0';
+    }
+
+    // -----------------------------------------------------------------------
+    // Filter history to a platform view
+    // -----------------------------------------------------------------------
+    function filterHistory(platformFilter) {
+      if (!platformFilter) return rawHistory; // "All platforms"
+
+      var targetPlatforms = platformFilter === 'js' ? JS_PLATFORMS : [platformFilter];
+
+      return rawHistory.map(function(entry) {
+        if (!entry.platforms) return null; // no platform data for this entry
+
+        var total = 0, passed = 0, failed = 0;
+        for (var i = 0; i < targetPlatforms.length; i++) {
+          var p = entry.platforms[targetPlatforms[i]];
+          if (p) {
+            total += p.total;
+            passed += p.passed;
+            failed += p.failed;
+          }
+        }
+        if (total === 0) return null; // platform had no tests this day
+
+        return {
+          date: entry.date,
+          total: total,
+          passed: passed,
+          failed: failed,
+          duration: entry.duration // duration is aggregate-only
+        };
+      }).filter(Boolean);
+    }
+
+    // -----------------------------------------------------------------------
+    // SVG chart rendering (client-side)
+    // -----------------------------------------------------------------------
+    function svgEl(tag, attrs, children) {
+      var ns = 'http://www.w3.org/2000/svg';
+      var el = document.createElementNS(ns, tag);
+      for (var k in attrs) el.setAttribute(k, attrs[k]);
+      if (children) {
+        if (typeof children === 'string') el.textContent = children;
+        else children.forEach(function(c) { el.appendChild(c); });
+      }
+      return el;
+    }
+
+    function renderPassRateChart(container, history) {
+      // Remove old SVG if any
+      var old = container.querySelector('svg');
+      if (old) old.remove();
+
+      if (history.length === 0) {
+        container.insertAdjacentHTML('afterbegin', '<p class="no-data-msg">No data for this filter.</p>');
+        return;
+      }
+      var msg = container.querySelector('.no-data-msg');
+      if (msg) msg.remove();
+
+      var W = 900, H = 280;
+      var pad = { top: 24, right: 24, bottom: 56, left: 48 };
+      var cW = W - pad.left - pad.right;
+      var cH = H - pad.top - pad.bottom;
+
+      function xPos(i) { return pad.left + (history.length > 1 ? (i / (history.length - 1)) * cW : cW / 2); }
+      function yPos(pct) { return pad.top + cH - (pct / 100) * cH; }
+
+      var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, xmlns: 'http://www.w3.org/2000/svg', style: 'width:100%;max-width:' + W + 'px;height:auto;' });
+
+      // Y grid
+      [0, 25, 50, 75, 100].forEach(function(val) {
+        svg.appendChild(svgEl('line', { x1: pad.left, y1: yPos(val), x2: W - pad.right, y2: yPos(val), stroke: 'rgba(0,0,0,0.06)', 'stroke-width': 1 }));
+        svg.appendChild(svgEl('text', { x: pad.left - 8, y: yPos(val) + 4, 'text-anchor': 'end', 'font-size': 10, fill: '#8b949e' }, val + '%'));
+      });
+
+      // Axes
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: pad.top, x2: pad.left, y2: pad.top + cH, stroke: 'rgba(0,0,0,0.08)', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: pad.top + cH, x2: W - pad.right, y2: pad.top + cH, stroke: 'rgba(0,0,0,0.08)', 'stroke-width': 1 }));
+
+      // X labels
+      var maxLabels = 15;
+      var step = Math.max(1, Math.ceil(history.length / maxLabels));
+      history.forEach(function(e, i) {
+        if (i % step !== 0 && i !== history.length - 1) return;
+        var t = svgEl('text', { x: xPos(i), y: pad.top + cH + 18, 'text-anchor': 'middle', 'font-size': 10, fill: '#8b949e', transform: 'rotate(-40, ' + xPos(i) + ', ' + (pad.top + cH + 18) + ')' }, formatDate(e.date));
+        svg.appendChild(t);
+      });
+
+      // Pass rate line + area
+      var rates = history.map(function(e) { return e.total > 0 ? (e.passed / e.total) * 100 : 0; });
+      var linePoints = rates.map(function(r, i) { return xPos(i) + ',' + yPos(r); }).join(' ');
+      var areaPoints = xPos(0) + ',' + yPos(0) + ' ' + linePoints + ' ' + xPos(rates.length - 1) + ',' + yPos(0);
+
+      svg.appendChild(svgEl('polygon', { points: areaPoints, fill: 'rgba(63,185,80,0.08)' }));
+      svg.appendChild(svgEl('polyline', { points: linePoints, fill: 'none', stroke: '#3fb950', 'stroke-width': 2 }));
+
+      rates.forEach(function(r, i) {
+        svg.appendChild(svgEl('circle', { cx: xPos(i), cy: yPos(r), r: 3, fill: '#3fb950', class: 'dot', 'data-idx': i }));
+      });
+
+      container.insertBefore(svg, container.firstChild);
+    }
+
+    function renderCountsChart(container, history) {
+      var old = container.querySelector('svg');
+      if (old) old.remove();
+
+      if (history.length === 0) {
+        container.insertAdjacentHTML('afterbegin', '<p class="no-data-msg">No data for this filter.</p>');
+        return;
+      }
+      var msg = container.querySelector('.no-data-msg');
+      if (msg) msg.remove();
+
+      var W = 900, H = 220;
+      var pad = { top: 24, right: 24, bottom: 56, left: 48 };
+      var cW = W - pad.left - pad.right;
+      var cH = H - pad.top - pad.bottom;
+
+      var maxVal = Math.max.apply(null, history.map(function(e) { return e.total; }).concat([1]));
+      var yMax = Math.ceil(maxVal / 50) * 50 || 50;
+
+      function xPos(i) { return pad.left + (history.length > 1 ? (i / (history.length - 1)) * cW : cW / 2); }
+      function yPos(val) { return pad.top + cH - (val / yMax) * cH; }
+
+      var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, xmlns: 'http://www.w3.org/2000/svg', style: 'width:100%;max-width:' + W + 'px;height:auto;' });
+
+      // Y grid
+      var yTicks = 5;
+      for (var t = 0; t <= yTicks; t++) {
+        var val = Math.round((yMax / yTicks) * t);
+        svg.appendChild(svgEl('line', { x1: pad.left, y1: yPos(val), x2: W - pad.right, y2: yPos(val), stroke: 'rgba(0,0,0,0.06)', 'stroke-width': 1 }));
+        svg.appendChild(svgEl('text', { x: pad.left - 8, y: yPos(val) + 4, 'text-anchor': 'end', 'font-size': 10, fill: '#8b949e' }, '' + val));
+      }
+
+      // Axes
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: pad.top, x2: pad.left, y2: pad.top + cH, stroke: 'rgba(0,0,0,0.08)', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: pad.top + cH, x2: W - pad.right, y2: pad.top + cH, stroke: 'rgba(0,0,0,0.08)', 'stroke-width': 1 }));
+
+      // X labels
+      var maxLabels = 15;
+      var step = Math.max(1, Math.ceil(history.length / maxLabels));
+      history.forEach(function(e, i) {
+        if (i % step !== 0 && i !== history.length - 1) return;
+        svg.appendChild(svgEl('text', { x: xPos(i), y: pad.top + cH + 18, 'text-anchor': 'middle', 'font-size': 10, fill: '#8b949e', transform: 'rotate(-40, ' + xPos(i) + ', ' + (pad.top + cH + 18) + ')' }, formatDate(e.date)));
+      });
+
+      function addPolyline(values, color) {
+        var points = values.map(function(v, i) { return xPos(i) + ',' + yPos(v); }).join(' ');
+        svg.appendChild(svgEl('polyline', { points: points, fill: 'none', stroke: color, 'stroke-width': 2 }));
+        values.forEach(function(v, i) {
+          svg.appendChild(svgEl('circle', { cx: xPos(i), cy: yPos(v), r: 3, fill: color, class: 'dot', 'data-idx': i }));
+        });
+      }
+
+      addPolyline(history.map(function(e) { return e.total; }), '#8b949e');
+      addPolyline(history.map(function(e) { return e.passed; }), '#3fb950');
+      addPolyline(history.map(function(e) { return e.failed; }), '#f85149');
+
+      container.insertBefore(svg, container.firstChild);
+    }
+
+    // -----------------------------------------------------------------------
+    // Summary stats
+    // -----------------------------------------------------------------------
+    function renderSummary(history) {
+      var el = document.getElementById('summary-row');
+      var latest = history.length > 0 ? history[history.length - 1] : null;
+      var passRate = latest && latest.total > 0 ? rate(latest.passed, latest.total) : '\\u2014';
+
+      el.innerHTML =
+        '<div class="stat-card"><div class="stat-card-label">Total</div><div class="stat-card-value">' + (latest ? latest.total : '\\u2014') + '</div></div>' +
+        '<div class="stat-card pass"><div class="stat-card-label">Passed</div><div class="stat-card-value">' + (latest ? latest.passed : '\\u2014') + '</div></div>' +
+        '<div class="stat-card fail"><div class="stat-card-label">Failed</div><div class="stat-card-value">' + (latest ? latest.failed : '\\u2014') + '</div></div>' +
+        '<div class="stat-card rate"><div class="stat-card-label">Pass Rate</div><div class="stat-card-value">' + passRate + '%</div></div>' +
+        '<div class="stat-card"><div class="stat-card-label">Runs</div><div class="stat-card-value">' + history.length + '</div></div>';
+    }
+
+    // -----------------------------------------------------------------------
+    // History table
+    // -----------------------------------------------------------------------
+    function renderHistoryTable(history) {
+      var tbody = document.getElementById('history-tbody');
+      var reversed = history.slice().reverse();
+
+      var rows = reversed.map(function(e, i) {
+        var r = rate(e.passed, e.total);
+        var origIdx = history.length - 1 - i;
+        var isRegression = false;
+        if (origIdx > 0) {
+          var prev = history[origIdx - 1];
+          var prevRate = prev.total > 0 ? (prev.passed / prev.total) * 100 : 0;
+          var currRate = e.total > 0 ? (e.passed / e.total) * 100 : 0;
+          isRegression = prevRate - currRate >= 5;
+        }
+
+        var rowClass = isRegression ? ' class="regression-row"' : '';
+        var flag = isRegression ? '<span class="regression-flag">\\u25BC regression</span>' : '';
+        var viewCell = availableDateSet.has(e.date)
+          ? '<a href="reports/' + e.date + '/index.html" style="color:var(--text-secondary);font-size:11px;">view</a>'
+          : '';
+
+        return '<tr' + rowClass + '>' +
+          '<td>' + formatDate(e.date) + flag + '</td>' +
+          '<td>' + e.total + '</td>' +
+          '<td class="val-pass">' + e.passed + '</td>' +
+          '<td class="val-fail">' + e.failed + '</td>' +
+          '<td class="val-rate">' + r + '%</td>' +
+          '<td>' + formatDuration(e.duration) + '</td>' +
+          '<td>' + viewCell + '</td>' +
+          '</tr>';
+      }).join('\\n');
+
+      tbody.innerHTML = rows;
+    }
+
+    // -----------------------------------------------------------------------
+    // Tooltips
+    // -----------------------------------------------------------------------
+    function setupTooltips(containerId, tooltipId, history) {
       var tooltip = document.getElementById(tooltipId);
       var container = document.getElementById(containerId);
       if (!container || !tooltip) return;
@@ -578,14 +653,14 @@ function generateHTML(history, availableDates) {
       dots.forEach(function(dot) {
         dot.addEventListener('mouseenter', function() {
           var idx = parseInt(dot.getAttribute('data-idx'));
-          var d = tooltipData[idx];
-          if (!d) return;
-          tooltip.innerHTML = '<div class="tt-date">' + d.date + '</div>'
-            + '<div class="tt-row"><span>Total:</span><span>' + d.total + '</span></div>'
-            + '<div class="tt-row"><span>Passed:</span><span>' + d.passed + '</span></div>'
-            + '<div class="tt-row"><span>Failed:</span><span>' + d.failed + '</span></div>'
-            + '<div class="tt-row"><span>Rate:</span><span>' + d.rate + '</span></div>'
-            + '<div class="tt-row"><span>Duration:</span><span>' + d.duration + '</span></div>';
+          var e = history[idx];
+          if (!e) return;
+          tooltip.innerHTML = '<div class="tt-date">' + formatDate(e.date) + '</div>'
+            + '<div class="tt-row"><span>Total:</span><span>' + e.total + '</span></div>'
+            + '<div class="tt-row"><span>Passed:</span><span>' + e.passed + '</span></div>'
+            + '<div class="tt-row"><span>Failed:</span><span>' + e.failed + '</span></div>'
+            + '<div class="tt-row"><span>Rate:</span><span>' + rate(e.passed, e.total) + '%</span></div>'
+            + '<div class="tt-row"><span>Duration:</span><span>' + formatDuration(e.duration) + '</span></div>';
           tooltip.style.opacity = '1';
           var svg = dot.closest('svg');
           var svgRect = svg.getBoundingClientRect();
@@ -607,8 +682,54 @@ function generateHTML(history, availableDates) {
       });
     }
 
-    setupTooltips('chart-rate', 'tooltip-rate');
-    setupTooltips('chart-counts', 'tooltip-counts');
+    // -----------------------------------------------------------------------
+    // Render everything for current filter
+    // -----------------------------------------------------------------------
+    function renderAll(platformFilter) {
+      var history = filterHistory(platformFilter);
+
+      // Show note when filtering and some entries lack platform data
+      var note = document.getElementById('filter-note');
+      if (platformFilter) {
+        var missing = rawHistory.filter(function(e) { return !e.platforms; }).length;
+        note.textContent = missing > 0 ? missing + ' older run(s) lack platform data' : '';
+      } else {
+        note.textContent = '';
+      }
+
+      renderSummary(history);
+      renderPassRateChart(document.getElementById('chart-rate'), history);
+      renderCountsChart(document.getElementById('chart-counts'), history);
+      renderHistoryTable(history);
+      setupTooltips('chart-rate', 'tooltip-rate', history);
+      setupTooltips('chart-counts', 'tooltip-counts', history);
+    }
+
+    // -----------------------------------------------------------------------
+    // Init
+    // -----------------------------------------------------------------------
+    var select = document.getElementById('platform-filter');
+
+    // Restore filter from URL hash
+    var initialFilter = '';
+    if (location.hash) {
+      var hashVal = location.hash.slice(1);
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === hashVal) {
+          initialFilter = hashVal;
+          select.value = hashVal;
+          break;
+        }
+      }
+    }
+
+    select.addEventListener('change', function() {
+      var val = select.value;
+      location.hash = val || '';
+      renderAll(val);
+    });
+
+    renderAll(initialFilter);
   </script>
 </body>
 </html>`;

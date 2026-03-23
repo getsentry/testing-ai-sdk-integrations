@@ -1,0 +1,752 @@
+{
+  "2026-02-27": {
+    "browser": {
+      "failed": 32,
+      "passed": 11,
+      "total": 43
+    },
+    "nextjs": {
+      "failed": 43,
+      "passed": 15,
+      "total": 58
+    },
+    "node": {
+      "failed": 38,
+      "passed": 25,
+      "total": 63
+    },
+    "php": {
+      "failed": 11,
+      "passed": 0,
+      "total": 11
+    },
+    "python": {
+      "failed": 66,
+      "passed": 72,
+      "total": 138
+    }
+  },
+  "2026-02-28": {
+    "browser": {
+      "failed": 32,
+      "passed": 11,
+      "total": 43
+    },
+    "nextjs": {
+      "failed": 43,
+      "passed": 15,
+      "total": 58
+    },
+    "node": {
+      "failed": 39,
+      "passed": 24,
+      "total": 63
+    },
+    "php": {
+      "failed": 11,
+      "passed": 0,
+      "total": 11
+    },
+    "python": {
+      "failed": 66,
+      "passed": 72,
+      "total": 138
+    }
+  },
+  "2026-03-01": {
+    "browser": {
+      "failed": 32,
+      "passed": 11,
+      "total": 43
+    },
+    "nextjs": {
+      "failed": 43,
+      "passed": 15,
+      "total": 58
+    },
+    "node": {
+      "failed": 38,
+      "passed": 25,
+      "total": 63
+    },
+    "php": {
+      "failed": 11,
+      "passed": 0,
+      "total": 11
+    },
+    "python": {
+      "failed": 66,
+      "passed": 72,
+      "total": 138
+    }
+  },
+  "2026-03-02": {
+    "browser": {
+      "failed": 32,
+      "passed": 11,
+      "total": 43
+    },
+    "nextjs": {
+      "failed": 43,
+      "passed": 15,
+      "total": 58
+    },
+    "node": {
+      "failed": 38,
+      "passed": 25,
+      "total": 63
+    },
+    "php": {
+      "failed": 11,
+      "passed": 0,
+      "total": 11
+    },
+    "python": {
+      "failed": 66,
+      "passed": 72,
+      "total": 138
+    }
+  },
+  "2026-03-03": {
+    "browser": {
+      "failed": 32,
+      "passed": 11,
+      "total": 43
+    },
+    "nextjs": {
+      "failed": 43,
+      "passed": 15,
+      "total": 58
+    },
+    "node": {
+      "failed": 38,
+      "passed": 25,
+      "total": 63
+    },
+    "php": {
+      "failed": 11,
+      "passed": 0,
+      "total": 11
+    },
+    "python": {
+      "failed": 65,
+      "passed": 73,
+      "total": 138
+    }
+  },
+  "2026-03-04": {
+    "browser": {
+      "failed": 40,
+      "passed": 11,
+      "total": 51
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 83,
+      "passed": 81,
+      "total": 164
+    }
+  },
+  "2026-03-05": {
+    "browser": {
+      "failed": 40,
+      "passed": 11,
+      "total": 51
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 79,
+      "passed": 97,
+      "total": 176
+    }
+  },
+  "2026-03-06": {
+    "browser": {
+      "failed": 40,
+      "passed": 11,
+      "total": 51
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 79,
+      "passed": 97,
+      "total": 176
+    }
+  },
+  "2026-03-07": {
+    "browser": {
+      "failed": 41,
+      "passed": 10,
+      "total": 51
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 79,
+      "passed": 97,
+      "total": 176
+    }
+  },
+  "2026-03-08": {
+    "browser": {
+      "failed": 40,
+      "passed": 11,
+      "total": 51
+    },
+    "nextjs": {
+      "failed": 54,
+      "passed": 15,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 79,
+      "passed": 97,
+      "total": 176
+    }
+  },
+  "2026-03-09": {
+    "browser": {
+      "failed": 40,
+      "passed": 11,
+      "total": 51
+    },
+    "cloudflare": {
+      "failed": 35,
+      "passed": 29,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 79,
+      "passed": 97,
+      "total": 176
+    }
+  },
+  "2026-03-10": {
+    "browser": {
+      "failed": 29,
+      "passed": 22,
+      "total": 51
+    },
+    "cloudflare": {
+      "failed": 35,
+      "passed": 29,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 77,
+      "passed": 99,
+      "total": 176
+    }
+  },
+  "2026-03-11": {
+    "browser": {
+      "failed": 30,
+      "passed": 21,
+      "total": 51
+    },
+    "cloudflare": {
+      "failed": 36,
+      "passed": 28,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 16,
+      "passed": 59,
+      "total": 75
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 93,
+      "passed": 99,
+      "total": 192
+    }
+  },
+  "2026-03-12": {
+    "browser": {
+      "failed": 89,
+      "passed": 22,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 34,
+      "passed": 30,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 22,
+      "passed": 59,
+      "total": 81
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 93,
+      "passed": 99,
+      "total": 192
+    }
+  },
+  "2026-03-13": {
+    "browser": {
+      "failed": 89,
+      "passed": 22,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 38,
+      "passed": 26,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 22,
+      "passed": 59,
+      "total": 81
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 94,
+      "passed": 98,
+      "total": 192
+    }
+  },
+  "2026-03-14": {
+    "browser": {
+      "failed": 89,
+      "passed": 22,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 34,
+      "passed": 30,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 22,
+      "passed": 59,
+      "total": 81
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 192,
+      "passed": 0,
+      "total": 192
+    }
+  },
+  "2026-03-15": {
+    "browser": {
+      "failed": 90,
+      "passed": 21,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 40,
+      "passed": 24,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 24,
+      "passed": 57,
+      "total": 81
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 93,
+      "passed": 99,
+      "total": 192
+    }
+  },
+  "2026-03-16": {
+    "browser": {
+      "failed": 89,
+      "passed": 22,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 34,
+      "passed": 30,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 53,
+      "passed": 16,
+      "total": 69
+    },
+    "node": {
+      "failed": 22,
+      "passed": 59,
+      "total": 81
+    },
+    "php": {
+      "failed": 13,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 93,
+      "passed": 99,
+      "total": 192
+    }
+  },
+  "2026-03-17": {
+    "browser": {
+      "failed": 85,
+      "passed": 26,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 28,
+      "passed": 30,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 48,
+      "passed": 21,
+      "total": 69
+    },
+    "node": {
+      "failed": 21,
+      "passed": 60,
+      "total": 81
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 62,
+      "passed": 119,
+      "total": 198
+    }
+  },
+  "2026-03-18": {
+    "browser": {
+      "failed": 71,
+      "passed": 40,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 11,
+      "passed": 47,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 10,
+      "passed": 54,
+      "total": 69
+    },
+    "node": {
+      "failed": 11,
+      "passed": 74,
+      "total": 91
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 66,
+      "passed": 146,
+      "total": 228
+    }
+  },
+  "2026-03-19": {
+    "browser": {
+      "failed": 68,
+      "passed": 43,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 11,
+      "passed": 47,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 6,
+      "passed": 58,
+      "total": 69
+    },
+    "node": {
+      "failed": 11,
+      "passed": 74,
+      "total": 91
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 57,
+      "passed": 150,
+      "total": 228
+    }
+  },
+  "2026-03-20": {
+    "browser": {
+      "failed": 64,
+      "passed": 47,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 8,
+      "passed": 50,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 7,
+      "passed": 62,
+      "total": 69
+    },
+    "node": {
+      "failed": 15,
+      "passed": 76,
+      "total": 91
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 57,
+      "passed": 150,
+      "total": 228
+    }
+  },
+  "2026-03-21": {
+    "browser": {
+      "failed": 63,
+      "passed": 48,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 5,
+      "passed": 45,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 8,
+      "passed": 61,
+      "total": 69
+    },
+    "node": {
+      "failed": 15,
+      "passed": 76,
+      "total": 91
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 57,
+      "passed": 150,
+      "total": 228
+    }
+  },
+  "2026-03-22": {
+    "browser": {
+      "failed": 62,
+      "passed": 49,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 5,
+      "passed": 52,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 7,
+      "passed": 62,
+      "total": 69
+    },
+    "node": {
+      "failed": 15,
+      "passed": 76,
+      "total": 91
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 57,
+      "passed": 150,
+      "total": 228
+    }
+  },
+  "2026-03-23": {
+    "browser": {
+      "failed": 65,
+      "passed": 46,
+      "total": 111
+    },
+    "cloudflare": {
+      "failed": 5,
+      "passed": 50,
+      "total": 64
+    },
+    "nextjs": {
+      "failed": 10,
+      "passed": 59,
+      "total": 69
+    },
+    "node": {
+      "failed": 15,
+      "passed": 76,
+      "total": 91
+    },
+    "php": {
+      "failed": 0,
+      "passed": 0,
+      "total": 13
+    },
+    "python": {
+      "failed": 57,
+      "passed": 150,
+      "total": 228
+    }
+  }
+}

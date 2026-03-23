@@ -155,6 +155,10 @@ jobs:
           PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
           node .github/scripts/fetch-existing-reports.cjs history.json _site "${PAGES_URL}"
 
+      - name: Merge platform seed into history
+        run: |
+          node .github/scripts/merge-platform-seed.cjs history.json .github/data/platform-seed.json
+
       - name: Generate trends page
         run: |
           node .github/scripts/generate-trends-page.cjs history.json _site/trends.html _site/reports
