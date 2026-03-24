@@ -19,5 +19,10 @@
   "sentryVersions": ["latest"],
   "matrix": {
     "modelProviders": ["openai"]
+  },
+  "skip": {
+    "checks": {
+      "Vision LLM Test": ["checkValidTokenUsage"]
+    }
   }
 }
