@@ -43,19 +43,37 @@ export class PythonRunner {
   }
 
   /**
-   * Sync dependencies against pyproject.toml via uv sync.
-   * Idempotent: creates venv on first run, fast no-op when already up to date.
+   * Sync dependencies into the venv using uv pip install.
+   *
+   * We use `uv pip install` instead of `uv sync` because the latter relies on
+   * project-level lockfiles and .dist-info metadata to decide what's installed.
+   * CI caches can leave .dist-info intact while actual package files are missing,
+   * causing `uv sync` (even with --reinstall) to silently skip packages.
+   * `uv pip install` operates directly on the venv and is more reliable.
    */
   async syncDependencies(context: RunnerContext): Promise<void> {
     const verbose = context.verbose === true;
+    const { workDir, framework } = context;
 
-    await this.writePyprojectToml(context);
+    const venvPath = path.join(workDir, '.venv');
 
-    // Use --reinstall to force uv to re-link all packages into the venv.
-    // CI caches can leave .dist-info metadata intact while actual package files
-    // are missing/corrupt, causing uv sync to think packages are installed when
-    // they aren't (e.g. "import respx" fails despite respx-*.dist-info existing).
-    await execAsync('uv sync --reinstall', { cwd: context.workDir });
+    // Ensure venv exists
+    try {
+      await fs.access(path.join(venvPath, 'bin', 'python'), fs.constants.X_OK);
+    } catch {
+      const minPythonVersion = framework.minimumPlatformVersion ?? '3.10';
+      await execAsync(`uv venv --python ">=${minPythonVersion}"`, { cwd: workDir });
+    }
+
+    // Build dependency list
+    const packages = this.getDependencySpecs(framework);
+
+    // Install all dependencies directly into the venv.
+    // Use --reinstall to force uv to re-install even when .dist-info metadata
+    // exists but actual package files are missing (a state that CI caches can
+    // produce, and that fools both `uv sync` and `uv pip install` without this flag).
+    const uvEnv = { ...process.env, VIRTUAL_ENV: venvPath };
+    await execAsync(`uv pip install --reinstall ${packages.join(' ')}`, { cwd: workDir, env: uvEnv });
     await this.installLocalSentrySdk(context);
 
     if (verbose) {
@@ -64,11 +82,10 @@ export class PythonRunner {
   }
 
   /**
-   * Write pyproject.toml to the work directory.
+   * Build dependency specifier list for pip install.
    */
-  private async writePyprojectToml(context: RunnerContext): Promise<void> {
-    const { framework } = context;
-    const dependencies: string[] = [];
+  private getDependencySpecs(framework: RunnerContext['framework']): string[] {
+    const packages: string[] = [];
 
     if (framework.dependencies) {
       for (const dep of framework.dependencies) {
@@ -78,44 +95,30 @@ export class PythonRunner {
         }
 
         if (version === 'latest') {
-          dependencies.push(`"${dep.package}"`);
+          packages.push(`"${dep.package}"`);
         } else if (/^[<>=!~]/.test(version)) {
-          dependencies.push(`"${dep.package}${version}"`);
+          packages.push(`"${dep.package}${version}"`);
         } else {
-          dependencies.push(`"${dep.package}==${version}"`);
+          packages.push(`"${dep.package}==${version}"`);
         }
       }
     } else {
-      dependencies.push(`"${framework.name}==${framework.version}"`);
+      packages.push(`"${framework.name}==${framework.version}"`);
     }
 
-    // Include sentry-sdk in pyproject.toml so uv sync manages it.
-    // Local editable installs (--sentry-python) are handled separately
-    // via uv pip install -e after sync.
     if (framework.sentryVersion === 'latest') {
-      dependencies.push(`"sentry-sdk"`);
+      packages.push('"sentry-sdk"');
     } else if (framework.sentryVersion !== 'local') {
-      dependencies.push(`"sentry-sdk==${framework.sentryVersion}"`);
+      packages.push(`"sentry-sdk==${framework.sentryVersion}"`);
     }
 
-    const minPythonVersion = framework.minimumPlatformVersion ?? '3.10';
-
-    const pyproject = `[project]
-name = "sentry-test-${framework.name}"
-version = "0.1.0"
-requires-python = ">=${minPythonVersion}"
-dependencies = [
-${dependencies.map(d => `    ${d},`).join('\n')}
-]
-`;
-
-    await fs.writeFile(path.join(context.workDir, 'pyproject.toml'), pyproject);
+    return packages;
   }
 
   /**
    * Install local sentry-sdk as editable into the venv.
    * Only needed for --sentry-python (local dev); pinned/latest versions
-   * are included in pyproject.toml and handled by uv sync.
+   * are handled by uv pip install in syncDependencies.
    */
   private async installLocalSentrySdk(context: RunnerContext): Promise<void> {
     const { workDir, framework } = context;
