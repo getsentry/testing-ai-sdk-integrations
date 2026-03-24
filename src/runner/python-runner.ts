@@ -73,7 +73,23 @@ export class PythonRunner {
     // exists but actual package files are missing (a state that CI caches can
     // produce, and that fools both `uv sync` and `uv pip install` without this flag).
     const uvEnv = { ...process.env, VIRTUAL_ENV: venvPath };
-    await execAsync(`uv pip install --reinstall ${packages.join(' ')}`, { cwd: workDir, env: uvEnv });
+    const installCmd = `uv pip install --reinstall ${packages.join(' ')}`;
+    console.log(`  [dep-sync] ${installCmd}`);
+    const { stdout: installOut, stderr: installErr } = await execAsync(installCmd, { cwd: workDir, env: uvEnv });
+    if (installOut.trim()) console.log(`  [dep-sync] stdout: ${installOut.trim()}`);
+    if (installErr.trim()) console.log(`  [dep-sync] stderr: ${installErr.trim()}`);
+
+    // Verify packages are actually importable
+    const pythonPath = path.join(venvPath, 'bin', 'python');
+    for (const dep of (framework.dependencies || [])) {
+      try {
+        const { stdout: ver } = await execAsync(`${pythonPath} -c "import ${dep.package.replace(/-/g, '_')}; print(getattr(${dep.package.replace(/-/g, '_')}, '__version__', 'ok'))"`, { cwd: workDir });
+        console.log(`  [dep-sync] ✓ ${dep.package} → ${ver.trim()}`);
+      } catch (e: any) {
+        console.error(`  [dep-sync] ✗ ${dep.package} NOT importable: ${e.stderr?.trim() || e.message}`);
+      }
+    }
+
     await this.installLocalSentrySdk(context);
 
     if (verbose) {
