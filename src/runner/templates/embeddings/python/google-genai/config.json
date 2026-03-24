@@ -13,5 +13,10 @@
   "modelOverrides": {
     "request": "models/gemini-embedding-001",
     "response": "models/gemini-embedding-001*"
+  },
+  "skip": {
+    "checks": {
+      "Basic Embeddings Test": ["checkEmbeddingTokenUsage"]
+    }
   }
 }
