@@ -60,12 +60,14 @@ export class Runner {
    * Get work directory for a framework
    */
   getWorkDir(framework: FrameworkConfig): string {
-    const { platform, name, version, sentryVersion } = framework;
-    return path.join(
-      this.runsDir,
-      platform,
-      `${name}-${version}-sentry-${sentryVersion}`,
-    );
+    const { platform, name, version, sentryVersion, category } = framework;
+    // Include category in the directory name when present to avoid collisions
+    // between frameworks with the same name but different categories
+    // (e.g., llm/python/openai vs embeddings/python/openai)
+    const dirName = category
+      ? `${name}-${category}-${version}-sentry-${sentryVersion}`
+      : `${name}-${version}-sentry-${sentryVersion}`;
+    return path.join(this.runsDir, platform, dirName);
   }
 
   /**

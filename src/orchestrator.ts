@@ -200,7 +200,7 @@ export class Orchestrator {
     // Group tests by framework to avoid redundant environment setup
     const testsByFramework = new Map<string, TestRun[]>();
     for (const testRun of testMatrix) {
-      const key = `${testRun.framework.platform}/${testRun.framework.name}`;
+      const key = `${testRun.framework.platform}/${testRun.framework.category || 'unknown'}/${testRun.framework.name}`;
       if (!testsByFramework.has(key)) {
         testsByFramework.set(key, []);
       }

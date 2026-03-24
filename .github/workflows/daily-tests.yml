@@ -72,13 +72,13 @@ jobs:
           restore-keys: |
             nextjs-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
 
-      # - name: Cache Python test environments
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: runs/python
-      #     key: python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
-      #     restore-keys: |
-      #       python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-
+      - name: Cache Python test environments
+        uses: actions/cache@v4
+        with:
+          path: runs/python
+          key: python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
+          restore-keys: |
+            python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-
 
       - name: Cache PHP test environments
         uses: actions/cache@v4
