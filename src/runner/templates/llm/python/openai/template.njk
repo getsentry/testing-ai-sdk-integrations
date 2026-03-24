@@ -66,6 +66,7 @@ client = OpenAI()
 {% endif %}
         model="{{ input.model }}",
         messages={{ convertMessages(input.messages) }},
+        stream_options={"include_usage": True},
         stream=True,
     )
     
@@ -75,7 +76,7 @@ client = OpenAI()
 {% else %}
     for chunk in stream:
 {% endif %}
-        if chunk.choices[0].delta.content is not None:
+        if chunk.choices and chunk.choices[0].delta.content is not None:
             collected_content.append(chunk.choices[0].delta.content)
     
     full_response = "".join(collected_content)
@@ -89,7 +90,8 @@ client = OpenAI()
         model="{{ input.model }}",
         messages={{ convertMessages(input.messages) }},
     )
-    print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
+    if response.choices:
+        print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
 {% endif %}
 {% if not loop.last %}
 
