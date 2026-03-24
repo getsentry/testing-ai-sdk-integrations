@@ -435,7 +435,7 @@ The `checkInputMessagesSchema` check validates that the input messages attribute
 
 **Multi-Turn LLM Test:**
 
-- `checkAISpanCount(3)`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkTokenProgression` (inline), `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
+- `checkAISpanCount(3)`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
 
 **Basic Error LLM Test:**
 
