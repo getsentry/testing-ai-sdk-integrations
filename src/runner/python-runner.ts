@@ -51,12 +51,11 @@ export class PythonRunner {
 
     await this.writePyprojectToml(context);
 
-    // Remove stale lockfile so uv re-resolves from the current pyproject.toml.
-    // Cached venvs (CI) may carry a uv.lock that predates newly added dependencies.
-    const lockPath = path.join(context.workDir, 'uv.lock');
-    await fs.unlink(lockPath).catch(() => {});
-
-    await execAsync('uv sync', { cwd: context.workDir });
+    // Use --reinstall to force uv to re-link all packages into the venv.
+    // CI caches can leave .dist-info metadata intact while actual package files
+    // are missing/corrupt, causing uv sync to think packages are installed when
+    // they aren't (e.g. "import respx" fails despite respx-*.dist-info existing).
+    await execAsync('uv sync --reinstall', { cwd: context.workDir });
     await this.installLocalSentrySdk(context);
 
     if (verbose) {
