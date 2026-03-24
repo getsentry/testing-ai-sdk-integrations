@@ -50,6 +50,12 @@ export class PythonRunner {
     const verbose = context.verbose === true;
 
     await this.writePyprojectToml(context);
+
+    // Remove stale lockfile so uv re-resolves from the current pyproject.toml.
+    // Cached venvs (CI) may carry a uv.lock that predates newly added dependencies.
+    const lockPath = path.join(context.workDir, 'uv.lock');
+    await fs.unlink(lockPath).catch(() => {});
+
     await execAsync('uv sync', { cwd: context.workDir });
     await this.installLocalSentrySdk(context);
 
