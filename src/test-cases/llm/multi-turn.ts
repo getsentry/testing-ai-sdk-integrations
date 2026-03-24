@@ -5,7 +5,7 @@
  * Validates that Sentry captures multiple gen_ai spans correctly.
  */
 
-import { TestDefinition, Check, ErrorLocation } from "../../types.js";
+import { TestDefinition } from "../../types.js";
 import {
   checkAISpanCount,
   checkChatSpanAttributes,
@@ -15,9 +15,6 @@ import {
   checkInputMessagesSchema,
   checkResponseModel,
 } from "../checks.js";
-import { extractGenAISpans, skipIf } from "../utils.js";
-import { CheckError } from "../../validator.js";
-
 
 export const multiTurnLLMTest: TestDefinition = {
   name: "Multi-Turn LLM Test",
@@ -61,15 +58,9 @@ export const multiTurnLLMTest: TestDefinition = {
     },
   ],
 
-  criticalChecks: [
-    checkAISpanCount(3),
-    checkChatSpanAttributes,
-  ],
+  criticalChecks: [checkAISpanCount(3), checkChatSpanAttributes],
 
-  checks: [
-    checkValidTokenUsage,
-    checkInputMessagesSchema,
-  ],
+  checks: [checkValidTokenUsage, checkInputMessagesSchema],
 
   warningChecks: [
     checkResponseModel,
