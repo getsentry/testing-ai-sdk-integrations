@@ -16,6 +16,9 @@ export type OptionValue =
  */
 
 export interface FrameworkConfig {
+  /** Whether this framework is disabled (excluded from discovery and test runs) */
+  disabled?: boolean;
+
   /** Framework identifier (e.g., "openai", "openai-agents") */
   name: string;
 

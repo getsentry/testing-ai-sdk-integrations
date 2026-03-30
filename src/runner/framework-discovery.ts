@@ -126,6 +126,11 @@ export function discoverFrameworks(): DiscoveredFramework[] {
             continue;
           }
 
+          // Skip disabled frameworks
+          if (config.disabled) {
+            continue;
+          }
+
           // Validate platform matches directory structure
           if (config.platform !== platform) {
             console.warn(
