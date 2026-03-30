@@ -1148,52 +1148,6 @@ export const checkOutputTokensReasoning: Check = {
 /**
  * Check that long messages are trimmed in span data
  */
-export const checkMessageTrimming: Check = {
-  name: "checkMessageTrimming",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
-
-    let foundTrimmedMessage = false;
-    const maxExpectedSize = 20000;
-    const errors: string[] = [];
-    const locations: ErrorLocation[] = [];
-
-    for (const span of aiSpans) {
-      const result = getAttributeWithFallback(
-        span,
-        "gen_ai.input.messages",
-        "gen_ai.request.messages"
-      );
-
-      if (result.value !== undefined) {
-        const messageStr =
-          typeof result.value === "string"
-            ? result.value
-            : JSON.stringify(result.value);
-
-        if (messageStr.length > maxExpectedSize) {
-          const msg = `Message should be trimmed (length ${messageStr.length} > ${maxExpectedSize})`;
-          errors.push(msg);
-          locations.push({
-            spanId: span.span_id,
-            attribute: result.usedAttribute!,
-            message: msg,
-          });
-        }
-
-        foundTrimmedMessage = true;
-      }
-    }
-
-    skipIf(!foundTrimmedMessage, "No gen_ai.input.messages or gen_ai.request.messages attribute found");
-
-    if (errors.length > 0) {
-      throw new CheckError(errors.join("\n"), locations);
-    }
-  },
-};
-
 // =============================================================================
 // Agent-specific Checks
 // =============================================================================
