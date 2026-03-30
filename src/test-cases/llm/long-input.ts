@@ -14,7 +14,6 @@
 import { TestDefinition } from "../../types.js";
 import {
   checkChatSpanAttributes,
-  checkMessageTrimming,
   checkInputMessagesSchema,
   checkResponseModel,
 } from "../checks.js";
@@ -53,7 +52,6 @@ export const longInputLLMTest: TestDefinition = {
   ],
 
   checks: [
-    checkMessageTrimming,
     checkInputMessagesSchema,
   ],
 

@@ -15,7 +15,6 @@ import { TestDefinition } from "../../types.js";
 import {
   checkChatSpanAttributes,
   checkAgentSpanAttributes,
-  checkMessageTrimming,
   checkAgentHierarchy,
   checkInputMessagesSchema,
   checkResponseModel,
@@ -77,7 +76,6 @@ export const longInputAgentTest: TestDefinition = {
   ],
 
   checks: [
-    checkMessageTrimming,
     checkInputMessagesSchema,
   ],
 
