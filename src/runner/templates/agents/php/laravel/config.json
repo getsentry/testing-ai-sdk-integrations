@@ -1,4 +1,5 @@
 {
+  "disabled": true,
   "name": "laravel",
   "displayName": "Laravel AI Framework",
   "type": "agentic",
