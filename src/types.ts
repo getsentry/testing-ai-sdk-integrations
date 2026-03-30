@@ -277,6 +277,8 @@ export interface TestRun {
   checkResults?: CheckResult[];
   /** Post-check attribute audit results */
   attributeAudit?: AttributeAudit;
+  /** Path to the generated test script file (relative to project root) */
+  scriptPath?: string;
   skipReason?: string;
 }
 

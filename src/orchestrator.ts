@@ -13,7 +13,7 @@ import {
   writeCTRFReport,
   getTimestamp,
 } from "./reporters/ctrf-reporter.js";
-import { generateHTML, writeHTMLReport } from "./reporters/html-generator.js";
+import { generateHTML, writeHTMLReport, resolveScriptContents } from "./reporters/html-generator.js";
 import { LiveStatusReporter } from "./reporters/live-status.js";
 import { PoolExecutionStrategy, ExecutionStrategy } from "./concurrency.js";
 import {
@@ -283,6 +283,9 @@ export class Orchestrator {
           });
 
           renderedTests.set(testRun.id, testPath);
+
+          // Store relative script path on the test run for reporting
+          testRun.scriptPath = path.relative(process.cwd(), testPath);
 
           // Track HTML files for browser bundling
           if (firstRun.framework.platform === "browser") {
@@ -575,6 +578,9 @@ export class Orchestrator {
       if (this.verbose) {
         console.log(`\n✓ CTRF report written to: ${ctrfPath}`);
       }
+
+      // Resolve script file contents for HTML report (reads from filePath on disk)
+      await resolveScriptContents(ctrfReport);
 
       // Write HTML report
       const htmlContent = generateHTML(ctrfReport);

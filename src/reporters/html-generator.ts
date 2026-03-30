@@ -7,7 +7,7 @@
 import htm from "htm";
 import vhtml from "vhtml";
 import type { Report, Test } from "ctrf";
-import { writeFile, mkdir } from "fs/promises";
+import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
 const html = htm.bind(vhtml);
@@ -401,6 +401,16 @@ const STYLES = `
     border-radius: var(--radius); font-size: 12px; font-style: italic;
     border: 1px solid var(--warn-border);
   }
+
+  /* ---- Script Path ---- */
+  .script-path {
+    margin: 8px 0 4px; padding: 4px 10px;
+    font-size: 11px; font-family: var(--mono); color: var(--text-muted);
+    background: var(--bg-alt); border-radius: var(--radius);
+    border: 1px solid var(--border); display: inline-block;
+    word-break: break-all;
+  }
+  .script-path-label { font-weight: 600; margin-right: 4px; }
 
   /* ---- Filters ---- */
   .filter-bar {
@@ -872,6 +882,23 @@ function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
 }
 
 // ---------------------------------------------------------------------------
+// Script Source Display
+// ---------------------------------------------------------------------------
+
+function ScriptSource({ test }: { test: Test }) {
+  const extra = test.extra as Record<string, unknown> | undefined;
+  const scriptContent = extra?.scriptContent as string | undefined;
+  if (!scriptContent) return html``;
+
+  return html`
+    <details class="spans-section">
+      <summary class="spans-toggle"><span class="spans-icon" dangerouslySetInnerHTML=${{ __html: "&lt;/&gt;" }}></span>Source Script${test.filePath ? html` <span class="script-path-label">${test.filePath}</span>` : ""}</summary>
+      <pre class="spans-json">${scriptContent}</pre>
+    </details>
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // Failed Tests Details
 // ---------------------------------------------------------------------------
 
@@ -932,6 +959,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
               : spanCount === 0
                 ? html`<div class="no-spans">No spans captured</div>`
                 : ""}
+            ${ScriptSource({ test })}
           </div>
         </details>
       `;
@@ -972,6 +1000,7 @@ function SetupErrorsSection({ tests }: { tests: Test[] }) {
           </summary>
           <div class="setup-error-details">
             ${test.trace ? html`<pre class="setup-error-msg">${test.trace}</pre>` : test.message ? html`<pre class="setup-error-msg">${test.message}</pre>` : ""}
+            ${ScriptSource({ test })}
           </div>
         </details>
       `;
@@ -1025,6 +1054,7 @@ function WarningsSection({ tests }: { tests: Test[] }) {
           </summary>
           <div class="warning-test-details">
             ${warningResults.map((cr) => FailedCheckDetail({ cr, spanById }))}
+            ${ScriptSource({ test })}
           </div>
         </details>
       `;
@@ -1127,6 +1157,26 @@ function flattenToString(value: unknown): string {
   }
   if (typeof value === "object" && value !== null) return "";
   return String(value);
+}
+
+/**
+ * Resolve script file contents for tests that have a filePath.
+ * Reads the file from disk and stores the content in extra.scriptContent.
+ * Call this before generateHTML() to embed source scripts in the report.
+ */
+export async function resolveScriptContents(report: Report): Promise<void> {
+  await Promise.all(
+    report.results.tests.map(async (test) => {
+      if (!test.filePath) return;
+      try {
+        const content = await readFile(test.filePath, "utf-8");
+        if (!test.extra) test.extra = {};
+        (test.extra as Record<string, unknown>).scriptContent = content;
+      } catch {
+        // File may have been cleaned up; skip silently
+      }
+    }),
+  );
 }
 
 export function generateHTML(report: Report): string {
