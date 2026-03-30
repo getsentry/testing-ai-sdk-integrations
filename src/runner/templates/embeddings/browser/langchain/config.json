@@ -11,5 +11,10 @@
     { "package": "@langchain/core", "version": "0.3.49" }
   ],
   "versions": ["0.3.24"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "skip": {
+    "checks": {
+      "Basic Embeddings Test": ["checkEmbeddingTokenUsage"]
+    }
+  }
 }

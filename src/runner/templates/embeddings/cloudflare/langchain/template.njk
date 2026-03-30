@@ -3,12 +3,10 @@
 {% block dynamic_imports %}
       const langchainOpenAI = await import("@langchain/openai");
       const OpenAIEmbeddings = langchainOpenAI.OpenAIEmbeddings;
-      const callbackHandler = Sentry.createLangChainCallbackHandler();
-      const embeddings = new OpenAIEmbeddings({
+      const embeddings = Sentry.instrumentLangChainEmbeddings(new OpenAIEmbeddings({
         modelName: "{{ inputs[0].model }}",
         openAIApiKey: env.OPENAI_API_KEY,
-        callbacks: [callbackHandler],
-      });
+      }));
 {% endblock %}
 
 {% block test %}

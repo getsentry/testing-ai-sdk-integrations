@@ -9,10 +9,10 @@
       throw new Error('OPENAI_API_KEY not provided');
     }
 
-    const embeddings = new OpenAIEmbeddings({
+    const embeddings = Sentry.instrumentLangChainEmbeddings(new OpenAIEmbeddings({
       modelName: "{{ inputs[0].model }}",
       openAIApiKey: OPENAI_API_KEY,
-    });
+    }));
 
     log('LangChain OpenAIEmbeddings initialized');
 {% endblock %}
