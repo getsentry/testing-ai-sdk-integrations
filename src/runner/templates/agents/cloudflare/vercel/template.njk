@@ -96,30 +96,31 @@ import { createOpenAI } from "@ai-sdk/openai";
 {% if agent and agent.tools and agent.tools.length > 0 %}
           tools,
 {% endif %}
+{% if system_content %}
+          instructions: "{{ system_content }}",
+{% endif %}
           stopWhen: stepCountIs(10),
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "{{ agent.name if agent else 'assistant' }}",
+            recordInputs: true,
+            recordOutputs: true,
+          },
         });
 
 {% if isStreaming %}
 {% if user_content is iterable and user_content is not string %}
         const { textStream } = await agent.stream({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           messages: [
             {
               role: "user",
               content: {{ renderVercelContent(user_content) }},
             },
           ],
-          experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
         });
 {% else %}
         const { textStream } = await agent.stream({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           prompt: "{{ user_content }}",
-          experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
         });
 {% endif %}
         const chunks = [];
@@ -130,24 +131,16 @@ import { createOpenAI } from "@ai-sdk/openai";
 {% else %}
 {% if user_content is iterable and user_content is not string %}
         const { text } = await agent.generate({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           messages: [
             {
               role: "user",
               content: {{ renderVercelContent(user_content) }},
             },
           ],
-          experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
         });
 {% else %}
         const { text } = await agent.generate({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           prompt: "{{ user_content }}",
-          experimental_telemetry: { isEnabled: true, recordInputs: true, recordOutputs: true },
         });
 {% endif %}
         console.log("Response:", text);

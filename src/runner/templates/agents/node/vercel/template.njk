@@ -84,15 +84,21 @@ const { openai } = await import("@ai-sdk/openai");
 {% if agent and agent.tools and agent.tools.length > 0 %}
           tools,
 {% endif %}
+{% if system_content %}
+          instructions: "{{ system_content }}",
+{% endif %}
           stopWhen: stepCountIs(10),
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "{{ agent.name if agent else 'assistant' }}",
+            recordInputs: true,
+            recordOutputs: true,
+          },
         });
 
 {% if isStreaming %}
 {% if user_content is iterable and user_content is not string %}
         const { textStream } = await agent.stream({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           messages: [
             {
               role: "user",
@@ -102,9 +108,6 @@ const { openai } = await import("@ai-sdk/openai");
         });
 {% else %}
         const { textStream } = await agent.stream({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           prompt: "{{ user_content }}",
         });
 {% endif %}
@@ -116,9 +119,6 @@ const { openai } = await import("@ai-sdk/openai");
 {% else %}
 {% if user_content is iterable and user_content is not string %}
         const { text } = await agent.generate({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           messages: [
             {
               role: "user",
@@ -128,9 +128,6 @@ const { openai } = await import("@ai-sdk/openai");
         });
 {% else %}
         const { text } = await agent.generate({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           prompt: "{{ user_content }}",
         });
 {% endif %}

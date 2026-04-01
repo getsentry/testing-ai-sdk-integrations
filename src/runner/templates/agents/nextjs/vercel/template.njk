@@ -78,18 +78,23 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% if agent and agent.tools and agent.tools.length > 0 %}
           tools,
 {% endif %}
+{% if system_content %}
+          instructions: "{{ system_content }}",
+{% endif %}
           stopWhen: stepCountIs(10),
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "{{ agent.name if agent else 'assistant' }}",
+            recordInputs: true,
+            recordOutputs: true,
+          },
         });
 
 {% if isStreaming %}
         console.log('Starting streaming request {{ loop.index }}...');
 
 {% if user_content is iterable and user_content is not string %}
-        // Multimodal content - use messages array
         const { textStream } = await agent.stream({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           messages: [
             {
               role: "user",
@@ -98,11 +103,7 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
           ],
         });
 {% else %}
-        // Simple text prompt
         const { textStream } = await agent.stream({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           prompt: "{{ user_content }}",
         });
 {% endif %}
@@ -116,35 +117,17 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
         console.log('Starting blocking request {{ loop.index }}...');
 
 {% if user_content is iterable and user_content is not string %}
-        // Multimodal content - use messages array
         const { text } = await agent.generate({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           messages: [
             {
               role: "user",
               content: {{ renderVercelContent(user_content) }},
             },
           ],
-          experimental_telemetry: {
-            isEnabled: true,
-            recordInputs: true,
-            recordOutputs: true,
-          },
         });
 {% else %}
-        // Simple text prompt
         const { text } = await agent.generate({
-{% if system_content %}
-          system: "{{ system_content }}",
-{% endif %}
           prompt: "{{ user_content }}",
-          experimental_telemetry: {
-            isEnabled: true,
-            recordInputs: true,
-            recordOutputs: true,
-          },
         });
 {% endif %}
         console.log("Response {{ loop.index }}:", text);
