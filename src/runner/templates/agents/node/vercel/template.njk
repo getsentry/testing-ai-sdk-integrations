@@ -23,9 +23,24 @@
 {% endmacro %}
 
 {% block dynamic_imports %}
+{% if agentStyle == "class" %}
+const { ToolLoopAgent, tool, jsonSchema, stepCountIs } = await import("ai");
+{% elif isStreaming %}
+const { streamText, tool, jsonSchema, stepCountIs } = await import("ai");
+{% else %}
 const { generateText, tool, jsonSchema, stepCountIs } = await import("ai");
+{% endif %}
+{% if provider == "anthropic" %}
+const { anthropic } = await import("@ai-sdk/anthropic");
+{% else %}
 const { openai } = await import("@ai-sdk/openai");
+{% endif %}
 {% endblock %}
+
+{# Helper macro for model reference #}
+{% macro modelRef(input) %}
+{% if provider == "anthropic" %}anthropic({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}){% else %}openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}){% endif %}
+{% endmacro %}
 
 {% block test %}
 {% if agent and agent.tools and agent.tools.length > 0 %}
@@ -62,10 +77,71 @@ const { openai } = await import("@ai-sdk/openai");
       // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
       try {
+{% if agentStyle == "class" %}
+        // ToolLoopAgent class-based approach
+        const agent = new ToolLoopAgent({
+          model: {{ modelRef(input) | trim }},
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+{% endif %}
+          stopWhen: stepCountIs(10),
+        });
+
+{% if isStreaming %}
 {% if user_content is iterable and user_content is not string %}
-        // Multimodal content - use messages array
-        const { text } = await generateText({
-          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+        const { textStream } = await agent.stream({
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+        });
+{% else %}
+        const { textStream } = await agent.stream({
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          prompt: "{{ user_content }}",
+        });
+{% endif %}
+        const chunks = [];
+        for await (const chunk of textStream) {
+          chunks.push(chunk);
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+{% if user_content is iterable and user_content is not string %}
+        const { text } = await agent.generate({
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+        });
+{% else %}
+        const { text } = await agent.generate({
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          prompt: "{{ user_content }}",
+        });
+{% endif %}
+        console.log("Response:", text);
+{% endif %}
+{% else %}
+        // Function-based approach
+{% if isStreaming %}
+{% if user_content is iterable and user_content is not string %}
+        const { textStream } = streamText({
+          model: {{ modelRef(input) | trim }},
 {% if system_content %}
           system: "{{ system_content }}",
 {% endif %}
@@ -81,9 +157,44 @@ const { openai } = await import("@ai-sdk/openai");
 {% endif %}
         });
 {% else %}
-        // Simple text prompt
+        const { textStream } = streamText({
+          model: {{ modelRef(input) | trim }},
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          prompt: "{{ user_content }}",
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+          stopWhen: stepCountIs(10),
+{% endif %}
+        });
+{% endif %}
+        const chunks = [];
+        for await (const chunk of textStream) {
+          chunks.push(chunk);
+        }
+        console.log("Response:", chunks.join(""));
+{% else %}
+{% if user_content is iterable and user_content is not string %}
         const { text } = await generateText({
-          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+          model: {{ modelRef(input) | trim }},
+{% if system_content %}
+          system: "{{ system_content }}",
+{% endif %}
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+          stopWhen: stepCountIs(10),
+{% endif %}
+        });
+{% else %}
+        const { text } = await generateText({
+          model: {{ modelRef(input) | trim }},
 {% if system_content %}
           system: "{{ system_content }}",
 {% endif %}
@@ -95,6 +206,8 @@ const { openai } = await import("@ai-sdk/openai");
         });
 {% endif %}
         console.log("Response:", text);
+{% endif %}
+{% endif %}
       } catch (error) {
         Sentry.captureException(error);
         console.error("Error:", error.message);
