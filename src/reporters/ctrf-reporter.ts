@@ -47,6 +47,11 @@ export function generateCTRFReport(testReport: TestReport): Report {
     // Add suite (grouping)
     test.suite = [frameworkName];
 
+    // Add source file path (CTRF standard field)
+    if (run.scriptPath) {
+      test.filePath = run.scriptPath;
+    }
+
     // Add tags for filtering
     const tags: string[] = [
       run.framework.platform, // 'node' or 'python'

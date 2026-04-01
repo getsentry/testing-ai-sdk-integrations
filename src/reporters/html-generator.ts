@@ -7,8 +7,8 @@
 import htm from "htm";
 import vhtml from "vhtml";
 import type { Report, Test } from "ctrf";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { copyFile, writeFile, mkdir } from "fs/promises";
+import { join, dirname } from "path";
 
 const html = htm.bind(vhtml);
 
@@ -401,6 +401,16 @@ const STYLES = `
     border-radius: var(--radius); font-size: 12px; font-style: italic;
     border: 1px solid var(--warn-border);
   }
+
+  /* ---- Script Path ---- */
+  .script-path {
+    margin: 8px 0 4px; padding: 4px 10px;
+    font-size: 11px; font-family: var(--mono); color: var(--text-muted);
+    background: var(--bg-alt); border-radius: var(--radius);
+    border: 1px solid var(--border); display: inline-block;
+    word-break: break-all;
+  }
+  .script-path-label { font-weight: 600; margin-right: 4px; }
 
   /* ---- Filters ---- */
   .filter-bar {
@@ -872,6 +882,23 @@ function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
 }
 
 // ---------------------------------------------------------------------------
+// Script Source Display
+// ---------------------------------------------------------------------------
+
+function ScriptSource({ test }: { test: Test }) {
+  const extra = test.extra as Record<string, unknown> | undefined;
+  const scriptLink = extra?.scriptLink as string | undefined;
+  if (!scriptLink) return html``;
+
+  return html`
+    <div class="script-path">
+      <span class="script-path-label">Script:</span>
+      <a href="${scriptLink}" target="_blank">${test.filePath || scriptLink}</a>
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // Failed Tests Details
 // ---------------------------------------------------------------------------
 
@@ -932,6 +959,7 @@ function FailedTestsDetails({ tests }: { tests: Test[] }) {
               : spanCount === 0
                 ? html`<div class="no-spans">No spans captured</div>`
                 : ""}
+            ${ScriptSource({ test })}
           </div>
         </details>
       `;
@@ -972,6 +1000,7 @@ function SetupErrorsSection({ tests }: { tests: Test[] }) {
           </summary>
           <div class="setup-error-details">
             ${test.trace ? html`<pre class="setup-error-msg">${test.trace}</pre>` : test.message ? html`<pre class="setup-error-msg">${test.message}</pre>` : ""}
+            ${ScriptSource({ test })}
           </div>
         </details>
       `;
@@ -1025,6 +1054,7 @@ function WarningsSection({ tests }: { tests: Test[] }) {
           </summary>
           <div class="warning-test-details">
             ${warningResults.map((cr) => FailedCheckDetail({ cr, spanById }))}
+            ${ScriptSource({ test })}
           </div>
         </details>
       `;
@@ -1127,6 +1157,32 @@ function flattenToString(value: unknown): string {
   }
   if (typeof value === "object" && value !== null) return "";
   return String(value);
+}
+
+/**
+ * Copy script files for tests that have a filePath into a scripts/ directory
+ * next to the HTML report. Stores a relative link in extra.scriptLink.
+ * Call this before generateHTML() so the report can link to source scripts.
+ */
+export async function copyScriptsForReport(
+  report: Report,
+  outputDir: string,
+): Promise<void> {
+  const scriptsDir = join(outputDir, "scripts");
+  await Promise.all(
+    report.results.tests.map(async (test) => {
+      if (!test.filePath) return;
+      try {
+        const dest = join(scriptsDir, test.filePath);
+        await mkdir(dirname(dest), { recursive: true });
+        await copyFile(test.filePath, dest);
+        if (!test.extra) test.extra = {};
+        (test.extra as Record<string, unknown>).scriptLink = `scripts/${test.filePath}`;
+      } catch {
+        // Source file may have been cleaned up; skip silently
+      }
+    }),
+  );
 }
 
 export function generateHTML(report: Report): string {

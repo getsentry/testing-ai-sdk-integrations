@@ -119,8 +119,12 @@ jobs:
           mkdir -p "_site/reports/${TODAY}"
           REPORT=$(ls -t test-results/test-report-*.html | head -1)
           cp "$REPORT" _site/index.html
-          # Dated copy with adjusted relative links (trends.html is two levels up)
-          sed 's|href="trends.html"|href="../../trends.html"|g' "$REPORT" > "_site/reports/${TODAY}/index.html"
+          # Copy scripts directory for source file links
+          if [ -d test-results/scripts ]; then
+            cp -r test-results/scripts _site/scripts
+          fi
+          # Dated copy with adjusted relative links (trends.html and scripts/ are two levels up)
+          sed 's|href="trends.html"|href="../../trends.html"|g; s|href="scripts/|href="../../scripts/|g' "$REPORT" > "_site/reports/${TODAY}/index.html"
 
       - name: Upload CTRF artifact
         uses: actions/upload-artifact@v4
