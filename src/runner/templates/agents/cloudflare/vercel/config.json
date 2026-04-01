@@ -3,6 +3,7 @@
   "displayName": "Vercel AI SDK (Cloudflare)",
   "type": "agentic",
   "platform": "cloudflare",
+  "streamingMode": "both",
   "dependencies": [
     {
       "package": "ai",
@@ -11,8 +12,27 @@
     {
       "package": "@ai-sdk/openai",
       "version": "latest"
+    },
+    {
+      "package": "@ai-sdk/anthropic",
+      "version": "latest"
     }
   ],
   "versions": ["6.0.116"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "options": {
+    "agentStyle": ["function", "class"],
+    "provider": [
+      "openai",
+      {
+        "value": "anthropic",
+        "overrides": {
+          "modelOverrides": {
+            "request": "claude-haiku-4-5",
+            "response": "claude-haiku-4-5*"
+          }
+        }
+      }
+    ]
+  }
 }

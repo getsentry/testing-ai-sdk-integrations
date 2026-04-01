@@ -18,10 +18,23 @@
 {% endmacro %}
 
 {% block dynamic_imports %}
+{% if agentStyle == "class" %}
+const { ToolLoopAgent, tool, jsonSchema, stepCountIs } = await import("ai");
+{% else %}
 const { generateText, streamText, tool, jsonSchema, stepCountIs } = await import("ai");
+{% endif %}
+{% if provider == "anthropic" %}
+const { anthropic } = await import("@ai-sdk/anthropic");
+{% else %}
 const { openai } = await import("@ai-sdk/openai");
+{% endif %}
 console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% endblock %}
+
+{# Helper macro for model reference #}
+{% macro modelRef(input) %}
+{% if provider == "anthropic" %}anthropic({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}){% else %}openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}){% endif %}
+{% endmacro %}
 
 {% block test %}
 {% if agent and agent.tools and agent.tools.length > 0 %}
@@ -58,13 +71,76 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
       // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
       try {
+{% if agentStyle == "class" %}
+        // ToolLoopAgent class-based approach
+        const agent = new ToolLoopAgent({
+          model: {{ modelRef(input) | trim }},
+{% if agent and agent.tools and agent.tools.length > 0 %}
+          tools,
+{% endif %}
+{% if system_content %}
+          instructions: "{{ system_content }}",
+{% endif %}
+          stopWhen: stepCountIs(10),
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "{{ agent.name if agent else 'assistant' }}",
+            recordInputs: true,
+            recordOutputs: true,
+          },
+        });
+
+{% if isStreaming %}
+        console.log('Starting streaming request {{ loop.index }}...');
+
+{% if user_content is iterable and user_content is not string %}
+        const { textStream } = await agent.stream({
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+        });
+{% else %}
+        const { textStream } = await agent.stream({
+          prompt: "{{ user_content }}",
+        });
+{% endif %}
+
+        const chunks = [];
+        for await (const chunk of textStream) {
+          chunks.push(chunk);
+        }
+        console.log("Response {{ loop.index }}:", chunks.join(""));
+{% else %}
+        console.log('Starting blocking request {{ loop.index }}...');
+
+{% if user_content is iterable and user_content is not string %}
+        const { text } = await agent.generate({
+          messages: [
+            {
+              role: "user",
+              content: {{ renderVercelContent(user_content) }},
+            },
+          ],
+        });
+{% else %}
+        const { text } = await agent.generate({
+          prompt: "{{ user_content }}",
+        });
+{% endif %}
+        console.log("Response {{ loop.index }}:", text);
+{% endif %}
+{% else %}
+        // Function-based approach
 {% if isStreaming %}
         console.log('Starting streaming request {{ loop.index }}...');
 
 {% if user_content is iterable and user_content is not string %}
         // Multimodal content - use messages array
         const { textStream } = streamText({
-          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+          model: {{ modelRef(input) | trim }},
 {% if system_content %}
           system: "{{ system_content }}",
 {% endif %}
@@ -87,7 +163,7 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% else %}
         // Simple text prompt
         const { textStream } = streamText({
-          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+          model: {{ modelRef(input) | trim }},
 {% if system_content %}
           system: "{{ system_content }}",
 {% endif %}
@@ -115,7 +191,7 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% if user_content is iterable and user_content is not string %}
         // Multimodal content - use messages array
         const { text } = await generateText({
-          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+          model: {{ modelRef(input) | trim }},
 {% if system_content %}
           system: "{{ system_content }}",
 {% endif %}
@@ -138,7 +214,7 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% else %}
         // Simple text prompt
         const { text } = await generateText({
-          model: openai({% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %}),
+          model: {{ modelRef(input) | trim }},
 {% if system_content %}
           system: "{{ system_content }}",
 {% endif %}
@@ -155,6 +231,7 @@ console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
         });
 {% endif %}
         console.log("Response {{ loop.index }}:", text);
+{% endif %}
 {% endif %}
       } catch (error) {
         Sentry.captureException(error);
