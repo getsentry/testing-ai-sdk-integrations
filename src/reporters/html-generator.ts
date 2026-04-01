@@ -7,8 +7,8 @@
 import htm from "htm";
 import vhtml from "vhtml";
 import type { Report, Test } from "ctrf";
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { copyFile, writeFile, mkdir } from "fs/promises";
+import { join, dirname } from "path";
 
 const html = htm.bind(vhtml);
 
@@ -887,14 +887,14 @@ function InlineAuditDisplay({ audit }: { audit: ReportAttributeAudit }) {
 
 function ScriptSource({ test }: { test: Test }) {
   const extra = test.extra as Record<string, unknown> | undefined;
-  const scriptContent = extra?.scriptContent as string | undefined;
-  if (!scriptContent) return html``;
+  const scriptLink = extra?.scriptLink as string | undefined;
+  if (!scriptLink) return html``;
 
   return html`
-    <details class="spans-section">
-      <summary class="spans-toggle"><span class="spans-icon" dangerouslySetInnerHTML=${{ __html: "&lt;/&gt;" }}></span>Source Script${test.filePath ? html` <span class="script-path-label">${test.filePath}</span>` : ""}</summary>
-      <pre class="spans-json">${scriptContent}</pre>
-    </details>
+    <div class="script-path">
+      <span class="script-path-label">Script:</span>
+      <a href="${scriptLink}" target="_blank">${test.filePath || scriptLink}</a>
+    </div>
   `;
 }
 
@@ -1160,20 +1160,26 @@ function flattenToString(value: unknown): string {
 }
 
 /**
- * Resolve script file contents for tests that have a filePath.
- * Reads the file from disk and stores the content in extra.scriptContent.
- * Call this before generateHTML() to embed source scripts in the report.
+ * Copy script files for tests that have a filePath into a scripts/ directory
+ * next to the HTML report. Stores a relative link in extra.scriptLink.
+ * Call this before generateHTML() so the report can link to source scripts.
  */
-export async function resolveScriptContents(report: Report): Promise<void> {
+export async function copyScriptsForReport(
+  report: Report,
+  outputDir: string,
+): Promise<void> {
+  const scriptsDir = join(outputDir, "scripts");
   await Promise.all(
     report.results.tests.map(async (test) => {
       if (!test.filePath) return;
       try {
-        const content = await readFile(test.filePath, "utf-8");
+        const dest = join(scriptsDir, test.filePath);
+        await mkdir(dirname(dest), { recursive: true });
+        await copyFile(test.filePath, dest);
         if (!test.extra) test.extra = {};
-        (test.extra as Record<string, unknown>).scriptContent = content;
+        (test.extra as Record<string, unknown>).scriptLink = `scripts/${test.filePath}`;
       } catch {
-        // File may have been cleaned up; skip silently
+        // Source file may have been cleaned up; skip silently
       }
     }),
   );

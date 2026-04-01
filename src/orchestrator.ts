@@ -13,7 +13,7 @@ import {
   writeCTRFReport,
   getTimestamp,
 } from "./reporters/ctrf-reporter.js";
-import { generateHTML, writeHTMLReport, resolveScriptContents } from "./reporters/html-generator.js";
+import { generateHTML, writeHTMLReport, copyScriptsForReport } from "./reporters/html-generator.js";
 import { LiveStatusReporter } from "./reporters/live-status.js";
 import { PoolExecutionStrategy, ExecutionStrategy } from "./concurrency.js";
 import {
@@ -579,8 +579,8 @@ export class Orchestrator {
         console.log(`\n✓ CTRF report written to: ${ctrfPath}`);
       }
 
-      // Resolve script file contents for HTML report (reads from filePath on disk)
-      await resolveScriptContents(ctrfReport);
+      // Copy script files alongside the report and generate links
+      await copyScriptsForReport(ctrfReport, outputDir);
 
       // Write HTML report
       const htmlContent = generateHTML(ctrfReport);

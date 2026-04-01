@@ -14,7 +14,7 @@ import {
   generateHTML,
   writeHTMLReport,
   getTimestamp,
-  resolveScriptContents,
+  copyScriptsForReport,
 } from "./reporters/html-generator.js";
 
 async function main() {
@@ -54,9 +54,9 @@ Examples:
       process.exit(1);
     }
 
-    // Resolve script file contents and generate HTML
+    // Copy script files alongside report and generate HTML
     console.log("Generating HTML report...");
-    await resolveScriptContents(report);
+    await copyScriptsForReport(report, outputDir);
     const htmlContent = generateHTML(report);
 
     // Extract timestamp from input filename or generate new one
