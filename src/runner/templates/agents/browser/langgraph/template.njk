@@ -39,7 +39,7 @@
 {% endif %}
     const { ChatOpenAI } = await import("@langchain/openai");
     const { HumanMessage, SystemMessage } = await import("@langchain/core/messages");
-{% if agent and agent.tools and agent.tools.length > 0 %}
+{% if variant == "compiled" and agent and agent.tools and agent.tools.length > 0 %}
     const { tool } = await import("@langchain/core/tools");
     const { z } = await import("zod");
 {% endif %}
