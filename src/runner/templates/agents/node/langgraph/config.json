@@ -15,6 +15,10 @@
     {
       "package": "@langchain/core",
       "version": "0.3.49"
+    },
+    {
+      "package": "zod",
+      "version": "3"
     }
   ],
   "versions": ["0.2.67"],

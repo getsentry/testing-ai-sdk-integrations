@@ -34,6 +34,10 @@
 {% endif %}
     const { ChatOpenAI } = await import("@langchain/openai");
     const { HumanMessage, SystemMessage } = await import("@langchain/core/messages");
+{% if agent and agent.tools and agent.tools.length > 0 %}
+    const { tool } = await import("@langchain/core/tools");
+    const { z } = await import("zod");
+{% endif %}
 
 {% if variant == "custom-state" %}
     const { StateGraph, Annotation, START, END } = langgraphModule;
@@ -56,7 +60,33 @@
       apiKey: OPENAI_API_KEY,
     });
 
-    const agent = createReactAgent({ llm, tools: [], name: "{{ agent.name }}" });
+{% if agent and agent.tools and agent.tools.length > 0 %}
+    const tools = [
+{% for toolDef in agent.tools %}
+      tool(async (input) => {
+{% if toolDef.error %}
+        throw new Error("{{ toolDef.error }}");
+{% elif toolDef.result is defined %}
+        return {{ toolDef.result | dump }};
+{% else %}
+        return input;
+{% endif %}
+      }, {
+        name: "{{ toolDef.name }}",
+        description: "{{ toolDef.description }}",
+        schema: z.object({
+{% if toolDef.parameters and toolDef.parameters.properties %}
+{% for paramName, paramDef in toolDef.parameters.properties %}
+          {{ paramName }}: z.{{ paramDef.type }}(){% if paramDef.description %}.describe("{{ paramDef.description }}"){% endif %},
+{% endfor %}
+{% endif %}
+        }),
+      }),
+{% endfor %}
+    ];
+{% endif %}
+
+    const agent = createReactAgent({ llm, tools: {% if agent and agent.tools and agent.tools.length > 0 %}tools{% else %}[]{% endif %}, name: "{{ agent.name }}" });
     Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
 
     log('LangGraph initialized with instrumentLangGraph on compiled graph');
