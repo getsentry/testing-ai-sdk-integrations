@@ -9,6 +9,11 @@
 {% extends "base.browser.njk" %}
 
 {# Macro to render message content - handles both string and multimodal array #}
+{# Macro to convert JSON Schema type to Zod type #}
+{% macro zodType(type_str) -%}
+{% if type_str == 'number' %}z.number(){% elif type_str == 'integer' %}z.number().int(){% elif type_str == 'boolean' %}z.boolean(){% else %}z.string(){% endif %}
+{%- endmacro %}
+
 {% macro renderLangChainContent(content) %}
 {% if content is string %}
 "{{ content }}"
@@ -77,7 +82,7 @@
         schema: z.object({
 {% if toolDef.parameters and toolDef.parameters.properties %}
 {% for paramName, paramDef in toolDef.parameters.properties %}
-          {{ paramName }}: z.{{ paramDef.type }}(){% if paramDef.description %}.describe("{{ paramDef.description }}"){% endif %},
+          {{ paramName }}: {{ zodType(paramDef.type) }}{% if paramDef.description %}.describe("{{ paramDef.description }}"){% endif %},
 {% endfor %}
 {% endif %}
         }),
