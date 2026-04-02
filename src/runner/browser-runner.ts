@@ -19,14 +19,26 @@ export class BrowserRunner {
   /**
    * Check if browser environment needs setup
    */
-  async needsSetup(workDir: string, _context?: RunnerContext): Promise<boolean> {
+  async needsSetup(workDir: string, context?: RunnerContext): Promise<boolean> {
     const nodeModulesPath = path.join(workDir, "node_modules");
     try {
       await fs.access(nodeModulesPath);
-      return false;
     } catch {
       return true;
     }
+
+    // Verify all required packages are actually installed
+    if (context?.framework?.dependencies) {
+      for (const dep of context.framework.dependencies) {
+        try {
+          await fs.access(path.join(nodeModulesPath, dep.package));
+        } catch {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
