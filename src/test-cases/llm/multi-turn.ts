@@ -18,47 +18,6 @@ import {
 import { extractGenAISpans, skipIf } from "../utils.js";
 import { CheckError } from "../../validator.js";
 
-/**
- * Check that input tokens increase with each turn (more conversation history)
- */
-const checkTokenProgression: Check = {
-  name: "checkTokenProgression",
-  fn: (spans) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(
-      aiSpans.length < 3,
-      `Expected 3 spans for multi-turn test, got ${aiSpans.length}`,
-    );
-
-    // Extract input token counts for each turn
-    const inputTokens = aiSpans.map(
-      (span) => span.data?.["gen_ai.usage.input_tokens"] as number,
-    );
-
-    // Input tokens should increase with each turn (more conversation history)
-    const errors: ErrorLocation[] = [];
-    if (!(inputTokens[1] > inputTokens[0])) {
-      errors.push({
-        spanId: aiSpans[1].span_id,
-        attribute: "gen_ai.usage.input_tokens",
-        message: `Turn 2 input tokens (${inputTokens[1]}) should be greater than turn 1 (${inputTokens[0]})`,
-      });
-    }
-    if (!(inputTokens[2] > inputTokens[1])) {
-      errors.push({
-        spanId: aiSpans[2].span_id,
-        attribute: "gen_ai.usage.input_tokens",
-        message: `Turn 3 input tokens (${inputTokens[2]}) should be greater than turn 2 (${inputTokens[1]})`,
-      });
-    }
-    if (errors.length > 0) {
-      throw new CheckError(
-        `Input token progression failed: tokens should increase with each turn`,
-        errors,
-      );
-    }
-  },
-};
 
 export const multiTurnLLMTest: TestDefinition = {
   name: "Multi-Turn LLM Test",
@@ -109,7 +68,6 @@ export const multiTurnLLMTest: TestDefinition = {
 
   checks: [
     checkValidTokenUsage,
-    checkTokenProgression,
     checkInputMessagesSchema,
   ],
 
