@@ -669,11 +669,10 @@ export function checkResponseToolCalls(
 
         const foundCall = foundEntry.data;
 
-        // Get arguments (supports OpenAI `arguments`/`function.arguments` and LangChain `args`)
+        // Get arguments
         let actualArgs: Record<string, unknown>;
         const argsRaw =
           foundCall.arguments ||
-          foundCall.args ||
           (foundCall.function as Record<string, unknown>)?.arguments;
 
         if (typeof argsRaw === "string") {
