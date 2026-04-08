@@ -48,46 +48,47 @@ def trim_messages(messages, max_size=10000):
 
 
 def build_sentry_messages(messages):
-    """Build gen_ai.input.messages and gen_ai.request.messages from raw messages."""
-    sentry_messages = []
-    legacy_messages = []
+    """Build gen_ai.input.messages and gen_ai.request.messages from the last raw message."""
     system_instructions = None
 
     for msg in messages:
-        role = msg["role"]
         content = msg.get("content", "")
-
-        if role == "system":
+        if msg["role"] == "system":
             system_instructions = content if isinstance(content, str) else json.dumps(content)
 
-        # New OTel format with parts
-        parts = []
-        if isinstance(content, str):
-            parts.append({"type": "text", "text": content})
-        elif isinstance(content, list):
-            for part in content:
-                if part.get("type") == "text":
-                    parts.append({"type": "text", "text": part["text"]})
-                elif part.get("type") == "image":
-                    parts.append({"type": "text", "text": "[Blob substitute]"})
+    if not messages:
+        return [], [], system_instructions
 
-        sentry_messages.append({
-            "role": role,
-            "content": content if isinstance(content, str) else "[multimodal]",
-            "parts": parts,
-        })
+    last_message = messages[-1]
+    role = last_message["role"]
+    content = last_message.get("content", "")
 
-        # Legacy format with binary redaction
-        if isinstance(content, list):
-            redacted = []
-            for part in content:
-                if part.get("type") == "text":
-                    redacted.append(part)
-                elif part.get("type") == "image":
-                    redacted.append({"type": "text", "text": "[Blob substitute]"})
-            legacy_messages.append({"role": role, "content": redacted})
-        else:
-            legacy_messages.append({"role": role, "content": content})
+    parts = []
+    if isinstance(content, str):
+        parts.append({"type": "text", "text": content})
+    elif isinstance(content, list):
+        for part in content:
+            if part.get("type") == "text":
+                parts.append({"type": "text", "text": part["text"]})
+            elif part.get("type") == "image":
+                parts.append({"type": "text", "text": "[Blob substitute]"})
+
+    sentry_messages = [{
+        "role": role,
+        "content": content if isinstance(content, str) else "[multimodal]",
+        "parts": parts,
+    }]
+
+    if isinstance(content, list):
+        redacted = []
+        for part in content:
+            if part.get("type") == "text":
+                redacted.append(part)
+            elif part.get("type") == "image":
+                redacted.append({"type": "text", "text": "[Blob substitute]"})
+        legacy_messages = [{"role": role, "content": redacted}]
+    else:
+        legacy_messages = [{"role": role, "content": content}]
 
     return sentry_messages, legacy_messages, system_instructions
 
