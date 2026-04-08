@@ -442,7 +442,6 @@ export const checkAgentSpanAttributes: Check = {
  * Validates:
  * - description equals "<gen_ai.operation.name> <gen_ai.tool.name>"
  * - gen_ai.operation.name matches TOOL_OPERATION_NAME_PATTERN
- * - gen_ai.tool.type exists
  * - gen_ai.tool.name exists
  * - gen_ai.tool.description exists
  *
@@ -460,7 +459,6 @@ export const checkToolSpanAttributes: Check = {
       "description": (span) =>
         `${span.data?.["gen_ai.operation.name"]} ${span.data?.["gen_ai.tool.name"]}`,
       "gen_ai.operation.name": TOOL_OPERATION_NAME_PATTERN,
-      "gen_ai.tool.type": true,
       "gen_ai.tool.name": true,
       "gen_ai.tool.description": true,
     });
@@ -473,8 +471,6 @@ export const checkToolSpanAttributes: Check = {
 export interface ExpectedToolCall {
   /** Tool name to match */
   name: string;
-  /** Expected tool type (e.g., "function") */
-  type?: string;
   /** Expected tool description */
   description?: string;
   /** Expected input arguments (parsed from gen_ai.tool.input JSON) */
@@ -493,7 +489,6 @@ export interface ExpectedToolCall {
  * // Check a single tool call
  * checkToolCalls([{
  *   name: "add",
- *   type: "function",
  *   description: "Add two numbers together",
  *   input: { a: 4, b: 7 },
  *   output: 11,
@@ -532,16 +527,6 @@ export function checkToolCalls(expectedTools: ExpectedToolCall[]): Check {
         if (!toolSpan) {
           errors.push(`Should have a tool span for "${expectedToolName}" (mapped from "${expected.name}")`);
           continue;
-        }
-
-        // Validate type if specified
-        if (expected.type !== undefined) {
-          const actual = toolSpan.data?.["gen_ai.tool.type"];
-          if (actual !== expected.type) {
-            const msg = `Tool "${expected.name}" should have type "${expected.type}" but has "${actual}"`;
-            errors.push(msg);
-            locations.push({ spanId: toolSpan.span_id, attribute: "gen_ai.tool.type", message: msg });
-          }
         }
 
         // Validate description if specified

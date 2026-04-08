@@ -187,7 +187,6 @@ TOOLS = {{ agent.tools | dump }}
             tool_span.set_data("gen_ai.operation.name", "execute_tool")
             tool_span.set_data("gen_ai.agent.name", AGENT_NAME)
             tool_span.set_data("gen_ai.tool.name", "{{ tool.name }}")
-            tool_span.set_data("gen_ai.tool.type", "function")
             tool_span.set_data("gen_ai.tool.description", "{{ tool.description }}")
 
             tool_input_json = json.dumps({{ tool.arguments | dump }})
