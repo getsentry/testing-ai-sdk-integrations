@@ -152,6 +152,9 @@ TOOLS = {{ agent.tools | dump }}
         agent_span.set_data("gen_ai.usage.output_tokens", output_tokens)
         agent_span.set_data("gen_ai.usage.output_tokens.reasoning", max(0, output_tokens // 4))
         agent_span.set_data("gen_ai.usage.total_tokens", total_tokens)
+        agent_span.set_data("gen_ai.input.messages", otel_messages_json)
+        if system_instructions is not None:
+            agent_span.set_data("gen_ai.system_instructions", system_instructions)
 
         # Chat span (child of agent)
         chat_desc = f"chat {model}"

@@ -154,6 +154,10 @@ const TOOLS = {{ agent.tools | dump }};
         agentSpan.setAttribute("gen_ai.usage.output_tokens", outputTokens{{ loop.index }});
         agentSpan.setAttribute("gen_ai.usage.output_tokens.reasoning", Math.max(0, Math.floor(outputTokens{{ loop.index }} / 4)));
         agentSpan.setAttribute("gen_ai.usage.total_tokens", totalTokens{{ loop.index }});
+        agentSpan.setAttribute("gen_ai.input.messages", otelJson{{ loop.index }});
+        if (system{{ loop.index }} !== null) {
+          agentSpan.setAttribute("gen_ai.system_instructions", system{{ loop.index }});
+        }
 
         // Chat span (child of agent)
         const chatDesc{{ loop.index }} = `chat ${model{{ loop.index }}}`;
