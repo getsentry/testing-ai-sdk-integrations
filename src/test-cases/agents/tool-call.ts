@@ -107,14 +107,12 @@ export const toolCallAgentTest: TestDefinition = {
     checkToolCalls([
       {
         name: "add",
-        type: "function",
         description: "Add two numbers together",
         input: { a: 3, b: 5 },
         output: 8,
       },
       {
         name: "multiply",
-        type: "function",
         description: "Multiply two numbers together",
         input: { a: 8, b: 4 },
         output: 32,

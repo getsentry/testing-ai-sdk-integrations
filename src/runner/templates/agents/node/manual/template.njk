@@ -186,7 +186,6 @@ const TOOLS = {{ agent.tools | dump }};
           toolSpan.setAttribute("gen_ai.operation.name", "execute_tool");
           toolSpan.setAttribute("gen_ai.agent.name", AGENT_NAME);
           toolSpan.setAttribute("gen_ai.tool.name", "{{ tool.name }}");
-          toolSpan.setAttribute("gen_ai.tool.type", "function");
           toolSpan.setAttribute("gen_ai.tool.description", "{{ tool.description }}");
 
           const toolInputJson{{ turnIndex }}_{{ loop.index }} = JSON.stringify({{ tool.arguments | dump }});
