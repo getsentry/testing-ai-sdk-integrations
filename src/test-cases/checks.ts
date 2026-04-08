@@ -108,6 +108,220 @@ export function checkAISpanCount(
 // Span Type Attribute Checks
 // =============================================================================
 
+function parseInputMessages(
+  span: CapturedSpan,
+): { messages?: unknown[]; attribute?: string; error?: string } {
+  const result = getAttributeWithFallback(
+    span,
+    "gen_ai.input.messages",
+    "gen_ai.request.messages",
+  );
+
+  if (result.value === undefined) {
+    return {
+      attribute: result.usedAttribute ?? "gen_ai.input.messages",
+      error: "Missing messages attribute",
+    };
+  }
+
+  if (typeof result.value === "string") {
+    try {
+      const parsed = JSON.parse(result.value);
+      if (!Array.isArray(parsed)) {
+        return {
+          attribute: result.usedAttribute!,
+          error: `${result.usedAttribute} should be an array`,
+        };
+      }
+      return { messages: parsed, attribute: result.usedAttribute! };
+    } catch {
+      return {
+        attribute: result.usedAttribute!,
+        error: `Invalid JSON in ${result.usedAttribute}`,
+      };
+    }
+  }
+
+  if (!Array.isArray(result.value)) {
+    return {
+      attribute: result.usedAttribute!,
+      error: `${result.usedAttribute} should be an array`,
+    };
+  }
+
+  return { messages: result.value as unknown[], attribute: result.usedAttribute! };
+}
+
+function getMessageText(message: unknown): string | undefined {
+  if (typeof message !== "object" || message === null) {
+    return undefined;
+  }
+
+  const msg = message as {
+    content?: unknown;
+    parts?: Array<{ type?: unknown; text?: unknown; content?: unknown }>;
+  };
+
+  if (typeof msg.content === "string") {
+    return msg.content;
+  }
+
+  if (Array.isArray(msg.content)) {
+    const textParts = msg.content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (typeof part === "object" && part !== null) {
+          const candidate = part as { text?: unknown; content?: unknown; type?: unknown };
+          if (candidate.type === "text" && typeof candidate.text === "string") {
+            return candidate.text;
+          }
+          if (typeof candidate.text === "string") {
+            return candidate.text;
+          }
+          if (typeof candidate.content === "string") {
+            return candidate.content;
+          }
+        }
+        return undefined;
+      })
+      .filter((part): part is string => typeof part === "string");
+
+    if (textParts.length > 0) {
+      return textParts.join("\n");
+    }
+  }
+
+  if (typeof msg.content === "object" && msg.content !== null) {
+    const candidate = msg.content as { text?: unknown; content?: unknown };
+    if (typeof candidate.text === "string") {
+      return candidate.text;
+    }
+    if (typeof candidate.content === "string") {
+      return candidate.content;
+    }
+  }
+
+  if (Array.isArray(msg.parts)) {
+    const textParts = msg.parts
+      .map((part) => {
+        if (part?.type === "text" && typeof part.text === "string") {
+          return part.text;
+        }
+        if (typeof part?.text === "string") {
+          return part.text;
+        }
+        if (typeof part?.content === "string") {
+          return part.content;
+        }
+        return undefined;
+      })
+      .filter((part): part is string => typeof part === "string");
+
+    if (textParts.length > 0) {
+      return textParts.join("\n");
+    }
+  }
+
+  return undefined;
+}
+
+function messagesMatchLoosely(actual: unknown, expected: unknown): boolean {
+  if (typeof actual !== "object" || actual === null) {
+    return false;
+  }
+  if (typeof expected !== "object" || expected === null) {
+    return false;
+  }
+
+  const actualMessage = actual as { role?: unknown };
+  const expectedMessage = expected as { role?: unknown };
+
+  if (actualMessage.role !== expectedMessage.role) {
+    return false;
+  }
+
+  const actualText = getMessageText(actual);
+  const expectedText = getMessageText(expected);
+
+  if (actualText !== undefined || expectedText !== undefined) {
+    return actualText === expectedText;
+  }
+
+  return JSON.stringify(actual) === JSON.stringify(expected);
+}
+
+function assertOnlyLastInputMessage(
+  spans: CapturedSpan[],
+  testDef: { inputs: Array<{ messages?: unknown[] }> },
+  spanType: "chat" | "agent",
+): void {
+  if (testDef.inputs.length <= 1) {
+    return;
+  }
+
+  const sortedSpans = [...spans].sort(
+    (a, b) => a.start_timestamp - b.start_timestamp,
+  );
+
+  if (sortedSpans.length < testDef.inputs.length) {
+    throw new CheckError(
+      `Expected at least ${testDef.inputs.length} ${spanType} span(s) for last-message validation, found ${sortedSpans.length}`,
+    );
+  }
+
+  const errors: string[] = [];
+  const locations: ErrorLocation[] = [];
+
+  for (let i = 0; i < testDef.inputs.length; i++) {
+    const span = sortedSpans[i];
+    const expectedMessages = testDef.inputs[i]?.messages;
+    const expectedLastMessage = expectedMessages?.[expectedMessages.length - 1];
+
+    if (expectedLastMessage === undefined) {
+      continue;
+    }
+
+    const parsed = parseInputMessages(span);
+    if (parsed.error || !parsed.attribute || !parsed.messages) {
+      const message = parsed.error ?? "Missing messages attribute";
+      errors.push(`${spanType} span ${i} ${message}`);
+      locations.push({
+        spanId: span.span_id,
+        attribute: parsed.attribute ?? "gen_ai.input.messages",
+        message,
+      });
+      continue;
+    }
+
+    if (parsed.messages.length !== 1) {
+      const message = `${spanType} span ${i} should keep only the last input message, found ${parsed.messages.length} message(s)`;
+      errors.push(message);
+      locations.push({
+        spanId: span.span_id,
+        attribute: parsed.attribute,
+        message,
+      });
+      continue;
+    }
+
+    if (!messagesMatchLoosely(parsed.messages[0], expectedLastMessage)) {
+      const message = `${spanType} span ${i} should keep only the last input message`;
+      errors.push(message);
+      locations.push({
+        spanId: span.span_id,
+        attribute: parsed.attribute,
+        message,
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new CheckError(errors.join("\n"), locations);
+  }
+}
+
 /**
  * Check attributes on chat/completion spans (LLM API calls)
  *
@@ -177,6 +391,8 @@ export const checkChatSpanAttributes: Check = {
     if (errors.length > 0) {
       throw new CheckError(errors.join("\n"), locations);
     }
+
+    assertOnlyLastInputMessage(chatSpans, testDef, "chat");
   },
 };
 
@@ -216,6 +432,7 @@ export const checkAgentSpanAttributes: Check = {
     }
 
     assertAttributes(agentSpans, attrs);
+    assertOnlyLastInputMessage(agentSpans, testDef, "agent");
   },
 };
 

@@ -45,47 +45,49 @@ function trimMessages(messages, maxSize = 10000) {
 }
 
 function buildSentryMessages(messages) {
-  const sentryMessages = [];
-  const legacyMessages = [];
   let systemInstructions = null;
 
   for (const msg of messages) {
-    const { role, content } = msg;
-
-    if (role === "system") {
-      systemInstructions = typeof content === "string" ? content : JSON.stringify(content);
-    }
-
-    // New OTel format with parts
-    const parts = [];
-    if (typeof content === "string") {
-      parts.push({ type: "text", text: content });
-    } else if (Array.isArray(content)) {
-      for (const part of content) {
-        if (part.type === "text") {
-          parts.push({ type: "text", text: part.text });
-        } else if (part.type === "image") {
-          parts.push({ type: "text", text: "[Blob substitute]" });
-        }
-      }
-    }
-
-    sentryMessages.push({
-      role,
-      content: typeof content === "string" ? content : "[multimodal]",
-      parts,
-    });
-
-    // Legacy format with binary redaction
-    if (Array.isArray(content)) {
-      const redacted = content.map((part) =>
-        part.type === "image" ? { type: "text", text: "[Blob substitute]" } : part
-      );
-      legacyMessages.push({ role, content: redacted });
-    } else {
-      legacyMessages.push({ role, content });
+    if (msg.role === "system") {
+      systemInstructions =
+        typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
     }
   }
+
+  const lastMessage = messages[messages.length - 1];
+  if (!lastMessage) {
+    return { sentryMessages: [], legacyMessages: [], systemInstructions };
+  }
+
+  const { role, content } = lastMessage;
+
+  const parts = [];
+  if (typeof content === "string") {
+    parts.push({ type: "text", text: content });
+  } else if (Array.isArray(content)) {
+    for (const part of content) {
+      if (part.type === "text") {
+        parts.push({ type: "text", text: part.text });
+      } else if (part.type === "image") {
+        parts.push({ type: "text", text: "[Blob substitute]" });
+      }
+    }
+  }
+
+  const sentryMessages = [{
+    role,
+    content: typeof content === "string" ? content : "[multimodal]",
+    parts,
+  }];
+
+  const legacyMessages = [Array.isArray(content)
+    ? {
+        role,
+        content: content.map((part) =>
+          part.type === "image" ? { type: "text", text: "[Blob substitute]" } : part,
+        ),
+      }
+    : { role, content }];
 
   return { sentryMessages, legacyMessages, systemInstructions };
 }
