@@ -875,6 +875,7 @@ export function checkResponseToolCalls(
         let actualArgs: Record<string, unknown>;
         const argsRaw =
           foundCall.arguments ||
+          foundCall.args ||
           (foundCall.function as Record<string, unknown>)?.arguments;
 
         if (typeof argsRaw === "string") {
