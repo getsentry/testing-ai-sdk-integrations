@@ -1,12 +1,13 @@
 {
   "name": "langgraph",
-  "displayName": "LangGraph + OpenAI Browser",
+  "displayName": "LangGraph Browser",
   "type": "agentic",
   "platform": "browser",
   "dependencies": [
     { "package": "@sentry/browser", "version": "sentry" },
     { "package": "@langchain/langgraph", "version": "framework" },
     { "package": "@langchain/openai", "version": "1.2.12" },
+    { "package": "@langchain/anthropic", "version": "latest" },
     { "package": "@langchain/core", "version": "1.1.30" },
     { "package": "zod", "version": "3" }
   ],
@@ -14,6 +15,18 @@
   "sentryVersions": ["latest"],
   "streamingMode": "both",
   "options": {
-    "variant": ["graph", "langchain", "combined", "compiled", "custom-state"]
+    "variant": ["graph", "langchain", "combined", "compiled", "custom-state"],
+    "provider": [
+      "openai",
+      {
+        "value": "anthropic",
+        "overrides": {
+          "modelOverrides": {
+            "request": "claude-haiku-4-5",
+            "response": "claude-haiku-4-5*"
+          }
+        }
+      }
+    ]
   }
 }

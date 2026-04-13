@@ -37,7 +37,11 @@
 {% if variant != "compiled" %}
     const langgraphModule = await import("@langchain/langgraph/web");
 {% endif %}
+{% if provider == "anthropic" %}
+    const { ChatAnthropic } = await import("@langchain/anthropic");
+{% else %}
     const { ChatOpenAI } = await import("@langchain/openai");
+{% endif %}
     const { HumanMessage, SystemMessage } = await import("@langchain/core/messages");
 {% if variant == "compiled" and agent and agent.tools and agent.tools.length > 0 %}
     const { tool } = await import("@langchain/core/tools");
@@ -50,20 +54,34 @@
     const { StateGraph, MessagesAnnotation, START, END } = langgraphModule;
 {% endif %}
 
-    const OPENAI_API_KEY = window.OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) {
+{% if provider == "anthropic" %}
+    const API_KEY = window.ANTHROPIC_API_KEY;
+    if (!API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not provided');
+    }
+{% else %}
+    const API_KEY = window.OPENAI_API_KEY;
+    if (!API_KEY) {
       throw new Error('OPENAI_API_KEY not provided');
     }
+{% endif %}
 
 {% if variant == "langchain" or variant == "combined" %}
     const callbackHandler = Sentry.createLangChainCallbackHandler();
 {% endif %}
 
 {% if variant == "compiled" %}
+{% if provider == "anthropic" %}
+    const llm = new ChatAnthropic({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      anthropicApiKey: API_KEY,
+    });
+{% else %}
     const llm = new ChatOpenAI({
       modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-      apiKey: OPENAI_API_KEY,
+      apiKey: API_KEY,
     });
+{% endif %}
 
 {% if agent and agent.tools and agent.tools.length > 0 %}
     const tools = [
@@ -96,10 +114,17 @@
 
     log('LangGraph initialized with instrumentLangGraph on compiled graph');
 {% elif variant == "custom-state" %}
+{% if provider == "anthropic" %}
+    const llm = new ChatAnthropic({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      anthropicApiKey: API_KEY,
+    });
+{% else %}
     const llm = new ChatOpenAI({
       modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-      apiKey: OPENAI_API_KEY,
+      apiKey: API_KEY,
     });
+{% endif %}
 
     const CustomState = Annotation.Root({
       userInput: Annotation(),
@@ -121,10 +146,17 @@
 
     log('LangGraph initialized with custom Annotation.Root state');
 {% else %}
+{% if provider == "anthropic" %}
+    const llm = new ChatAnthropic({
+      modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+      anthropicApiKey: API_KEY,
+    });
+{% else %}
     const llm = new ChatOpenAI({
       modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-      apiKey: OPENAI_API_KEY,
+      apiKey: API_KEY,
     });
+{% endif %}
 
     async function agentNode(state, config) {
       const response = await llm.invoke(state.messages, config);

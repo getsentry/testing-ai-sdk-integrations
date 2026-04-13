@@ -20,16 +20,28 @@
 {% block imports %}
 {{ super() }}
 from langgraph.prebuilt import create_react_agent
+{% if provider == "anthropic" %}
+from langchain_anthropic import ChatAnthropic
+{% else %}
 from langchain_openai import ChatOpenAI
+{% endif %}
 from langchain_core.messages import HumanMessage, SystemMessage
 {% endblock %}
 
 {% block setup %}
+{% if provider == "anthropic" %}
+# Initialize ChatAnthropic for LangGraph
+llm = ChatAnthropic(
+    model="{{ inputs[0].model }}",
+    api_key=os.environ.get("ANTHROPIC_API_KEY"),
+)
+{% else %}
 # Initialize ChatOpenAI for LangGraph
 llm = ChatOpenAI(
     model="{{ inputs[0].model }}",
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
+{% endif %}
 
 {% if agent and agent.tools and agent.tools | length > 0 %}
 # Define tools for the agent

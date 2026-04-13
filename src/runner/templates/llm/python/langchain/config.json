@@ -15,10 +15,28 @@
       "version": "latest"
     },
     {
+      "package": "langchain-anthropic",
+      "version": "latest"
+    },
+    {
       "package": "respx",
       "version": "latest"
     }
   ],
   "versions": ["1.2.8"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "options": {
+    "provider": [
+      "openai",
+      {
+        "value": "anthropic",
+        "overrides": {
+          "modelOverrides": {
+            "request": "claude-haiku-4-5",
+            "response": "claude-haiku-4-5*"
+          }
+        }
+      }
+    ]
+  }
 }

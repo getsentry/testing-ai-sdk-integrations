@@ -23,7 +23,11 @@
 {%- endmacro %}
 
 {% block dynamic_imports %}
+{% if provider == "anthropic" %}
+const { ChatAnthropic } = await import("@langchain/anthropic");
+{% else %}
 const { ChatOpenAI } = await import("@langchain/openai");
+{% endif %}
 const { createReactAgent } = await import("@langchain/langgraph/prebuilt");
 const { HumanMessage, SystemMessage } = await import("@langchain/core/messages");
 {% if agent and agent.tools and agent.tools.length > 0 %}
@@ -55,9 +59,15 @@ const tools = [
 ];
 {% endif %}
 
+{% if provider == "anthropic" %}
+const llm = new ChatAnthropic({
+  modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+});
+{% else %}
 const llm = new ChatOpenAI({
   modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
 });
+{% endif %}
 const agent = createReactAgent({ llm, tools: {% if agent and agent.tools and agent.tools.length > 0 %}tools{% else %}[]{% endif %}, name: "{{ agent.name }}" });
 {% endblock %}
 
