@@ -449,7 +449,7 @@ export const AGENT_OPERATION_NAME_PATTERN =
  * - chat, completion, generate (legacy)
  */
 export const AI_CLIENT_OPERATION_NAME_PATTERN =
-  /^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate)|^(gen_ai\.)?(chat|completion|generate)/;
+  /^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate)|^(gen_ai\.)?(chat|completion|generate|responses)/;
 
 /**
  * Pattern for tool operation names (gen_ai.operation.name)
