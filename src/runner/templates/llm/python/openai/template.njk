@@ -1,7 +1,7 @@
 {% extends "base.python.njk" %}
 
-{# Macro to convert our content format to OpenAI format for Python #}
-{% macro convertMessages(messages) %}
+{# Macro to convert messages to Chat Completions format #}
+{% macro convertChatMessages(messages) %}
 [
 {% for message in messages %}
         {
@@ -22,6 +22,37 @@
         },
 {% endfor %}
     ]
+{% endmacro %}
+
+{# Macro to convert non-system messages to Responses API format #}
+{% macro convertResponsesInput(messages) %}
+[
+{% for message in messages %}
+{% if message.role != "system" %}
+        {
+            "role": "{{ message.role }}",
+{% if message.content is string %}
+            "content": "{{ message.content }}"
+{% else %}
+            "content": [
+{% for part in message.content %}
+{% if part.type == 'text' %}
+                {"type": "input_text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+                {"type": "input_image", "image_url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"},
+{% endif %}
+{% endfor %}
+            ]
+{% endif %}
+        },
+{% endif %}
+{% endfor %}
+    ]
+{% endmacro %}
+
+{# Macro to extract system message content for instructions parameter #}
+{% macro extractInstructions(messages) %}
+{% for message in messages %}{% if message.role == "system" %}{{ message.content }}{% endif %}{% endfor %}
 {% endmacro %}
 
 {% block imports %}
@@ -58,6 +89,49 @@ client = OpenAI()
 {% if input.conversationId %}
     sentry_sdk.ai.set_conversation_id("{{ input.conversationId }}")
 {% endif %}
+{% if apiStyle == "responses" %}
+{% if isStreaming %}
+{% if isAsync %}
+    stream = await client.responses.create(
+{% else %}
+    stream = client.responses.create(
+{% endif %}
+        model="{{ input.model }}",
+{% set instructions = extractInstructions(input.messages) | trim %}
+{% if instructions %}
+        instructions="{{ instructions }}",
+{% endif %}
+        input={{ convertResponsesInput(input.messages) }},
+        stream=True,
+    )
+
+    collected_content = []
+{% if isAsync %}
+    async for event in stream:
+{% else %}
+    for event in stream:
+{% endif %}
+        if event.type == "response.output_text.delta":
+            collected_content.append(event.delta)
+
+    full_response = "".join(collected_content)
+    print(f"Turn {{ loop.index }} Response: {full_response}")
+{% else %}
+{% if isAsync %}
+    response = await client.responses.create(
+{% else %}
+    response = client.responses.create(
+{% endif %}
+        model="{{ input.model }}",
+{% set instructions = extractInstructions(input.messages) | trim %}
+{% if instructions %}
+        instructions="{{ instructions }}",
+{% endif %}
+        input={{ convertResponsesInput(input.messages) }},
+    )
+    print(f"Turn {{ loop.index }} Response: {response.output_text}")
+{% endif %}
+{% else %}
 {% if isStreaming %}
 {% if isAsync %}
     stream = await client.chat.completions.create(
@@ -65,11 +139,11 @@ client = OpenAI()
     stream = client.chat.completions.create(
 {% endif %}
         model="{{ input.model }}",
-        messages={{ convertMessages(input.messages) }},
+        messages={{ convertChatMessages(input.messages) }},
         stream_options={"include_usage": True},
         stream=True,
     )
-    
+
     collected_content = []
 {% if isAsync %}
     async for chunk in stream:
@@ -78,7 +152,7 @@ client = OpenAI()
 {% endif %}
         if chunk.choices and chunk.choices[0].delta.content is not None:
             collected_content.append(chunk.choices[0].delta.content)
-    
+
     full_response = "".join(collected_content)
     print(f"Turn {{ loop.index }} Response: {full_response}")
 {% else %}
@@ -88,10 +162,11 @@ client = OpenAI()
     response = client.chat.completions.create(
 {% endif %}
         model="{{ input.model }}",
-        messages={{ convertMessages(input.messages) }},
+        messages={{ convertChatMessages(input.messages) }},
     )
     if response.choices:
         print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
+{% endif %}
 {% endif %}
 {% if not loop.last %}
 

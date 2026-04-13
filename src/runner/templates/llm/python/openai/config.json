@@ -5,6 +5,9 @@
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "both",
+  "options": {
+    "apiStyle": ["chat", "responses"]
+  },
   "dependencies": [
     {
       "package": "openai",
