@@ -53,21 +53,16 @@ const checkToolErrorSpan: Check = {
       );
     }
 
-    // Check for error indicators
-    const hasError =
-      toolSpan.status === "error" ||
-      toolSpan.status === "internal_error" ||
-      toolSpan.data?.["error"] !== undefined ||
-      toolSpan.data?.["exception"] !== undefined ||
-      toolSpan.data?.["gen_ai.tool.error"] !== undefined ||
-      (toolSpan.tags && toolSpan.tags["error"] === true);
-
-    if (!hasError) {
+    // The tool raised an error, so the span status must not be "ok" or unset.
+    // Valid error statuses: "internal_error", "error", etc.
+    const status = toolSpan.status;
+    if (!status || status === "ok") {
       throw new CheckError(
-        "Tool span should have an error indicator (status=error, data.error, data.exception, gen_ai.tool.error, or tags.error)",
+        `Tool span status should indicate an error (e.g. "internal_error") but got "${status ?? "undefined"}"`,
         [{
           spanId: toolSpan.span_id,
-          message: `Tool span has status="${toolSpan.status}" with no error indicators`,
+          attribute: "status",
+          message: `Tool span status is "${status ?? "undefined"}", expected a non-ok error status`,
         }],
       );
     }
