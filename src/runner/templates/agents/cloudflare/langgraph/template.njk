@@ -74,8 +74,8 @@ import { z } from "zod";
         openAIApiKey: env.OPENAI_API_KEY,
       });
 {% endif %}
-      const agent = createReactAgent({ llm, tools: {% if agent and agent.tools and agent.tools.length > 0 %}tools{% else %}[]{% endif %}, name: "{{ agent.name }}" });
-      Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
+      const instrumentedCreateReactAgent = Sentry.instrumentCreateReactAgent(createReactAgent, { recordInputs: true, recordOutputs: true });
+      const agent = instrumentedCreateReactAgent({ llm, tools: {% if agent and agent.tools and agent.tools.length > 0 %}tools{% else %}[]{% endif %}, name: "{{ agent.name }}" });
 {% endblock %}
 
 {% block test %}
