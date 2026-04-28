@@ -472,7 +472,6 @@ interface Check {
 | llm    | google-genai | both      | Google Generative AI                      |
 | llm    | langchain    | both      | LangChain                                 |
 | agents | vercel       | -         | Vercel AI SDK                             |
-| agents | langgraph    | -         | LangGraph                                 |
 | agents | mastra       | -         | Mastra AI Framework (uses @mastra/sentry) |
 
 ### Python

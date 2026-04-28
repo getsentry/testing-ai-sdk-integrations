@@ -294,7 +294,6 @@ TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
 | Browser           | `anthropic`     | llm      | llm-only | both      | -               |
 | Browser           | `google-genai`  | llm      | llm-only | both      | -               |
 | Browser           | `langchain`     | llm      | llm-only | both      | -               |
-| Browser           | `langgraph`     | agents   | agentic  | both      | -               |
 | Next.js           | `openai`        | llm      | llm-only | both      | -               |
 | Next.js           | `anthropic`     | llm      | llm-only | both      | -               |
 | Next.js           | `google-genai`  | llm      | llm-only | both      | -               |
@@ -826,23 +825,6 @@ Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/n
 - Uses `SentryExporter` with Mastra's `Observability` system
 - Attribute names follow newer OpenTelemetry conventions (`gen_ai.input.messages` instead of `gen_ai.request.messages`)
 - Template is standalone (does not extend base.node.njk)
-
-### LangGraph Browser Variants
-
-LangGraph browser tests use a single `langgraph` framework folder with a generic `variant` option that expands the test matrix. Each variant isolates a specific instrumentation approach:
-
-| Variant | Sentry API Used | Known issue |
-|---------|-----------------|-------------|
-| `graph` | `Sentry.instrumentLangGraph()` only | No chat spans; streaming produces no `invoke_agent` span |
-| `langchain` | `Sentry.createLangChainCallbackHandler()` only | Chat spans missing token usage and input messages; agent spans missing `gen_ai.agent.name` |
-| `combined` | Both APIs together | Duplicate `invoke_agent` spans; attribute gaps |
-| `compiled` | `instrumentLangGraph()` on compiled graph | Crashes with `TypeError` |
-| `custom-state` | `instrumentLangGraph()` with custom state | `recordInputs`/`recordOutputs` silently records nothing |
-
-All variants run both streaming and blocking modes. Use `--option variant=<name>` to filter:
-```bash
-npm run test -- --framework langgraph --platform browser --option variant=graph
-```
 
 ### Laravel
 
