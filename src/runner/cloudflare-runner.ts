@@ -235,8 +235,8 @@ export class CloudflareRunner {
       JSON.stringify(wranglerConfig, null, 2),
     );
 
-    // Allocate a unique port to avoid collisions when running tests in parallel
-    const port = allocatePort();
+    // Allocate a unique port confirmed free to avoid collisions in parallel
+    const port = await allocatePort();
 
     let wranglerProcess: ChildProcess | null = null;
     let stdout = "";

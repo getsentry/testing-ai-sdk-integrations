@@ -180,7 +180,7 @@ ${dependencies.map(d => `    ${d},`).join('\n')}
 
     // Assign a unique port for MCP SSE transport tests
     if (transportMode === 'sse') {
-      env.MCP_SSE_PORT = String(allocatePort());
+      env.MCP_SSE_PORT = String(await allocatePort());
     }
 
     try {
