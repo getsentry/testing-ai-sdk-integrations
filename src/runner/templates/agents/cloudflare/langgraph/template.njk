@@ -23,7 +23,11 @@
 {% endmacro %}
 
 {% block imports %}
+{% if provider == "anthropic" %}
+import { ChatAnthropic } from "@langchain/anthropic";
+{% else %}
 import { ChatOpenAI } from "@langchain/openai";
+{% endif %}
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 {% if agent and agent.tools and agent.tools.length > 0 %}
@@ -59,10 +63,17 @@ import { z } from "zod";
       ];
 {% endif %}
 
+{% if provider == "anthropic" %}
+      const llm = new ChatAnthropic({
+        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+        anthropicApiKey: env.ANTHROPIC_API_KEY,
+      });
+{% else %}
       const llm = new ChatOpenAI({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
         openAIApiKey: env.OPENAI_API_KEY,
       });
+{% endif %}
       const agent = createReactAgent({ llm, tools: {% if agent and agent.tools and agent.tools.length > 0 %}tools{% else %}[]{% endif %}, name: "{{ agent.name }}" });
       Sentry.instrumentLangGraph(agent, { recordInputs: true, recordOutputs: true });
 {% endblock %}

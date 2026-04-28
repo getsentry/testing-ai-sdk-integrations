@@ -18,15 +18,26 @@
 {% endmacro %}
 
 {% block imports %}
+{% if provider == "anthropic" %}
+import { ChatAnthropic } from "@langchain/anthropic";
+{% else %}
 import { ChatOpenAI } from "@langchain/openai";
+{% endif %}
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 {% endblock %}
 
 {% block dynamic_imports %}
+{% if provider == "anthropic" %}
+      const chat = new ChatAnthropic({
+        modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+        anthropicApiKey: env.ANTHROPIC_API_KEY,
+      });
+{% else %}
       const chat = new ChatOpenAI({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
         openAIApiKey: env.OPENAI_API_KEY,
       });
+{% endif %}
       const callbackHandler = Sentry.createLangChainCallbackHandler();
 {% endblock %}
 

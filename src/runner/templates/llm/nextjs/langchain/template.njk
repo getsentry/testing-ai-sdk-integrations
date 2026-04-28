@@ -18,21 +18,41 @@
 {% endmacro %}
 
 {% block dynamic_imports %}
+{% if provider == "anthropic" %}
+const { ChatAnthropic } = await import("@langchain/anthropic");
+{% else %}
 const { ChatOpenAI } = await import("@langchain/openai");
+{% endif %}
 const { HumanMessage, SystemMessage, AIMessage } = await import("@langchain/core/messages");
 
+{% if provider == "anthropic" %}
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+if (!ANTHROPIC_API_KEY) {
+  console.error('ERROR: ANTHROPIC_API_KEY not found in environment');
+  throw new Error('ANTHROPIC_API_KEY not provided');
+}
+{% else %}
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
   console.error('ERROR: OPENAI_API_KEY not found in environment');
   throw new Error('OPENAI_API_KEY not provided');
 }
+{% endif %}
 
 const callbackHandler = Sentry.createLangChainCallbackHandler();
+{% if provider == "anthropic" %}
+const chat = new ChatAnthropic({
+  modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
+  anthropicApiKey: ANTHROPIC_API_KEY,
+});
+console.log('LangChain ChatAnthropic initialized with createLangChainCallbackHandler');
+{% else %}
 const chat = new ChatOpenAI({
   modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
   openAIApiKey: OPENAI_API_KEY,
 });
 console.log('LangChain ChatOpenAI initialized with createLangChainCallbackHandler');
+{% endif %}
 {% endblock %}
 
 {% block test %}

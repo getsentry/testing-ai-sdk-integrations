@@ -16,5 +16,19 @@
     }
   ],
   "versions": ["1.82.6"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "options": {
+    "provider": [
+      "openai",
+      {
+        "value": "anthropic",
+        "overrides": {
+          "modelOverrides": {
+            "request": "claude-haiku-4-5",
+            "response": "claude-haiku-4-5*"
+          }
+        }
+      }
+    ]
+  }
 }

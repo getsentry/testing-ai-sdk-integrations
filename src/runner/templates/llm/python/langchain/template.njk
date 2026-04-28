@@ -19,7 +19,11 @@
 
 {% block imports %}
 {{ super() }}
+{% if provider == "anthropic" %}
+from langchain_anthropic import ChatAnthropic
+{% else %}
 from langchain_openai import ChatOpenAI
+{% endif %}
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 {% if causeAPIError %}
 import respx
@@ -29,14 +33,22 @@ import httpx
 
 {% block inject_api_error %}
 {% if causeAPIError %}
+{% if provider == "anthropic" %}
+respx.route(host="api.anthropic.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+{% else %}
 respx.route(host="api.openai.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+{% endif %}
 respx.mock.start()
 {% endif %}
 {% endblock %}
 
 {% block setup %}
 {% set input = inputs[0] %}
+{% if provider == "anthropic" %}
+chat = ChatAnthropic(model="{{ input.model }}")
+{% else %}
 chat = ChatOpenAI(model="{{ input.model }}")
+{% endif %}
 {% endblock %}
 
 {% block test %}

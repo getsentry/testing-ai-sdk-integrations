@@ -13,6 +13,10 @@
       "version": "0.3.0"
     },
     {
+      "package": "@langchain/anthropic",
+      "version": "latest"
+    },
+    {
       "package": "@langchain/core",
       "version": "0.3.49"
     },
@@ -22,5 +26,19 @@
     }
   ],
   "versions": ["0.2.67"],
-  "sentryVersions": ["latest"]
+  "sentryVersions": ["latest"],
+  "options": {
+    "provider": [
+      "openai",
+      {
+        "value": "anthropic",
+        "overrides": {
+          "modelOverrides": {
+            "request": "claude-haiku-4-5",
+            "response": "claude-haiku-4-5*"
+          }
+        }
+      }
+    ]
+  }
 }
