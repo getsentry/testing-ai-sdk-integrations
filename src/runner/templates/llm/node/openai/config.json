@@ -4,6 +4,9 @@
   "type": "llm-only",
   "platform": "node",
   "streamingMode": "both",
+  "options": {
+    "apiStyle": ["chat", "responses"]
+  },
   "dependencies": [
     {
       "package": "openai",

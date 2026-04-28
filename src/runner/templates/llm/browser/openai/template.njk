@@ -1,7 +1,7 @@
 {% extends "base.browser.njk" %}
 
-{# Macro to render message content - handles both string and multimodal array #}
-{% macro renderContent(content) %}
+{# Macro to render message content for Chat Completions API #}
+{% macro renderChatContent(content) %}
 {% if content is string %}
 "{{ content }}"
 {%- elif content is iterable %}
@@ -11,6 +11,23 @@
               { type: "text", text: "{{ part.text }}" },
 {% elif part.type == 'image' %}
               { type: "image_url", image_url: { url: "data:{{ part.mediaType }};base64,{{ part.base64 }}" } },
+{% endif %}
+{% endfor %}
+            ]
+{%- endif %}
+{% endmacro %}
+
+{# Macro to render message content for Responses API #}
+{% macro renderResponsesContent(content) %}
+{% if content is string %}
+"{{ content }}"
+{%- elif content is iterable %}
+[
+{% for part in content %}
+{% if part.type == 'text' %}
+              { type: "input_text", text: "{{ part.text }}" },
+{% elif part.type == 'image' %}
+              { type: "input_image", image_url: "data:{{ part.mediaType }};base64,{{ part.base64 }}" },
 {% endif %}
 {% endfor %}
             ]
@@ -46,6 +63,48 @@
           // Request {{ loop.index }}{% if loop.length > 1 %} of {{ loop.length }}{% endif %}
 
           try {
+{% if apiStyle == "responses" %}
+{% if isStreaming %}
+            log('Starting streaming request {{ loop.index }}...');
+
+            const stream = await client.responses.create({
+              model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+{% for message in input.messages %}{% if message.role == "system" %}
+              instructions: {{ renderResponsesContent(message.content) }},
+{% endif %}{% endfor %}
+              input: [
+{% for message in input.messages %}{% if message.role != "system" %}
+                { role: "{{ message.role }}", content: {{ renderResponsesContent(message.content) }} },
+{% endif %}{% endfor %}
+              ],
+              stream: true,
+            });
+
+            const chunks = [];
+            for await (const event of stream) {
+              if (event.type === "response.output_text.delta") {
+                chunks.push(event.delta);
+              }
+            }
+            const response = chunks.join("");
+            log('Response {{ loop.index }}:', response);
+{% else %}
+            log('Starting blocking request {{ loop.index }}...');
+
+            const response = await client.responses.create({
+              model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
+{% for message in input.messages %}{% if message.role == "system" %}
+              instructions: {{ renderResponsesContent(message.content) }},
+{% endif %}{% endfor %}
+              input: [
+{% for message in input.messages %}{% if message.role != "system" %}
+                { role: "{{ message.role }}", content: {{ renderResponsesContent(message.content) }} },
+{% endif %}{% endfor %}
+              ],
+            });
+            log('Response {{ loop.index }}:', response.output_text);
+{% endif %}
+{% else %}
 {% if isStreaming %}
             log('Starting streaming request {{ loop.index }}...');
 
@@ -53,7 +112,7 @@
               model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
               messages: [
 {% for message in input.messages %}
-                { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
+                { role: "{{ message.role }}", content: {{ renderChatContent(message.content) }} },
 {% endfor %}
               ],
               stream: true,
@@ -76,11 +135,12 @@
               model: {% if causeAPIError %}"invalid-model"{% else %}"{{ input.model }}"{% endif %},
               messages: [
 {% for message in input.messages %}
-                { role: "{{ message.role }}", content: {{ renderContent(message.content) }} },
+                { role: "{{ message.role }}", content: {{ renderChatContent(message.content) }} },
 {% endfor %}
               ],
             });
             log('Response {{ loop.index }}:', response.choices[0].message.content);
+{% endif %}
 {% endif %}
           } catch (error) {
             Sentry.captureException(error);
