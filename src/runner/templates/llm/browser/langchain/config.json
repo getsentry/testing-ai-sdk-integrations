@@ -8,7 +8,7 @@
     { "package": "@sentry/browser", "version": "sentry" },
     { "package": "langchain", "version": "framework" },
     { "package": "@langchain/openai", "version": "0.3.0" },
-    { "package": "@langchain/anthropic", "version": "latest" },
+    { "package": "@langchain/anthropic", "version": "0.3.21" },
     { "package": "@langchain/core", "version": "0.3.49" }
   ],
   "versions": ["0.3.24"],

@@ -14,7 +14,7 @@
     },
     {
       "package": "@langchain/anthropic",
-      "version": "latest"
+      "version": "0.3.21"
     },
     {
       "package": "@langchain/core",
