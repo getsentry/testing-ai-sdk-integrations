@@ -26,7 +26,9 @@
 
 {% block imports %}
 {{ super() }}
+{% if not isAsync %}
 import time
+{% endif %}
 
 import litellm
 from sentry_sdk.integrations.litellm import LiteLLMIntegration
@@ -97,7 +99,11 @@ sentry_sdk.init(
     )
     print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
 {% endif %}
+{% if isAsync %}
+    await asyncio.sleep(0.1)  # sleep is necessary for LiteLLM because it needs threaded callbacks to finish
+{% else %}
     time.sleep(0.1)  # sleep is necessary for LiteLLM because it needs threaded callbacks to finish
+{% endif %}
 {% if not loop.last %}
 
 {% endif %}
