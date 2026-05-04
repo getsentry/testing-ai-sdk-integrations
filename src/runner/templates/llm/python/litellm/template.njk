@@ -24,6 +24,37 @@
     ]
 {% endmacro %}
 
+{# Macro to convert non-system messages to Responses API input format #}
+{% macro convertResponsesInput(messages) %}
+[
+{% for message in messages %}
+{% if message.role != "system" %}
+        {
+            "role": "{{ message.role }}",
+{% if message.content is string %}
+            "content": "{{ message.content }}"
+{% else %}
+            "content": [
+{% for part in message.content %}
+{% if part.type == 'text' %}
+                {"type": "input_text", "text": "{{ part.text }}"},
+{% elif part.type == 'image' %}
+                {"type": "input_image", "image_url": "data:{{ part.mediaType }};base64,{{ part.base64 }}"},
+{% endif %}
+{% endfor %}
+            ]
+{% endif %}
+        },
+{% endif %}
+{% endfor %}
+    ]
+{% endmacro %}
+
+{# Macro to extract system message content for instructions parameter #}
+{% macro extractInstructions(messages) %}
+{% for message in messages %}{% if message.role == "system" %}{{ message.content }}{% endif %}{% endfor %}
+{% endmacro %}
+
 {% block imports %}
 {{ super() }}
 {% if not isAsync %}
@@ -66,6 +97,49 @@ sentry_sdk.init(
 {% if input.conversationId %}
     sentry_sdk.ai.set_conversation_id("{{ input.conversationId }}")
 {% endif %}
+{% if apiStyle == "responses" %}
+{% if isStreaming %}
+{% if isAsync %}
+    stream = await litellm.aresponses(
+{% else %}
+    stream = litellm.responses(
+{% endif %}
+        model="{% if provider == "anthropic" %}anthropic{% else %}openai{% endif %}/{{ input.model }}",
+{% set instructions = extractInstructions(input.messages) | trim %}
+{% if instructions %}
+        instructions="{{ instructions }}",
+{% endif %}
+        input={{ convertResponsesInput(input.messages) }},
+        stream=True,
+    )
+
+    collected_content = []
+{% if isAsync %}
+    async for event in stream:
+{% else %}
+    for event in stream:
+{% endif %}
+        if hasattr(event, "type") and event.type == "response.output_text.delta":
+            collected_content.append(event.delta)
+
+    full_response = "".join(collected_content)
+    print(f"Turn {{ loop.index }} Response: {full_response}")
+{% else %}
+{% if isAsync %}
+    response = await litellm.aresponses(
+{% else %}
+    response = litellm.responses(
+{% endif %}
+        model="{% if provider == "anthropic" %}anthropic{% else %}openai{% endif %}/{{ input.model }}",
+{% set instructions = extractInstructions(input.messages) | trim %}
+{% if instructions %}
+        instructions="{{ instructions }}",
+{% endif %}
+        input={{ convertResponsesInput(input.messages) }},
+    )
+    print(f"Turn {{ loop.index }} Response: {response.output_text}")
+{% endif %}
+{% else %}
 {% if isStreaming %}
 {% if isAsync %}
     stream = await litellm.acompletion(
@@ -98,6 +172,7 @@ sentry_sdk.init(
         messages={{ convertMessages(input.messages) }},
     )
     print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")
+{% endif %}
 {% endif %}
 {% if isAsync %}
     await asyncio.sleep(0.1)  # sleep is necessary for LiteLLM because it needs threaded callbacks to finish
