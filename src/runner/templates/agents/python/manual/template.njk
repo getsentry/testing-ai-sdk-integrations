@@ -136,9 +136,9 @@ TOOLS = {{ agent.tools | dump }}
     tool_definitions_json = json.dumps(tool_definitions)
 
     # Build output messages
-    output_parts = [{"type": "text", "text": response_text}]
+    output_parts = [{"type": "text", "content": response_text}]
     output_parts.extend(output_tool_call_parts)
-    output_messages = json.dumps([{"role": "assistant", "parts": output_parts}])
+    output_messages = json.dumps([{"role": "assistant", "parts": output_parts, "finish_reason": "stop"}])
 
     # Agent span (parent)
     agent_desc = f"invoke_agent {AGENT_NAME}"

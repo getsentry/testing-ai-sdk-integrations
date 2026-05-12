@@ -139,8 +139,8 @@ const TOOLS = {{ agent.tools | dump }};
       }
       const toolDefinitionsJson{{ loop.index }} = JSON.stringify(toolDefinitions{{ loop.index }});
 
-      const outputParts{{ loop.index }} = [{ type: "text", text: responseText{{ loop.index }} }, ...outputToolCallParts{{ loop.index }}];
-      const outputMessages{{ loop.index }} = JSON.stringify([{ role: "assistant", parts: outputParts{{ loop.index }} }]);
+      const outputParts{{ loop.index }} = [{ type: "text", content: responseText{{ loop.index }} }, ...outputToolCallParts{{ loop.index }}];
+      const outputMessages{{ loop.index }} = JSON.stringify([{ role: "assistant", parts: outputParts{{ loop.index }}, finish_reason: "stop" }]);
 
       // Agent span (parent)
       const agentDesc{{ loop.index }} = `invoke_agent ${AGENT_NAME}`;

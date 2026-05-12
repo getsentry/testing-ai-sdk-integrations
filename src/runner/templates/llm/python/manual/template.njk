@@ -110,7 +110,7 @@ def build_sentry_messages(messages):
 
     response_text = "This is a simulated response for turn {{ loop.index }}."
     output_messages = json.dumps([
-        {"role": "assistant", "parts": [{"type": "text", "text": response_text}]}
+        {"role": "assistant", "parts": [{"type": "text", "content": response_text}], "finish_reason": "stop"}
     ])
 
     description = f"chat {model}"

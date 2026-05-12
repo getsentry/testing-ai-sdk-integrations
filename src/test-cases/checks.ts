@@ -12,6 +12,8 @@
  * collect or report deprecation warnings.
  */
 
+import { z } from "zod";
+
 import { CapturedSpan, ErrorLocation, Check } from "../types.js";
 import { CheckError } from "../validator.js";
 import {
@@ -150,6 +152,53 @@ function parseInputMessages(
   }
 
   return { messages: result.value as unknown[], attribute: result.usedAttribute! };
+}
+
+const OutputMessagePartSchema = z.object({ type: z.string() }).passthrough();
+const OutputMessagesSchema = z.array(
+  z.object({
+    role: z.string(),
+    parts: z.array(OutputMessagePartSchema),
+    name: z.string().nullable().optional(),
+    finish_reason: z.string(),
+  }).passthrough(),
+);
+
+function formatZodPath(path: Array<string | number>): string {
+  return path.reduce<string>((formatted, segment) => {
+    if (typeof segment === "number") {
+      return `${formatted}[${segment}]`;
+    }
+    return formatted ? `${formatted}.${segment}` : segment;
+  }, "messages");
+}
+
+/**
+ * Validate gen_ai.output.messages against the OTEL semantic convention schema:
+ * https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-output-messages.json
+ *
+ * The schema's GenericPart branch allows provider-specific part payloads, so this
+ * mirrors the schema envelope instead of requiring stricter fields for each type.
+ */
+function validateOutputMessagesSchema(
+  value: unknown,
+  attribute = "gen_ai.output.messages",
+): string[] {
+  let parsedValue = value;
+  if (typeof value === "string") {
+    try {
+      parsedValue = JSON.parse(value);
+    } catch {
+      return [`Invalid JSON in ${attribute}`];
+    }
+  }
+
+  const result = OutputMessagesSchema.safeParse(parsedValue);
+  if (result.success) return [];
+
+  return result.error.issues.map(
+    (issue) => `${formatZodPath(issue.path)} ${issue.message}`,
+  );
 }
 
 function getMessageText(message: unknown): string | undefined {
@@ -329,8 +378,9 @@ function assertOnlyLastInputMessage(
  * - description equals "<gen_ai.operation.name> <gen_ai.request.model>"
  * - gen_ai.operation.name matches AI_CLIENT_OPERATION_NAME_PATTERN
  * - gen_ai.request.model matches expected model
- * - gen_ai.request.messages exists
- * - gen_ai.response.text exists
+ * - gen_ai.input.messages exists (or deprecated gen_ai.request.messages fallback)
+ * - gen_ai.output.messages exists and matches the OTEL output messages schema
+ * - deprecated gen_ai.response.text is not present
  * - gen_ai.usage.input_tokens exists
  * - gen_ai.usage.output_tokens exists
  *
@@ -373,17 +423,23 @@ export const checkChatSpanAttributes: Check = {
         locations.push({ spanId: span.span_id, attribute: "gen_ai.input.messages", message: "Missing messages attribute" });
       }
 
-      const responseResult = getAttributeWithFallback(
-        span,
-        "gen_ai.output.messages",
-        "gen_ai.response.text"
-      );
-      
-      if (responseResult.value === undefined) {
-        const hasToolCalls = !!span.data?.["gen_ai.response.tool_calls"];
-        if (!hasToolCalls) {
-          errors.push("Should have gen_ai.output.messages, gen_ai.response.text, or gen_ai.response.tool_calls");
-          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing response attribute" });
+      if (span.data?.["gen_ai.response.text"] !== undefined) {
+        const msg = 'Deprecated attribute "gen_ai.response.text" is not allowed; use "gen_ai.output.messages" instead';
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.response.text", message: msg });
+      }
+
+      const outputMessages = span.data?.["gen_ai.output.messages"];
+
+      if (outputMessages === undefined) {
+        const msg = "Should have gen_ai.output.messages";
+        errors.push(msg);
+        locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: "Missing output messages attribute" });
+      } else {
+        const schemaErrors = validateOutputMessagesSchema(outputMessages);
+        for (const schemaError of schemaErrors) {
+          errors.push(schemaError);
+          locations.push({ spanId: span.span_id, attribute: "gen_ai.output.messages", message: schemaError });
         }
       }
     }

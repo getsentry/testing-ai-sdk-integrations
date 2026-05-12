@@ -117,7 +117,7 @@ function buildSentryMessages(messages) {
 
       const responseText{{ loop.index }} = "This is a simulated response for turn {{ loop.index }}.";
       const outputMessages{{ loop.index }} = JSON.stringify([
-        { role: "assistant", parts: [{ type: "text", text: responseText{{ loop.index }} }] },
+        { role: "assistant", parts: [{ type: "text", content: responseText{{ loop.index }} }], finish_reason: "stop" },
       ]);
 
       const desc{{ loop.index }} = `chat ${model{{ loop.index }}}`;
