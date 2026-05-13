@@ -311,4 +311,6 @@ export interface RunnerContext {
   timeoutMs: number;
   // Controls whether to print verbose console output (default: true)
   verbose?: boolean;
+  // JS only: value to pass for `streamGenAiSpans` in Sentry.init() (default: true)
+  streamGenAiSpans?: boolean;
 }

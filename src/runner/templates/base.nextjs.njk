@@ -18,6 +18,7 @@ Sentry.init({
   sendDefaultPii: true,
   // Capture 100% of traces for testing
   tracesSampleRate: 1.0,
+  streamGenAiSpans: {{ streamGenAiSpans }},
 });
 
 // Import framework AFTER Sentry.init() to ensure instrumentation hooks are in place

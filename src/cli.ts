@@ -43,6 +43,8 @@ Options:
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
   --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
+  --stream-gen-ai-spans      Enable streamGenAiSpans in JS Sentry.init() (default: on)
+  --not-stream-genai-spans   Disable streamGenAiSpans in JS Sentry.init()
   --help, -h                 Show this help message
 
 Examples:
@@ -84,6 +86,8 @@ function parseCliArgs() {
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
       "sentry-laravel": { type: "string" },
+      "stream-gen-ai-spans": { type: "boolean", default: false },
+      "not-stream-genai-spans": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -181,6 +185,8 @@ function parseCliArgs() {
     sentryJavaScriptPath: values["sentry-javascript"],
     sentryPhpPath: values["sentry-php"],
     sentryLaravelPath: values["sentry-laravel"],
+    // Default ON. --not-stream-genai-spans wins over --stream-gen-ai-spans if both given.
+    streamGenAiSpans: values["not-stream-genai-spans"] ? false : true,
     help: values.help,
   };
 }
@@ -214,6 +220,7 @@ async function main() {
     parallel: options.parallel,
     openReport: options.open,
     optionFilters: options.optionFilters,
+    streamGenAiSpans: options.streamGenAiSpans,
   });
 
   try {
