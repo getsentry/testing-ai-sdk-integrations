@@ -21,9 +21,13 @@ const checkErrorCaptured: Check = {
       throw new CheckError("Should have at least one AI span but found none");
     }
 
-    // Any non-ok span status from Sentry's SpanStatusType is valid
+    // Accept both v1 SpanStatusType granular codes and the v2 protocol's
+    // normalized "error" value. v2 (span-protocol) constrains status to
+    // {"ok","error"}; v1 transaction-embedded spans use the legacy enum.
     // See: sentry-javascript/packages/core/src/types-hoist/spanStatus.ts
+    //      https://develop.sentry.dev/sdk/telemetry/spans/span-protocol
     const errorStatuses = new Set([
+      "error",
       "deadline_exceeded",
       "unauthenticated",
       "permission_denied",
