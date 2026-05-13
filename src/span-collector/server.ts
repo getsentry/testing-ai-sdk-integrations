@@ -12,6 +12,38 @@ import { promisify } from 'util';
 
 const gunzip = promisify(zlib.gunzip);
 
+/**
+ * Convert a v2 envelope span into the legacy CapturedSpan shape used by the
+ * rest of the test framework. The typed attribute map `{ key: { type, value } }`
+ * is flattened to a plain `data: { key: value }` dict, matching what v1
+ * transaction-embedded spans already expose, so existing checks work unchanged.
+ *
+ * Span protocol reference:
+ *   https://develop.sentry.dev/sdk/telemetry/spans/span-protocol
+ *   https://develop.sentry.dev/sdk/telemetry/spans/implementation/#how-to-approach-span-first-in-sdks
+ */
+function v2SpanToCapturedSpan(v2: any): CapturedSpan {
+  const data: Record<string, any> = {};
+  if (v2.attributes && typeof v2.attributes === 'object') {
+    for (const [key, attr] of Object.entries<any>(v2.attributes)) {
+      data[key] = attr && typeof attr === 'object' && 'value' in attr ? attr.value : attr;
+    }
+  }
+  const op = typeof data['sentry.op'] === 'string' ? data['sentry.op'] : undefined;
+  return {
+    span_id: v2.span_id,
+    trace_id: v2.trace_id,
+    parent_span_id: v2.parent_span_id,
+    op: op as string,
+    description: v2.name,
+    start_timestamp: v2.start_timestamp,
+    timestamp: v2.end_timestamp,
+    data,
+    status: v2.status,
+    is_segment: v2.is_segment,
+  };
+}
+
 export class SpanCollector {
   private app: Hono;
   private server: ReturnType<typeof serve> | null = null;
@@ -118,7 +150,21 @@ export class SpanCollector {
         const itemHeader = JSON.parse(lines[i]);
         const itemBody = JSON.parse(lines[i + 1]);
 
-        if (itemHeader.type === 'transaction' || itemHeader.type === 'span') {
+        // v2 span envelope: application/vnd.sentry.items.span.v2+json
+        // Body shape: { version: 2, items: [<v2span>, ...] }
+        // Used by Sentry JS SDK 10.53.0+ when streamGenAiSpans is enabled —
+        // gen_ai spans are stripped from the transaction and shipped here.
+        // Spec: https://develop.sentry.dev/sdk/telemetry/spans/span-protocol
+        if (
+          itemHeader.type === 'span' &&
+          typeof itemHeader.content_type === 'string' &&
+          itemHeader.content_type.includes('span.v2') &&
+          Array.isArray(itemBody?.items)
+        ) {
+          for (const v2 of itemBody.items) {
+            spans.push(v2SpanToCapturedSpan(v2));
+          }
+        } else if (itemHeader.type === 'transaction' || itemHeader.type === 'span') {
           // Transaction contains child spans
           if (itemBody.spans) {
             spans.push(...itemBody.spans);
