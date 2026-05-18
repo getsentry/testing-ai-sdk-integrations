@@ -152,8 +152,9 @@ export class SpanCollector {
 
         // v2 span envelope: application/vnd.sentry.items.span.v2+json
         // Body shape: { version: 2, items: [<v2span>, ...] }
-        // Used by Sentry JS SDK 10.53.0+ when streamGenAiSpans is enabled —
-        // gen_ai spans are stripped from the transaction and shipped here.
+        // Used by Sentry JS SDK 10.53.0+ and Python SDK 2.60.0+ when
+        // streamGenAiSpans / stream_gen_ai_spans is enabled — gen_ai spans
+        // are stripped from the transaction and shipped here.
         // Spec: https://develop.sentry.dev/sdk/telemetry/spans/span-protocol
         if (
           itemHeader.type === 'span' &&

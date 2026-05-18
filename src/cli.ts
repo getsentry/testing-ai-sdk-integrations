@@ -43,8 +43,8 @@ Options:
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
   --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
-  --stream-gen-ai-spans      Enable streamGenAiSpans in JS Sentry.init() (default: on)
-  --not-stream-gen-ai-spans  Disable streamGenAiSpans in JS Sentry.init()
+  --stream-gen-ai-spans      Enable streamGenAiSpans / stream_gen_ai_spans in Sentry.init() (default: on)
+  --not-stream-gen-ai-spans  Disable streamGenAiSpans / stream_gen_ai_spans in Sentry.init()
   --help, -h                 Show this help message
 
 Examples:
