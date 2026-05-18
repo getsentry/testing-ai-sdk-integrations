@@ -49,6 +49,7 @@ export class Orchestrator {
   private streamingFilter?: boolean;
   private blockingFilter?: boolean;
   private optionFilters?: Record<string, string>;
+  private streamGenAiSpans: boolean = true;
 
   constructor(
     options: {
@@ -61,6 +62,7 @@ export class Orchestrator {
       parallel?: number;
       openReport?: boolean;
       optionFilters?: Record<string, string>;
+      streamGenAiSpans?: boolean;
     } = {},
   ) {
     this.spanCollector = new SpanCollector();
@@ -79,6 +81,7 @@ export class Orchestrator {
     this.blockingFilter = options.blocking;
     this.optionFilters = options.optionFilters;
     this.openReport = options.openReport === true;
+    this.streamGenAiSpans = options.streamGenAiSpans !== false;
 
     // Set verbose on validator
     this.validator.setVerbose(this.verbose);
@@ -235,6 +238,7 @@ export class Orchestrator {
           resolvedOptions: firstRun.framework.resolvedOptions,
           timeoutMs: firstRun.testDefinition.timeoutMs ?? 60000,
           verbose: this.verbose,
+          streamGenAiSpans: this.streamGenAiSpans,
         });
       } catch (setupError) {
         // Mark all tests for this framework as errors
@@ -280,6 +284,7 @@ export class Orchestrator {
             resolvedOptions: testRun.framework.resolvedOptions,
             timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
             verbose: false, // Suppress template rendering logs, we're logging above
+            streamGenAiSpans: this.streamGenAiSpans,
           });
 
           renderedTests.set(testRun.id, testPath);
@@ -495,6 +500,7 @@ export class Orchestrator {
         resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs: testRun.testDefinition.timeoutMs ?? 60000,
         verbose: this.verbose,
+        streamGenAiSpans: this.streamGenAiSpans,
       });
 
       console.log(`  ✓ Setup complete`);
@@ -995,6 +1001,7 @@ export class Orchestrator {
         resolvedOptions: testRun.framework.resolvedOptions,
         timeoutMs,
         verbose: this.verbose && !this.useLiveStatus, // Only verbose when flag is set and not live status
+        streamGenAiSpans: this.streamGenAiSpans,
       });
 
       // Wait for spans to be collected

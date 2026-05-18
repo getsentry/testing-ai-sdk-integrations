@@ -271,6 +271,7 @@ export class Runner {
       ...(testDefinition.agent && { agent: testDefinition.agent }),
       ...(testDefinition.mcpServer && { mcpServer: testDefinition.mcpServer }),
       inputs: processedInputs,
+      streamGenAiSpans: context.streamGenAiSpans !== false, // JS Sentry.init() flag, default true
     };
 
     // PHP/Laravel: add computed class names and command signature for templates

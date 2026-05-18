@@ -18,6 +18,7 @@ export default Sentry.withSentry(
     dsn: env.SENTRY_DSN,
     sendDefaultPii: true,
     tracesSampleRate: 1.0,
+    streamGenAiSpans: {{ streamGenAiSpans }},
     integrations: [
 {% block sentry_integrations %}{% endblock %}
     ],

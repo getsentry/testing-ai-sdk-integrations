@@ -43,6 +43,8 @@ Options:
   --sentry-javascript <path> Use local Sentry JavaScript SDK (link)
   --sentry-php <path>        Use local Sentry PHP SDK (core sentry/sentry-php)
   --sentry-laravel <path>    Use local Sentry Laravel SDK (composer path repository)
+  --stream-gen-ai-spans      Enable streamGenAiSpans in JS Sentry.init() (default: on)
+  --not-stream-gen-ai-spans  Disable streamGenAiSpans in JS Sentry.init()
   --help, -h                 Show this help message
 
 Examples:
@@ -62,6 +64,16 @@ Examples:
   npm run test -- --framework laravel --sentry-laravel ~/sentry-laravel
   npm run test setup -- --framework openai --sync --streaming
 `;
+
+function resolveStreamGenAiSpans(enable: boolean, disable: boolean): boolean {
+  if (enable && disable) {
+    console.error(
+      "Error: --stream-gen-ai-spans and --not-stream-gen-ai-spans are mutually exclusive",
+    );
+    process.exit(1);
+  }
+  return !disable;
+}
 
 function parseCliArgs() {
   const { values, positionals } = parseArgs({
@@ -84,6 +96,8 @@ function parseCliArgs() {
       "sentry-javascript": { type: "string" },
       "sentry-php": { type: "string" },
       "sentry-laravel": { type: "string" },
+      "stream-gen-ai-spans": { type: "boolean", default: false },
+      "not-stream-gen-ai-spans": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
     allowPositionals: true,
@@ -181,6 +195,12 @@ function parseCliArgs() {
     sentryJavaScriptPath: values["sentry-javascript"],
     sentryPhpPath: values["sentry-php"],
     sentryLaravelPath: values["sentry-laravel"],
+    // Default ON. --not-stream-gen-ai-spans disables it; --stream-gen-ai-spans
+    // is the explicit form of the default. Passing both is a conflict.
+    streamGenAiSpans: resolveStreamGenAiSpans(
+      values["stream-gen-ai-spans"] === true,
+      values["not-stream-gen-ai-spans"] === true,
+    ),
     help: values.help,
   };
 }
@@ -214,6 +234,7 @@ async function main() {
     parallel: options.parallel,
     openReport: options.open,
     optionFilters: options.optionFilters,
+    streamGenAiSpans: options.streamGenAiSpans,
   });
 
   try {
