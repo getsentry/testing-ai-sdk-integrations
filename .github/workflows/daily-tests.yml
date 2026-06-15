@@ -99,8 +99,16 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install Playwright browsers (for browser platform only)
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright system dependencies
+        run: npx playwright install-deps chromium
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
+        timeout-minutes: 5
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+        timeout-minutes: 5
 
       - name: Run tests
         continue-on-error: true
