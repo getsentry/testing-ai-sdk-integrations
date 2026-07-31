@@ -61,6 +61,8 @@ const tools = [
 
 {% if provider == "anthropic" %}
 const llm = new ChatAnthropic({
+  anthropicApiKey: process.env.OPENROUTER_API_KEY,
+  anthropicApiUrl: "https://openrouter.ai/api",
   modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
 });
 {% else %}

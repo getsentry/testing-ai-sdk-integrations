@@ -197,7 +197,7 @@ export class CloudflareRunner {
     // Always regenerate .dev.vars with current API keys (setup may be cached)
     const devVars = [
       `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ""}`,
-      `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ""}`,
+      `OPENROUTER_API_KEY=${process.env.OPENROUTER_API_KEY || ""}`,
       `GOOGLE_GENAI_API_KEY=${process.env.GOOGLE_GENAI_API_KEY || ""}`,
     ].join("\n");
     await fs.writeFile(path.join(workDir, ".dev.vars"), devVars);

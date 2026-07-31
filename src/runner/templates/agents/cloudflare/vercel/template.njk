@@ -43,7 +43,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 {% block dynamic_imports %}
 {% if provider == "anthropic" %}
-      const anthropic = createAnthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      const anthropic = createAnthropic({
+        apiKey: env.OPENROUTER_API_KEY,
+        baseURL: "https://openrouter.ai/api",
+      });
 {% else %}
       const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 {% endif %}

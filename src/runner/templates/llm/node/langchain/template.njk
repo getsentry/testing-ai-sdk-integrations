@@ -26,6 +26,8 @@ const { ChatOpenAI } = await import("@langchain/openai");
 const { HumanMessage, SystemMessage, AIMessage } = await import("@langchain/core/messages");
 {% if provider == "anthropic" %}
 const chat = new ChatAnthropic({
+  anthropicApiKey: process.env.OPENROUTER_API_KEY,
+  anthropicApiUrl: "https://openrouter.ai/api",
   modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
 });
 {% else %}

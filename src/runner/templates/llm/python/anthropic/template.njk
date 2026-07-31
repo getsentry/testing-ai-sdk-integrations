@@ -32,16 +32,22 @@ import httpx
 
 {% block inject_api_error %}
 {% if causeAPIError %}
-respx.route(host="api.anthropic.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.route(host="openrouter.ai").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
 respx.mock.start()
 {% endif %}
 {% endblock %}
 
 {% block setup %}
 {% if isAsync %}
-client = AsyncAnthropic()
+client = AsyncAnthropic(
+    api_key=os.environ["OPENROUTER_API_KEY"],
+    base_url="https://openrouter.ai/api",
+)
 {% else %}
-client = Anthropic()
+client = Anthropic(
+    api_key=os.environ["OPENROUTER_API_KEY"],
+    base_url="https://openrouter.ai/api",
+)
 {% endif %}
 {% endblock %}
 

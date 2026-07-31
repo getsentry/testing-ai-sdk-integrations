@@ -19,7 +19,10 @@
 
 {% block dynamic_imports %}
 const { default: Anthropic } = await import("@anthropic-ai/sdk");
-const client = new Anthropic();
+const client = new Anthropic({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api",
+});
 {% endblock %}
 
 {% block test %}

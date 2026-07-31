@@ -752,7 +752,7 @@ Create a `.env` file with your API keys:
 
 ```bash
 OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+OPENROUTER_API_KEY=sk-or-...
 GOOGLE_GENAI_API_KEY=...
 ```
 
@@ -814,7 +814,7 @@ jobs:
         with:
           platform: python # or 'node', or leave empty for both
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
           google-genai-api-key: ${{ secrets.GOOGLE_GENAI_API_KEY }}
 ```
 
@@ -829,7 +829,7 @@ jobs:
 | `sentry-python-path`     | No       | `""`          | Path to local sentry-python for editable install                                              |
 | `sentry-javascript-path` | No       | `""`          | Path to local sentry-javascript for linking                                                   |
 | `openai-api-key`         | Yes      | -             | OpenAI API key                                                                                |
-| `anthropic-api-key`      | Yes      | -             | Anthropic API key                                                                             |
+| `openrouter-api-key`      | Yes      | -             | OpenRouter API key for Anthropic-compatible requests                                        |
 | `google-genai-api-key`   | Yes      | -             | Google GenAI API key                                                                          |
 
 ### Action Outputs
@@ -854,7 +854,7 @@ jobs:
     parallel: 8
     sentry-python-path: ${{ github.workspace }}
     openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
     google-genai-api-key: ${{ secrets.GOOGLE_GENAI_API_KEY }}
 
 - name: Check results

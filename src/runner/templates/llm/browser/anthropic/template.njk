@@ -20,15 +20,16 @@
 {% block dynamic_imports %}
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
-    const ANTHROPIC_API_KEY = window.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_API_KEY) {
-      log('ERROR: ANTHROPIC_API_KEY not found in window');
-      throw new Error('ANTHROPIC_API_KEY not provided');
+    const OPENROUTER_API_KEY = window.OPENROUTER_API_KEY;
+    if (!OPENROUTER_API_KEY) {
+      log('ERROR: OPENROUTER_API_KEY not found in window');
+      throw new Error('OPENROUTER_API_KEY not provided');
     }
 
     // WARNING: API key is exposed in browser - this is for testing only!
     const anthropic = new Anthropic({
-      apiKey: ANTHROPIC_API_KEY,
+      apiKey: OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api",
       dangerouslyAllowBrowser: true
     });
 
