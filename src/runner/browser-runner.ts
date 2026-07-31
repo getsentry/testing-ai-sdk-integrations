@@ -320,7 +320,7 @@ export default defineConfig({
         window.SENTRY_DSN = ${JSON.stringify(sentryDsn)};
         window.RUN_ID = ${JSON.stringify(runId)};
         window.OPENAI_API_KEY = ${JSON.stringify(process.env.OPENAI_API_KEY || "")};
-        window.ANTHROPIC_API_KEY = ${JSON.stringify(process.env.ANTHROPIC_API_KEY || "")};
+        window.OPENROUTER_API_KEY = ${JSON.stringify(process.env.OPENROUTER_API_KEY || "")};
         window.GOOGLE_GENAI_API_KEY = ${JSON.stringify(process.env.GOOGLE_GENAI_API_KEY || "")};
         window.testComplete = false;
       `);
@@ -430,7 +430,7 @@ declare global {
     SENTRY_DSN: string;
     RUN_ID: string;
     OPENAI_API_KEY: string;
-    ANTHROPIC_API_KEY: string;
+    OPENROUTER_API_KEY: string;
     GOOGLE_GENAI_API_KEY: string;
     testComplete: boolean;
   }

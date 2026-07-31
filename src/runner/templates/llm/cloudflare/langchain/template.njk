@@ -30,7 +30,8 @@ import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages
 {% if provider == "anthropic" %}
       const chat = new ChatAnthropic({
         modelName: {% if causeAPIError %}"invalid-model"{% else %}"{{ inputs[0].model }}"{% endif %},
-        anthropicApiKey: env.ANTHROPIC_API_KEY,
+        anthropicApiKey: env.OPENROUTER_API_KEY,
+        anthropicApiUrl: "https://openrouter.ai/api",
       });
 {% else %}
       const chat = new ChatOpenAI({

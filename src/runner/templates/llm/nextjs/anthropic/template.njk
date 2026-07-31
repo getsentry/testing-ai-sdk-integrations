@@ -20,13 +20,16 @@
 {% block dynamic_imports %}
 const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-if (!ANTHROPIC_API_KEY) {
-  console.error('ERROR: ANTHROPIC_API_KEY not found in environment');
-  throw new Error('ANTHROPIC_API_KEY not provided');
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+if (!OPENROUTER_API_KEY) {
+  console.error('ERROR: OPENROUTER_API_KEY not found in environment');
+  throw new Error('OPENROUTER_API_KEY not provided');
 }
 
-const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+const anthropic = new Anthropic({
+  apiKey: OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api",
+});
 const client = Sentry.instrumentAnthropicAiClient(anthropic);
 console.log('Anthropic client initialized and instrumented');
 {% endblock %}

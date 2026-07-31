@@ -22,7 +22,10 @@ import Anthropic from "@anthropic-ai/sdk";
 {% endblock %}
 
 {% block dynamic_imports %}
-      const rawClient = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      const rawClient = new Anthropic({
+        apiKey: env.OPENROUTER_API_KEY,
+        baseURL: "https://openrouter.ai/api",
+      });
       const client = Sentry.instrumentAnthropicAiClient(rawClient);
 {% endblock %}
 

@@ -73,7 +73,7 @@ import httpx
 {% block inject_api_error %}
 {% if causeAPIError %}
 {% if provider == "anthropic" %}
-respx.route(host="api.anthropic.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
+respx.route(host="openrouter.ai").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
 {% else %}
 respx.route(host="api.openai.com").mock(return_value=httpx.Response(500, json={"error": {"message": "Server error", "type": "server_error"}}))
 {% endif %}
@@ -105,7 +105,7 @@ sentry_sdk.init(
 {% else %}
     stream = litellm.responses(
 {% endif %}
-        model="{% if provider == "anthropic" %}anthropic{% else %}openai{% endif %}/{{ input.model }}",
+        model="{% if provider == "anthropic" %}openrouter/anthropic{% else %}openai{% endif %}/{{ input.model }}",
 {% set instructions = extractInstructions(input.messages) | trim %}
 {% if instructions %}
         instructions="{{ instructions }}",
@@ -131,7 +131,7 @@ sentry_sdk.init(
 {% else %}
     response = litellm.responses(
 {% endif %}
-        model="{% if provider == "anthropic" %}anthropic{% else %}openai{% endif %}/{{ input.model }}",
+        model="{% if provider == "anthropic" %}openrouter/anthropic{% else %}openai{% endif %}/{{ input.model }}",
 {% set instructions = extractInstructions(input.messages) | trim %}
 {% if instructions %}
         instructions="{{ instructions }}",
@@ -147,7 +147,7 @@ sentry_sdk.init(
 {% else %}
     stream = litellm.completion(
 {% endif %}
-        model="{% if provider == "anthropic" %}anthropic{% else %}openai{% endif %}/{{ input.model }}",
+        model="{% if provider == "anthropic" %}openrouter/anthropic{% else %}openai{% endif %}/{{ input.model }}",
         messages={{ convertMessages(input.messages) }},
         stream=True,
     )
@@ -169,7 +169,7 @@ sentry_sdk.init(
 {% else %}
     response = litellm.completion(
 {% endif %}
-        model="{% if provider == "anthropic" %}anthropic{% else %}openai{% endif %}/{{ input.model }}",
+        model="{% if provider == "anthropic" %}openrouter/anthropic{% else %}openai{% endif %}/{{ input.model }}",
         messages={{ convertMessages(input.messages) }},
     )
     print(f"Turn {{ loop.index }} Response: {response.choices[0].message.content}")

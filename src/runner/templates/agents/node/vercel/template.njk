@@ -31,7 +31,11 @@ const { streamText, tool, jsonSchema, stepCountIs } = await import("ai");
 const { generateText, tool, jsonSchema, stepCountIs } = await import("ai");
 {% endif %}
 {% if provider == "anthropic" %}
-const { anthropic } = await import("@ai-sdk/anthropic");
+const { createAnthropic } = await import("@ai-sdk/anthropic");
+const anthropic = createAnthropic({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api",
+});
 {% else %}
 const { openai } = await import("@ai-sdk/openai");
 {% endif %}

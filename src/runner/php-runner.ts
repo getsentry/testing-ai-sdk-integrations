@@ -285,7 +285,7 @@ return [
       SENTRY_TRACES_SAMPLE_RATE: "1.0",
       RUN_ID: runId,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
       GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY || "",
     };
 
