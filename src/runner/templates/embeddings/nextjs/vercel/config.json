@@ -6,7 +6,7 @@
   "streamingMode": "blocking",
   "dependencies": [
     { "package": "ai", "version": "framework" },
-    { "package": "@ai-sdk/openai", "version": "latest" },
+    { "package": "@ai-sdk/openai", "version": "3.0.90" },
     { "package": "@sentry/nextjs", "version": "sentry" },
     { "package": "next", "version": "latest" }
   ],

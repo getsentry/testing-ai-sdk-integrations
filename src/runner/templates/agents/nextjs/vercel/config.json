@@ -11,11 +11,11 @@
     },
     {
       "package": "@ai-sdk/openai",
-      "version": "latest"
+      "version": "3.0.90"
     },
     {
       "package": "@ai-sdk/anthropic",
-      "version": "latest"
+      "version": "3.0.105"
     },
     {
       "package": "@sentry/nextjs",
@@ -31,13 +31,21 @@
   "options": {
     "agentStyle": ["function", "class"],
     "provider": [
-      "openai",
+      {
+        "value": "openai",
+        "overrides": {
+          "modelOverrides": {
+            "request": "openai/gpt-4o-mini",
+            "response": "openai/gpt-4o-mini*"
+          }
+        }
+      },
       {
         "value": "anthropic",
         "overrides": {
           "modelOverrides": {
-            "request": "claude-haiku-4-5",
-            "response": "claude-haiku-4-5*"
+            "request": "anthropic/claude-haiku-4-5",
+            "response": "anthropic/claude-haiku-4-5*"
           }
         }
       }

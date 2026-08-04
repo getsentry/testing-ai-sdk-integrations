@@ -6,7 +6,7 @@
   "streamingMode": "blocking",
   "dependencies": [
     { "package": "ai", "version": "framework" },
-    { "package": "@ai-sdk/openai", "version": "latest" }
+    { "package": "@ai-sdk/openai", "version": "1.3.24" }
   ],
   "versions": ["4.3.16"],
   "sentryVersions": ["latest"]

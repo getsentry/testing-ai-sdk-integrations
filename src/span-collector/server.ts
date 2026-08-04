@@ -49,7 +49,7 @@ export class SpanCollector {
   private server: ReturnType<typeof serve> | null = null;
   private store: SpanStore;
   private port: number = 0;
-  private host: string = 'localhost';
+  private host: string = '127.0.0.1';
   private projectIdToRunId: Map<number, string> = new Map();
 
   constructor(port: number = 0) {

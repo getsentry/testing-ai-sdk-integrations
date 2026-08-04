@@ -30,7 +30,11 @@ const anthropic = createAnthropic({
   baseURL: "https://openrouter.ai/api",
 });
 {% else %}
-const { openai } = await import("@ai-sdk/openai");
+const { createOpenAI } = await import("@ai-sdk/openai");
+const openai = createOpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+});
 {% endif %}
 console.log('Vercel AI SDK initialized (auto-instrumentation enabled)');
 {% endblock %}
