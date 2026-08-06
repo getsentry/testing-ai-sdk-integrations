@@ -45,7 +45,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 {% if provider == "anthropic" %}
       const anthropic = createAnthropic({
         apiKey: env.OPENROUTER_API_KEY,
-        baseURL: "https://openrouter.ai/api",
+        baseURL: "https://openrouter.ai/api/v1",
       });
 {% else %}
       const openai = createOpenAI({

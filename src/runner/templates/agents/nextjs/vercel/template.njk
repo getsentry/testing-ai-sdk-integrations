@@ -27,7 +27,7 @@ const { generateText, streamText, tool, jsonSchema, stepCountIs } = await import
 const { createAnthropic } = await import("@ai-sdk/anthropic");
 const anthropic = createAnthropic({
   apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: "https://openrouter.ai/api",
+  baseURL: "https://openrouter.ai/api/v1",
 });
 {% else %}
 const { createOpenAI } = await import("@ai-sdk/openai");
