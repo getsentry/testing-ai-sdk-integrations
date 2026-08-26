@@ -1,7 +1,5 @@
 {
   "name": "google-genai",
-  "displayName": "Google GenAI JavaScript SDK (Cloudflare)",
-  "type": "llm-only",
   "platform": "cloudflare",
   "streamingMode": "both",
   "dependencies": [

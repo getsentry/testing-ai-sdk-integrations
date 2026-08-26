@@ -1,7 +1,5 @@
 {
   "name": "openai",
-  "displayName": "OpenAI JavaScript SDK (Cloudflare)",
-  "type": "llm-only",
   "platform": "cloudflare",
   "streamingMode": "both",
   "options": {

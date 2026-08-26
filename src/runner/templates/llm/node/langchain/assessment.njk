@@ -1,0 +1,49 @@
+{% extends "base.node.assessment.njk" %}
+
+{% block dynamic_imports %}
+{% if provider == "anthropic" %}
+const { ChatAnthropic } = await import("@langchain/anthropic");
+{% else %}
+const { ChatOpenAI } = await import("@langchain/openai");
+{% endif %}
+const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core/messages");
+{% endblock %}
+
+{% block probe %}
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") {
+              Sentry.setConversationId(request.conversationId);
+            }
+            const messages = request.messages.map((message) => {
+              if (message.role === "system") return new SystemMessage(message.content);
+              if (message.role === "assistant") return new AIMessage(message.content);
+              return new HumanMessage(message.content);
+            });
+{% if provider == "anthropic" %}
+            const chat = new ChatAnthropic({
+              anthropicApiKey: process.env.OPENROUTER_API_KEY,
+              anthropicApiUrl: "https://openrouter.ai/api",
+              modelName: request.model,
+              thinking: { type: "enabled", budget_tokens: 1024 },
+            });
+{% else %}
+            const chat = new ChatOpenAI({ modelName: request.model });
+{% endif %}
+            try {
+              if (request.streaming) {
+                const response = await chat.stream(messages);
+                for await (const _chunk of response) {
+                  // Consume the stream to complete the instrumented operation.
+                }
+              } else {
+                await chat.invoke(messages);
+              }
+            } catch (error) {
+              if (probe.input.expectError) {
+                Sentry.captureException(error);
+                continue;
+              }
+              throw error;
+            }
+          }
+{% endblock %}

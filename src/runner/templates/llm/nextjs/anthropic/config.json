@@ -1,7 +1,5 @@
 {
   "name": "anthropic",
-  "displayName": "Anthropic Next.js SDK (Helper Function Instrumentation)",
-  "type": "llm-only",
   "platform": "nextjs",
   "streamingMode": "both",
   "dependencies": [

@@ -1,7 +1,5 @@
 {
   "name": "pydantic-ai",
-  "displayName": "Pydantic AI Python SDK",
-  "type": "agentic",
   "platform": "python",
   "executionMode": "async",
   "minimumPlatformVersion": "3.10",

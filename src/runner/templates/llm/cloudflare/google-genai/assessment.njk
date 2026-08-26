@@ -1,0 +1,26 @@
+{% extends "base.cloudflare.assessment.njk" %}
+
+{% block dynamic_imports %}
+      const { GoogleGenAI } = await import("@google/genai");
+      const client = Sentry.instrumentGoogleGenAIClient(new GoogleGenAI({ apiKey: env.GOOGLE_GENAI_API_KEY }));
+{% endblock %}
+
+{% block probe %}
+                for (const request of probe.input.calls) {
+                  if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
+                  const systemInstruction = request.messages.find((message) => message.role === "system")?.content;
+                  const contents = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role === "assistant" ? "model" : message.role, parts: [{ text: message.content }] }));
+                  const config = systemInstruction ? { systemInstruction: [systemInstruction] } : undefined;
+                  try {
+                    if (request.streaming) {
+                      const stream = await client.models.generateContentStream({ model: request.model, contents, config });
+                      for await (const _chunk of stream) { /* consume stream */ }
+                    } else {
+                      await client.models.generateContent({ model: request.model, contents, config });
+                    }
+                  } catch (error) {
+                    if (probe.input.expectError) { Sentry.captureException(error); continue; }
+                    throw error;
+                  }
+                }
+{% endblock %}

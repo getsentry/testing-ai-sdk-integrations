@@ -1,286 +1,170 @@
-name: PR Test Comparison
+name: PR Assessment Comparison
 
 on:
   pull_request:
     branches: [main]
 
-# Cancel in-progress runs for the same PR
 concurrency:
-  group: pr-tests-${{ github.event.pull_request.number }}
+  group: pr-assessments-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  test-main:
-    name: Test (main)
+  assess-main:
+    name: Assess main
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v4
+      - name: Checkout main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           submodules: true
-
+          persist-credentials: false
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
-
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-
-      - name: Install uv (Python package manager)
-        uses: astral-sh/setup-uv@v5
-
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
       - name: Get latest Sentry SDK versions
         id: sentry-versions
         run: |
-          echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
-          echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
-          echo "php=$(curl -s https://repo.packagist.org/p2/sentry/sentry-laravel.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["packages"]["sentry/sentry-laravel"][0]["version"])')" >> $GITHUB_OUTPUT
-
-      - name: Cache Node test environments
-        uses: actions/cache@v4
+          echo "js=$(npm view @sentry/node version)" >> "$GITHUB_OUTPUT"
+          echo "python=$(python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/sentry-sdk/json"))["info"]["version"])')" >> "$GITHUB_OUTPUT"
+      - name: Cache assessment environments
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          path: runs/node
-          key: node-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
-          restore-keys: |
-            node-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Browser test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/browser
-          key: browser-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
-          restore-keys: |
-            browser-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Next.js test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/nextjs
-          key: nextjs-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/nextjs/**/config.json') }}
-          restore-keys: |
-            nextjs-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Python test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/python
-          key: python-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
-          restore-keys: |
-            python-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-
-
-      - name: Cache PHP test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/php
-          key: php-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
-          restore-keys: |
-            php-envs-main-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.4"
-          tools: composer
-
+          path: |
+            runs/**/node_modules
+            runs/**/.venv
+          key: assessments-${{ runner.os }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
       - name: Install dependencies and build
         run: |
           npm ci
           npm run build
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run tests
-        id: run-tests
+      - name: Run assessments
         continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-          CO_API_KEY: ${{ secrets.CO_API_KEY }}
-        run: npm run test -- -j=12
-
-      - name: Upload CTRF report
-        uses: actions/upload-artifact@v4
+        run: npm test -- run --parallel 12
+      - name: Upload main assessment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ctrf-main
-          path: test-results/ctrf-report-*.json
+          name: assessment-main
+          path: test-results/assessment-report-*.json
+          if-no-files-found: error
           retention-days: 1
 
-  test-pr:
-    name: Test (PR)
+  assess-pr:
+    name: Assess PR
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
+      - name: Checkout PR
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-
+          persist-credentials: false
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
-
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-
-      - name: Install uv (Python package manager)
-        uses: astral-sh/setup-uv@v5
-
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
       - name: Get latest Sentry SDK versions
         id: sentry-versions
         run: |
-          echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
-          echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
-          echo "php=$(curl -s https://repo.packagist.org/p2/sentry/sentry-laravel.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["packages"]["sentry/sentry-laravel"][0]["version"])')" >> $GITHUB_OUTPUT
-
-      - name: Cache Node test environments
-        uses: actions/cache@v4
+          echo "js=$(npm view @sentry/node version)" >> "$GITHUB_OUTPUT"
+          echo "python=$(python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/sentry-sdk/json"))["info"]["version"])')" >> "$GITHUB_OUTPUT"
+      - name: Cache assessment environments
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          path: runs/node
-          key: node-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
-          restore-keys: |
-            node-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Browser test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/browser
-          key: browser-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
-          restore-keys: |
-            browser-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Next.js test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/nextjs
-          key: nextjs-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/nextjs/**/config.json') }}
-          restore-keys: |
-            nextjs-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Python test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/python
-          key: python-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
-          restore-keys: |
-            python-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-
-
-      - name: Cache PHP test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/php
-          key: php-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
-          restore-keys: |
-            php-envs-pr-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.4"
-          tools: composer
-
+          path: |
+            runs/**/node_modules
+            runs/**/.venv
+          key: assessments-${{ runner.os }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
       - name: Install dependencies and build
         run: |
           npm ci
           npm run build
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run tests
-        id: run-tests
+      - name: Run assessments
         continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-          CO_API_KEY: ${{ secrets.CO_API_KEY }}
-        run: npm run test -- -j=12
-
-      - name: Upload CTRF report
-        uses: actions/upload-artifact@v4
+        run: npm test -- run --parallel 12
+      - name: Upload PR assessment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ctrf-pr
-          path: test-results/ctrf-report-*.json
+          name: assessment-pr
+          path: test-results/assessment-report-*.json
+          if-no-files-found: error
           retention-days: 1
 
-  compare-results:
-    name: Compare Results
-    needs: [test-main, test-pr]
+  compare-assessments:
+    name: Compare assessments
+    needs: [assess-main, assess-pr]
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ubuntu-latest
-    if: always() && needs.test-main.result != 'cancelled' && needs.test-pr.result != 'cancelled'
+    if: always() && needs.assess-main.result != 'cancelled' && needs.assess-pr.result != 'cancelled'
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-
-      - name: Download main CTRF report
-        uses: actions/download-artifact@v4
+      - name: Checkout PR
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: ctrf-main
-          path: ctrf-main
-
-      - name: Download PR CTRF report
-        uses: actions/download-artifact@v4
+          persist-credentials: false
+      - name: Download main assessment
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: ctrf-pr
-          path: ctrf-pr
-
-      - name: Run comparison
+          name: assessment-main
+          path: assessment-main
+      - name: Download PR assessment
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: assessment-pr
+          path: assessment-pr
+      - name: Compare native assessment reports
         id: compare
         run: |
-          # Find the latest CTRF reports (they have timestamps in filename)
-          MAIN_REPORT=$(ls -t ctrf-main/ctrf-report-*.json 2>/dev/null | head -1)
-          PR_REPORT=$(ls -t ctrf-pr/ctrf-report-*.json 2>/dev/null | head -1)
-
-          if [ -z "$MAIN_REPORT" ] || [ -z "$PR_REPORT" ]; then
-            echo "Missing CTRF reports"
-            echo "Main: $MAIN_REPORT"
-            echo "PR: $PR_REPORT"
-            exit 1
-          fi
-
-          node .github/scripts/compare-ctrf.cjs \
-            "$MAIN_REPORT" \
-            "$PR_REPORT" \
-            comparison-output.md
-
-          # Check if there are regressions
-          if grep -q "^HAS_REGRESSIONS=true$" comparison-output.env 2>/dev/null; then
-            echo "has_regressions=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_regressions=false" >> $GITHUB_OUTPUT
-          fi
-
+          main_report=$(find assessment-main -name 'assessment-report-*.json' -type f -print | sort | tail -1)
+          pr_report=$(find assessment-pr -name 'assessment-report-*.json' -type f -print | sort | tail -1)
+          test -n "$main_report" && test -n "$pr_report"
+          node .github/scripts/compare-assessments.cjs "$main_report" "$pr_report" comparison-output.md
+          source comparison-output.env
+          echo "has-regressions=$HAS_REGRESSIONS" >> "$GITHUB_OUTPUT"
       - name: Write job summary
-        run: cat comparison-output.md >> $GITHUB_STEP_SUMMARY
-
-      - name: Find existing comment
-        uses: peter-evans/find-comment@v3
+        run: cat comparison-output.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Find existing assessment comment
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
         id: find-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: "github-actions[bot]"
-          body-includes: "AI SDK Integration Test Results"
-
+          body-includes: "Assessment comparison uses stable variant"
       - name: Create or update PR comment
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
           body-path: comparison-output.md
-
-      - name: Fail if regressions
-        if: steps.compare.outputs.has_regressions == 'true'
+      - name: Fail on assessment regressions
+        if: steps.compare.outputs.has-regressions == 'true'
         run: |
-          echo "::error::Test regressions detected! Tests that were passing on main are now failing."
+          echo "::error::Assessment regressions detected. See the comparison summary for stable finding and capability changes."
           exit 1

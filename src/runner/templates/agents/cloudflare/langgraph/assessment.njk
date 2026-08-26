@@ -1,0 +1,39 @@
+{% extends "base.cloudflare.assessment.njk" %}
+
+{% block dynamic_imports %}
+{% if provider == "anthropic" %}
+      const { ChatAnthropic } = await import("@langchain/anthropic");
+{% else %}
+      const { ChatOpenAI } = await import("@langchain/openai");
+{% endif %}
+      const { createReactAgent } = await import("@langchain/langgraph/prebuilt");
+      const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core/messages");
+      const { tool } = await import("@langchain/core/tools");
+      const { z } = await import("zod");
+{% endblock %}
+
+{% block probe %}
+                const tools = (probe.input.tools ?? []).map((definition) => tool(
+                  async () => {
+                    if (definition.error) throw new Error(definition.error);
+                    return definition.result;
+                  },
+                  { name: definition.name, description: definition.description, schema: z.object({}).passthrough() },
+                ));
+                for (const request of probe.input.calls) {
+                  if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
+                  const messages = request.messages.map((message) => message.role === "system" ? new SystemMessage(message.content) : message.role === "assistant" ? new AIMessage(message.content) : new HumanMessage(message.content));
+{% if provider == "anthropic" %}
+                  const llm = new ChatAnthropic({ modelName: request.model, anthropicApiKey: env.OPENROUTER_API_KEY, anthropicApiUrl: "https://openrouter.ai/api", thinking: { type: "enabled", budget_tokens: 1024 } });
+{% else %}
+                  const llm = new ChatOpenAI({ modelName: request.model, openAIApiKey: env.OPENAI_API_KEY });
+{% endif %}
+                  try {
+                    const agent = createReactAgent({ llm, tools, name: "assessment-agent" });
+                    await agent.invoke({ messages });
+                  } catch (error) {
+                    if (probe.input.expectError) { Sentry.captureException(error); continue; }
+                    throw error;
+                  }
+                }
+{% endblock %}

@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+# Generated Sentry AI assessment program. Do not edit.
+import asyncio
+import json
+import os
+import sentry_sdk
+
+EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ "
+
+
+def emit(event):
+    print(f"{EVENT_PREFIX}{json.dumps(event)}", flush=True)
+
+
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    traces_sample_rate=1.0,
+    send_default_pii=True,
+    stream_gen_ai_spans=True,
+)
+
+{% block dynamic_imports %}{% endblock %}
+
+PROBES = json.loads(r'''{{ probes | tojson }}''')
+
+
+def flush_sentry(probe_id=None):
+    failure = None
+
+    def record_timeout(pending, timeout):
+        nonlocal failure
+        failure = {
+            "kind": "flush",
+            "message": f"Sentry flush timed out with {pending} pending event(s) after {timeout} seconds.",
+            "stopsVariant": True,
+        }
+
+    try:
+        sentry_sdk.flush(timeout=5, callback=record_timeout)
+    except Exception as error:
+        failure = {
+            "kind": "flush",
+            "message": str(error),
+            "stopsVariant": True,
+        }
+
+    if failure is None:
+        return True
+    if probe_id:
+        failure["probeId"] = probe_id
+    emit({"type": "runtime_failure", "failure": failure})
+    return False
+
+
+async def run_assessment():
+    blocked = False
+    for probe in PROBES:
+        if blocked:
+            emit({"type": "probe_blocked", "probeId": probe["id"]})
+            continue
+
+        emit({"type": "probe_started", "probeId": probe["id"]})
+        try:
+            with sentry_sdk.start_transaction(op="test.assessment", name=probe["id"]) as span:
+                span.set_data("test.assessment.id", "{{ targetId }}")
+                span.set_data("test.variant.id", "{{ variantId }}")
+                span.set_data("test.probe.id", probe["id"])
+{% block probe %}
+                raise RuntimeError("Assessment adapter does not implement this probe")
+{% endblock %}
+            emit({"type": "probe_finished", "probeId": probe["id"], "status": "completed"})
+        except Exception as error:
+            failure = {
+                "kind": "provider",
+                "message": str(error),
+                "probeId": probe["id"],
+                "stopsVariant": probe["stopsVariantOnFailure"],
+            }
+            emit({"type": "probe_failed", "probeId": probe["id"], "status": "failed", "failure": failure})
+            if failure["stopsVariant"]:
+                blocked = True
+        finally:
+            if not flush_sentry(probe["id"]):
+                blocked = True
+
+    emit({"type": "assessment_finished"})
+    flush_sentry()
+
+
+try:
+    asyncio.run(run_assessment())
+except Exception as error:
+    emit({"type": "assessment_finished"})
+    print(error)
+    raise

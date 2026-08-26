@@ -1,0 +1,28 @@
+{% extends "base.nextjs.assessment.njk" %}
+
+{% block dynamic_imports %}
+const { default: Anthropic } = await import("@anthropic-ai/sdk");
+const client = Sentry.instrumentAnthropicAiClient(new Anthropic({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api",
+}));
+{% endblock %}
+
+{% block probe %}
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
+            const system = request.messages.find((message) => message.role === "system")?.content;
+            const messages = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content }));
+            try {
+              if (request.streaming) {
+                const stream = await client.messages.stream({ model: request.model, max_tokens: 1024, system, messages });
+                for await (const _event of stream) { /* consume stream */ }
+              } else {
+                await client.messages.create({ model: request.model, max_tokens: 1024, system, messages });
+              }
+            } catch (error) {
+              if (probe.input.expectError) { Sentry.captureException(error); continue; }
+              throw error;
+            }
+          }
+{% endblock %}

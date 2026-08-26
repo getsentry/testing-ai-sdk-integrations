@@ -1,7 +1,5 @@
 {
   "name": "langchain",
-  "displayName": "LangChain Python SDK",
-  "type": "llm-only",
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "both",

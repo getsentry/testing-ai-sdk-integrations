@@ -1,58 +1,41 @@
-This repo (hopefully) contains everything needed to test Sentry SDK AI integrations for Python and JavaScript.
+# For humans
 
-Quick start and other goodies can be found in [README.md](./README.md).
+This repository assesses Sentry AI instrumentation by running real SDK operations and evaluating the captured telemetry.
 
-The entire repo was made with Claude Code, and all of the major changes (like refactorings, adding SDKs, etc.) should be done by an agent. Most directories contain README.md files that the agent is instructed to read and update when needed. `.claude/settings.json` makes sure it can't read this file or your `.env`
+## The gist
 
-### The Gist
+- Framework configuration expands into target variants.
+- One generated assessment program runs an ordered probe catalog for each variant.
+- A local span collector receives Sentry envelopes.
+- Evaluators produce atomic observations and severity-ranked findings.
+- Native JSON and HTML reports preserve targets, variants, probes, findings, runtime failures, and span evidence.
 
-- Test definitions (TypeScript) + framework templates (Nunjucks) = generated test files
-- A span collector HTTP server acts as a mock Sentry endpoint
-- Tests make real LLM calls and the Sentry SDK captures spans
-- The validator runs check functions against captured spans
-- Results are reported as CTRF JSON, HTML, and printed to the console
+Product telemetry defects do not stop later probes. Setup, protocol, provider, collector, or process failures can make a variant incomplete and block the remaining probes.
 
-#### What this can do:
+## Coverage
 
-Assert that AI integrations:
+Assessments inspect capabilities including:
 
-- correctly initialize
-- capture all relevant spans in correct order/hierarchy
-- correctly capture available attributes (model, tokens, messages, tool calls)
-- properly handle streaming vs blocking modes
-- properly handle sync vs async execution (Python)
-- trim long messages and redact binary content
+- GenAI client, agent, and tool spans
+- span hierarchy and operation names
+- request and response models
+- token usage
+- modern, legacy, missing, and malformed messages
+- streaming and blocking operations
+- sync and async Python execution
+- provider and tool errors
+- conversation IDs
+- long-input trimming
+- deprecated and unknown convention attributes
 
-#### What this can't do:
+The collector does not verify Relay ingestion or server-side enrichment such as model cost.
 
-Assert that:
+## Adding an integration
 
-- captured spans are accepted by Relay
-- attributes added/derived during ingestion are present and correct (model cost and span buffer)
+- Add `config.json` and `assessment.njk` under `src/runner/templates/{llm|agents}/{platform}/<framework>/`.
+- Keep equivalent JavaScript and Python operations aligned.
+- Pin framework versions in `config.json`.
+- Keep the shared probe catalog intact so every integration is evaluated consistently.
+- Build, run unit checks, list discovery, and render the target before executing provider calls.
 
-### JS vs. Py
-
-The test cases are defined once in TypeScript and then rendered for each framework using Nunjucks templates. While the templates differ between JS and Python, they aim to produce equivalent behavior. Framework-specific quirks are handled in templates and the `skip` configuration.
-
-### Adding another AI SDK integration
-
-- Should be a matter of prompting an agent to do so
-- Make sure to repeat that it should be consistent with the other SDKs
-- Double-check if it wrote BS tests just to have them pass
-- Make sure it DID NOT change any check functions or skip configurations to make the tests pass
-- Make sure the package versions are pinned in `config.json`
-
-### Adding more test cases
-
-- The check functions should be written and double-checked by a human
-- The case should be implemented for all SDKs where it makes sense
-- Test cases are split by type: `llm` (low-level SDKs) and `agent` (agentic frameworks)
-- Use existing check functions from `checks.ts` when possible
-- Add new checks to `checks.ts` if they're reusable across tests
-
-### Versioning
-
-- Every framework has an independent Sentry SDK version specified in `config.json`
-- The `sentryVersions` array can include specific versions or `"latest"`
-- Framework versions are specified in the `versions` array
-- Dependencies use `"framework"` as version to inherit from the framework version
+See `README.md`, `docs/ARCHITECTURE.md`, and `TESTING.md` for commands and design details.

@@ -1,0 +1,28 @@
+{% extends "base.python.assessment.njk" %}
+
+{% block dynamic_imports %}
+from pydantic_ai import Agent
+{% if modelSetup == "fallback" %}
+from pydantic_ai.models.fallback import FallbackModel
+{% endif %}
+{% endblock %}
+
+{% block probe %}
+                for request in probe["input"]["calls"]:
+                    if request.get("conversationId"):
+                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                    system = next((message["content"] for message in request["messages"] if message["role"] == "system"), "Respond briefly.")
+                    prompt = request["messages"][-1]["content"]
+                    try:
+{% if modelSetup == "fallback" %}
+                        agent = Agent(FallbackModel("openai:gpt-4o-mini-bad-model-name", "openai:gpt-5-nano"), system_prompt=system, name="assessment-agent")
+{% else %}
+                        agent = Agent(f"openai:{request['model']}", system_prompt=system, name="assessment-agent")
+{% endif %}
+                        await agent.run(prompt)
+                    except Exception as error:
+                        if probe["input"].get("expectError"):
+                            sentry_sdk.capture_exception(error)
+                            continue
+                        raise
+{% endblock %}

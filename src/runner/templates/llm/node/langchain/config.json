@@ -1,7 +1,5 @@
 {
   "name": "langchain",
-  "displayName": "LangChain JavaScript SDK",
-  "type": "llm-only",
   "platform": "node",
   "streamingMode": "both",
   "dependencies": [

@@ -1,7 +1,5 @@
 {
   "name": "google-genai",
-  "displayName": "Google GenAI Python SDK",
-  "type": "llm-only",
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "both",

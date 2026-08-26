@@ -1,7 +1,5 @@
 {
   "name": "openai",
-  "displayName": "OpenAI Python SDK",
-  "type": "llm-only",
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "both",
@@ -19,13 +17,5 @@
     }
   ],
   "versions": ["2.16.0"],
-  "sentryVersions": ["latest"],
-  "matrix": {
-    "modelProviders": ["openai"]
-  },
-  "skip": {
-    "checks": {
-      "Vision LLM Test": ["checkValidTokenUsage"]
-    }
-  }
+  "sentryVersions": ["latest"]
 }

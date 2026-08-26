@@ -1,7 +1,5 @@
 {
   "name": "anthropic",
-  "displayName": "Anthropic JavaScript SDK (Cloudflare)",
-  "type": "llm-only",
   "platform": "cloudflare",
   "streamingMode": "both",
   "dependencies": [

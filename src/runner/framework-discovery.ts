@@ -1,235 +1,191 @@
-/**
- * Framework Discovery System
- *
- * Scans the templates directory and loads framework configurations.
- */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import type {
+	AssessmentCategory,
+	AssessmentPlatform,
+} from "../assessment/types.js";
+import type {
+	FrameworkConfig,
+	FrameworkDependency,
+	OptionValue,
+} from "./framework-config.js";
 
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
-import { FrameworkConfig } from "./framework-config.js";
-import { getPlatformIcon } from "../platform-utils.js";
+const templatesDirectory = path.join(
+	path.dirname(fileURLToPath(import.meta.url)),
+	"templates",
+);
+const categories = new Set<AssessmentCategory>(["llm", "agents"]);
+const platforms = new Set<AssessmentPlatform>([
+	"node",
+	"python",
+	"nextjs",
+	"cloudflare",
+]);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const TEMPLATES_DIR = path.join(__dirname, "templates");
-
-/**
- * Framework metadata including template path
- */
 export interface DiscoveredFramework extends FrameworkConfig {
-  /** Path to template file */
-  templatePath: string;
-
-  /** Category (llm, agents, etc.) */
-  category: string;
+	templatePath: string;
+	category: AssessmentCategory;
 }
 
-/**
- * Discover all frameworks by scanning templates directory
- *
- * Directory structure:
- *   templates/
- *     {category}/      # llm, agents, etc.
- *       {platform}/    # node, python, browser, nextjs, php
- *         {framework}/ # openai, anthropic, etc.
- *           config.json
- *           template.njk
- */
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+	return (
+		Array.isArray(value) &&
+		value.length > 0 &&
+		value.every((item) => typeof item === "string" && item.length > 0)
+	);
+}
+
+function isDependency(value: unknown): value is FrameworkDependency {
+	return (
+		isRecord(value) &&
+		typeof value.package === "string" &&
+		value.package.length > 0 &&
+		typeof value.version === "string" &&
+		value.version.length > 0
+	);
+}
+
+function isOptionValue(value: unknown): value is OptionValue {
+	if (typeof value === "string") return value.length > 0;
+	return (
+		isRecord(value) &&
+		typeof value.value === "string" &&
+		isRecord(value.overrides)
+	);
+}
+
+function hasValidOptions(value: unknown): boolean {
+	return (
+		value === undefined ||
+		(isRecord(value) &&
+			Object.values(value).every(
+				(options) =>
+					Array.isArray(options) &&
+					options.length > 0 &&
+					options.every(isOptionValue),
+			))
+	);
+}
+
+function hasExecutionMode(value: unknown): boolean {
+	return (
+		value === undefined ||
+		value === "sync" ||
+		value === "async" ||
+		value === "both"
+	);
+}
+
+function hasStreamingMode(value: unknown): boolean {
+	return (
+		value === undefined ||
+		value === "streaming" ||
+		value === "blocking" ||
+		value === "both"
+	);
+}
+
+export function parseFrameworkConfig(
+	value: unknown,
+	expectedPlatform: AssessmentPlatform,
+): FrameworkConfig {
+	if (!isRecord(value)) throw new Error("config must be a JSON object");
+	if (typeof value.name !== "string" || value.name.length === 0) {
+		throw new Error("name must be a non-empty string");
+	}
+	if (value.platform !== expectedPlatform) {
+		throw new Error(
+			`platform must match directory (${expectedPlatform}); received ${String(value.platform)}`,
+		);
+	}
+	if (
+		!Array.isArray(value.dependencies) ||
+		!value.dependencies.every(isDependency)
+	) {
+		throw new Error("dependencies must contain package/version objects");
+	}
+	if (!isStringArray(value.versions)) {
+		throw new Error("versions must be a non-empty string array");
+	}
+	if (!isStringArray(value.sentryVersions)) {
+		throw new Error("sentryVersions must be a non-empty string array");
+	}
+	if (!hasExecutionMode(value.executionMode)) {
+		throw new Error("executionMode must be sync, async, or both");
+	}
+	if (!hasStreamingMode(value.streamingMode)) {
+		throw new Error("streamingMode must be streaming, blocking, or both");
+	}
+	if (!hasValidOptions(value.options)) {
+		throw new Error("options must contain non-empty option arrays");
+	}
+	return value as unknown as FrameworkConfig;
+}
+
+function childDirectories(directory: string): string[] {
+	const names: string[] = [];
+	for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+		if (entry.isDirectory() && !entry.name.startsWith(".")) {
+			names.push(entry.name);
+		}
+	}
+	return names.sort((left, right) => left.localeCompare(right));
+}
+
+function loadFramework(
+	frameworkPath: string,
+	platform: AssessmentPlatform,
+	category: AssessmentCategory,
+): DiscoveredFramework {
+	const configPath = path.join(frameworkPath, "config.json");
+	const templatePath = path.join(frameworkPath, "assessment.njk");
+	if (!fs.existsSync(configPath) || !fs.existsSync(templatePath)) {
+		throw new Error(
+			`Missing config.json or assessment.njk in ${frameworkPath}`,
+		);
+	}
+	try {
+		const config = parseFrameworkConfig(
+			JSON.parse(fs.readFileSync(configPath, "utf8")),
+			platform,
+		);
+		return { ...config, templatePath, category };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Invalid framework config ${configPath}: ${message}`, {
+			cause: error,
+		});
+	}
+}
+
 export function discoverFrameworks(): DiscoveredFramework[] {
-  const frameworks: DiscoveredFramework[] = [];
-
-  if (!fs.existsSync(TEMPLATES_DIR)) {
-    throw new Error(`Templates directory not found: ${TEMPLATES_DIR}`);
-  }
-
-  // Scan categories (llm, agents, etc.)
-  const categories = fs
-    .readdirSync(TEMPLATES_DIR, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory() && !dirent.name.startsWith("."))
-    .map((dirent) => dirent.name);
-
-  for (const category of categories) {
-    const categoryPath = path.join(TEMPLATES_DIR, category);
-
-    // Scan platforms (node, python, browser)
-    const platforms = fs
-      .readdirSync(categoryPath, { withFileTypes: true })
-      .filter(
-        (dirent) =>
-          dirent.isDirectory() &&
-          (dirent.name === "node" ||
-            dirent.name === "python" ||
-            dirent.name === "browser" ||
-            dirent.name === "nextjs" ||
-            dirent.name === "php" ||
-            dirent.name === "cloudflare"),
-      )
-      .map((dirent) => dirent.name);
-
-    for (const platform of platforms) {
-      const platformPath = path.join(categoryPath, platform);
-
-      // Scan framework directories
-      const frameworkDirs = fs
-        .readdirSync(platformPath, { withFileTypes: true })
-        .filter(
-          (dirent) => dirent.isDirectory() && !dirent.name.startsWith("."),
-        )
-        .map((dirent) => dirent.name);
-
-      for (const frameworkDir of frameworkDirs) {
-        const frameworkPath = path.join(platformPath, frameworkDir);
-        const configPath = path.join(frameworkPath, "config.json");
-        const templatePath = path.join(frameworkPath, "template.njk");
-
-        // Validate required files exist
-        if (!fs.existsSync(configPath)) {
-          console.warn(`Warning: Missing config.json in ${frameworkPath}`);
-          continue;
-        }
-
-        if (!fs.existsSync(templatePath)) {
-          console.warn(`Warning: Missing template.njk in ${frameworkPath}`);
-          continue;
-        }
-
-        // Load and validate config
-        try {
-          const configContent = fs.readFileSync(configPath, "utf-8");
-          const config = JSON.parse(configContent) as FrameworkConfig;
-
-          // Validate required fields
-          if (
-            !config.name ||
-            !config.displayName ||
-            !config.type ||
-            !config.platform
-          ) {
-            console.warn(
-              `Warning: Invalid config in ${configPath} - missing required fields`,
-            );
-            continue;
-          }
-
-          // Validate required arrays
-          if (!config.versions || config.versions.length === 0) {
-            console.warn(
-              `Warning: Invalid config in ${configPath} - missing or empty 'versions' array`,
-            );
-            continue;
-          }
-          if (!config.sentryVersions || config.sentryVersions.length === 0) {
-            console.warn(
-              `Warning: Invalid config in ${configPath} - missing or empty 'sentryVersions' array`,
-            );
-            continue;
-          }
-
-          // Skip disabled frameworks
-          if (config.disabled) {
-            continue;
-          }
-
-          // Validate platform matches directory structure
-          if (config.platform !== platform) {
-            console.warn(
-              `Warning: Platform mismatch in ${configPath} - expected ${platform}, got ${config.platform}`,
-            );
-            continue;
-          }
-
-          // Add discovered framework
-          frameworks.push({
-            ...config,
-            templatePath,
-            category,
-          });
-        } catch (error) {
-          console.warn(
-            `Warning: Failed to load config from ${configPath}:`,
-            error,
-          );
-          continue;
-        }
-      }
-    }
-  }
-
-  return frameworks;
-}
-
-/**
- * Get frameworks by category (llm, agents, etc.)
- */
-export function getFrameworksByCategory(
-  category: string,
-): DiscoveredFramework[] {
-  return discoverFrameworks().filter((f) => f.category === category);
-}
-
-/**
- * Get frameworks by platform (node, py, browser)
- */
-export function getFrameworksByPlatform(
-  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare",
-): DiscoveredFramework[] {
-  return discoverFrameworks().filter((f) => f.platform === platform);
-}
-
-/**
- * Get frameworks by type (llm-only, agentic)
- */
-export function getFrameworksByType(
-  type: "llm-only" | "agentic",
-): DiscoveredFramework[] {
-  return discoverFrameworks().filter((f) => f.type === type);
-}
-
-/**
- * Get a specific framework by name
- */
-export function getFrameworkByName(
-  name: string,
-): DiscoveredFramework | undefined {
-  return discoverFrameworks().find((f) => f.name === name);
-}
-
-/**
- * List all available frameworks (for CLI display)
- */
-export function listFrameworks(): void {
-  const frameworks = discoverFrameworks();
-
-  if (frameworks.length === 0) {
-    console.log("No frameworks discovered.");
-    return;
-  }
-
-  console.log(`\nDiscovered ${frameworks.length} framework(s):\n`);
-
-  // Group by category
-  const byCategory = frameworks.reduce(
-    (acc, f) => {
-      if (!acc[f.category]) acc[f.category] = [];
-      acc[f.category].push(f);
-      return acc;
-    },
-    {} as Record<string, DiscoveredFramework[]>,
-  );
-
-  for (const [category, categoryFrameworks] of Object.entries(byCategory)) {
-    console.log(`${category.toUpperCase()}:`);
-
-    for (const framework of categoryFrameworks) {
-      const platformIcon = getPlatformIcon(framework.platform);
-      const typeIcon = framework.type === "agentic" ? "🤖" : framework.type === "embeddings" ? "🔢" : "💬";
-
-      console.log(`  ${platformIcon} ${typeIcon} ${framework.name}`);
-      console.log(`     ${framework.displayName}`);
-      console.log(`     Versions: ${framework.versions.join(", ")}`);
-      console.log(`     Sentry: ${framework.sentryVersions.join(", ")}`);
-      console.log();
-    }
-  }
+	if (!fs.existsSync(templatesDirectory)) {
+		throw new Error(`Templates directory not found: ${templatesDirectory}`);
+	}
+	const frameworks: DiscoveredFramework[] = [];
+	for (const categoryName of childDirectories(templatesDirectory)) {
+		if (!categories.has(categoryName as AssessmentCategory)) continue;
+		const category = categoryName as AssessmentCategory;
+		const categoryPath = path.join(templatesDirectory, category);
+		for (const platformName of childDirectories(categoryPath)) {
+			if (!platforms.has(platformName as AssessmentPlatform)) continue;
+			const platform = platformName as AssessmentPlatform;
+			const platformPath = path.join(categoryPath, platform);
+			for (const frameworkName of childDirectories(platformPath)) {
+				frameworks.push(
+					loadFramework(
+						path.join(platformPath, frameworkName),
+						platform,
+						category,
+					),
+				);
+			}
+		}
+	}
+	return frameworks;
 }

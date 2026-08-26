@@ -1,14 +1,9 @@
 {
   "name": "manual",
-  "displayName": "Manual Python LLM (Reference)",
-  "type": "llm-only",
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "blocking",
   "dependencies": [],
   "versions": ["1.0.0"],
-  "sentryVersions": ["latest"],
-  "skip": {
-    "tests": ["Basic Error LLM Test"]
-  }
+  "sentryVersions": ["latest"]
 }

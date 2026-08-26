@@ -1,7 +1,5 @@
 {
   "name": "langgraph",
-  "displayName": "LangGraph JavaScript SDK",
-  "type": "agentic",
   "platform": "node",
   "dependencies": [
     {

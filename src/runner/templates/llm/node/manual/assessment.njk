@@ -1,0 +1,41 @@
+{% extends "base.node.assessment.njk" %}
+
+{% block probe %}
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") {
+              Sentry.setConversationId(request.conversationId);
+            }
+            const inputTokens = Math.max(
+              1,
+              Math.ceil(request.messages.reduce((size, message) => size + message.content.length, 0) / 4),
+            );
+            const outputTokens = 16;
+            const originalMessages = JSON.stringify(request.messages);
+            const capturedMessages = originalMessages.length > 10_000
+              ? JSON.stringify(request.messages.map((message) => ({
+                  ...message,
+                  content: message.content.length > 200 ? `${message.content.slice(0, 200)}... [trimmed]` : message.content,
+                })))
+              : originalMessages;
+            await Sentry.startSpan(
+              { op: "gen_ai.chat", name: `chat ${request.model}` },
+              (span) => {
+                span.setAttribute("gen_ai.operation.name", "chat");
+                span.setAttribute("gen_ai.request.model", request.model);
+                span.setAttribute("gen_ai.response.model", request.model);
+                span.setAttribute("gen_ai.usage.input_tokens", inputTokens);
+                span.setAttribute("gen_ai.usage.output_tokens", outputTokens);
+                span.setAttribute("gen_ai.usage.total_tokens", inputTokens + outputTokens);
+                span.setAttribute("gen_ai.input.messages", capturedMessages);
+                span.setAttribute(
+                  "gen_ai.output.messages",
+                  JSON.stringify([{ role: "assistant", content: "Assessment response" }]),
+                );
+                if (probe.input.expectError) {
+                  span.setAttribute("error.type", "AssessmentProviderError");
+                  span.setStatus("internal_error");
+                }
+              },
+            );
+          }
+{% endblock %}

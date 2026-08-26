@@ -1,7 +1,5 @@
 {
   "name": "litellm",
-  "displayName": "LiteLLM Python SDK",
-  "type": "llm-only",
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "both",

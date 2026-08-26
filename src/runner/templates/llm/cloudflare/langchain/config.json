@@ -1,7 +1,5 @@
 {
   "name": "langchain",
-  "displayName": "LangChain JavaScript SDK (Cloudflare)",
-  "type": "llm-only",
   "platform": "cloudflare",
   "streamingMode": "both",
   "dependencies": [

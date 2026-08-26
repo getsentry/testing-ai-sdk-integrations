@@ -1,0 +1,42 @@
+{% extends baseTemplate %}
+
+{% block dynamic_imports %}
+const { Agent } = await import("@mastra/core/agent");
+const { Mastra } = await import("@mastra/core");
+const { Observability } = await import("@mastra/observability");
+const { SentryExporter } = await import("@mastra/sentry");
+const { createTool } = await import("@mastra/core/tools");
+const { z } = await import("zod");
+const mastra = new Mastra({
+  observability: new Observability({ configs: { sentry: { serviceName: "assessment-mastra", exporters: [new SentryExporter({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 })] } } }),
+});
+{% endblock %}
+
+{% block probe %}
+          const tools = Object.fromEntries((probe.input.tools ?? []).map((definition) => [
+            definition.name,
+            createTool({
+              id: definition.name,
+              description: definition.description,
+              inputSchema: z.object({}).passthrough(),
+              outputSchema: z.object({ result: z.unknown() }),
+              execute: async () => {
+                if (definition.error) throw new Error(definition.error);
+                return { result: definition.result };
+              },
+            }),
+          ]));
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
+            const instructions = request.messages.find((message) => message.role === "system")?.content ?? "Respond briefly.";
+            const messages = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content }));
+            try {
+              const agent = new Agent({ id: "assessment-agent", name: "Assessment Agent", instructions, model: `openai/${request.model}`, tools });
+              mastra.addAgent?.(agent);
+              await agent.generate(messages, { maxSteps: 10 });
+            } catch (error) {
+              if (probe.input.expectError) { Sentry.captureException(error); continue; }
+              throw error;
+            }
+          }
+{% endblock %}

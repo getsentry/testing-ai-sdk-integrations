@@ -1,7 +1,5 @@
 {
   "name": "langgraph",
-  "displayName": "LangGraph Python SDK",
-  "type": "agentic",
   "platform": "python",
   "executionMode": "both",
   "dependencies": [

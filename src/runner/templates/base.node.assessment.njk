@@ -1,0 +1,83 @@
+// Generated Sentry AI assessment program. Do not edit.
+import * as Sentry from "@sentry/node";
+
+const EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ ";
+const emit = (event) => console.log(`${EVENT_PREFIX}${JSON.stringify(event)}`);
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  sendDefaultPii: true,
+  tracesSampleRate: 1.0,
+  streamGenAiSpans: true,
+});
+
+{% block dynamic_imports %}{% endblock %}
+
+const probes = {{ probes | tojson }};
+
+async function flushSentry(probeId) {
+  let message;
+  try {
+    if (await Sentry.flush(5000)) return true;
+    message = "Sentry flush timed out before all telemetry was sent.";
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  const failure = { kind: "flush", message, stopsVariant: true };
+  if (probeId) failure.probeId = probeId;
+  emit({ type: "runtime_failure", failure, timestamp: new Date().toISOString() });
+  return false;
+}
+
+async function runAssessment() {
+  let blocked = false;
+
+  for (const probe of probes) {
+    if (blocked) {
+      emit({ type: "probe_blocked", probeId: probe.id });
+      continue;
+    }
+
+    emit({ type: "probe_started", probeId: probe.id, timestamp: new Date().toISOString() });
+    try {
+      await Sentry.startSpan(
+        {
+          name: probe.id,
+          op: "test.assessment",
+          attributes: {
+            "test.assessment.id": "{{ targetId }}",
+            "test.variant.id": "{{ variantId }}",
+            "test.probe.id": probe.id,
+          },
+        },
+        async () => {
+{% block probe %}
+          throw new Error("Assessment adapter does not implement this probe.");
+{% endblock %}
+        },
+      );
+      emit({ type: "probe_finished", probeId: probe.id, status: "completed", timestamp: new Date().toISOString() });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const failure = {
+        kind: "provider",
+        message,
+        probeId: probe.id,
+        stopsVariant: Boolean(probe.stopsVariantOnFailure),
+      };
+      emit({ type: "probe_failed", probeId: probe.id, status: "failed", failure, timestamp: new Date().toISOString() });
+      if (failure.stopsVariant) blocked = true;
+    } finally {
+      if (!(await flushSentry(probe.id))) blocked = true;
+    }
+  }
+
+  emit({ type: "assessment_finished", timestamp: new Date().toISOString() });
+  await flushSentry();
+}
+
+runAssessment().catch((error) => {
+  emit({ type: "assessment_finished", timestamp: new Date().toISOString() });
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -1,0 +1,57 @@
+{% extends "base.python.assessment.njk" %}
+
+{% block dynamic_imports %}
+import litellm
+MODEL_PREFIX = "openrouter/anthropic" if {{ provider | tojson }} == "anthropic" else "openai"
+{% endblock %}
+
+{% block probe %}
+                for request in probe["input"]["calls"]:
+                    if request.get("conversationId"):
+                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                    model = f"{MODEL_PREFIX}/{request['model']}"
+                    try:
+{% if apiStyle == "responses" %}
+                        instructions = next((message["content"] for message in request["messages"] if message["role"] == "system"), None)
+                        input_messages = [message for message in request["messages"] if message["role"] != "system"]
+                        kwargs = {"model": model, "input": input_messages}
+                        if instructions:
+                            kwargs["instructions"] = instructions
+                        if request.get("streaming", False):
+{% if isAsync %}
+                            stream = await litellm.aresponses(stream=True, **kwargs)
+                            async for _event in stream:
+                                pass
+{% else %}
+                            for _event in litellm.responses(stream=True, **kwargs):
+                                pass
+{% endif %}
+                        else:
+{% if isAsync %}
+                            await litellm.aresponses(**kwargs)
+{% else %}
+                            litellm.responses(**kwargs)
+{% endif %}
+{% else %}
+                        if request.get("streaming", False):
+{% if isAsync %}
+                            stream = await litellm.acompletion(model=model, messages=request["messages"], stream=True)
+                            async for _chunk in stream:
+                                pass
+{% else %}
+                            for _chunk in litellm.completion(model=model, messages=request["messages"], stream=True):
+                                pass
+{% endif %}
+                        else:
+{% if isAsync %}
+                            await litellm.acompletion(model=model, messages=request["messages"])
+{% else %}
+                            litellm.completion(model=model, messages=request["messages"])
+{% endif %}
+{% endif %}
+                    except Exception as error:
+                        if probe["input"].get("expectError"):
+                            sentry_sdk.capture_exception(error)
+                            continue
+                        raise
+{% endblock %}
