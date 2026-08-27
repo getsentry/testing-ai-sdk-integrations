@@ -9,9 +9,9 @@
     },
     {
       "package": "openai",
-      "version": ">=2.9,<2.45"
+      "version": ">=3,<4"
     }
   ],
-  "versions": ["0.7.0"],
+  "versions": ["0.22.0"],
   "sentryVersions": ["latest"]
 }

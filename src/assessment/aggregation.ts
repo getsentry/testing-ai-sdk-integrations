@@ -1,6 +1,7 @@
 import { deriveCompletion, deriveHealth, worseHealth } from "./health.js";
 import { averageScore, classifyScore, scoreVariant } from "./scoring.js";
 import type {
+	AssessmentCategory,
 	AssessmentHealth,
 	AssessmentReport,
 	AssessmentSummary,
@@ -71,6 +72,7 @@ export function finalizeVariant(
 	> & {
 		findings: Finding[];
 	},
+	category?: AssessmentCategory,
 ): VariantAssessment {
 	const findings = deduplicateFindings(variant.findings);
 	const completion = deriveCompletion(variant.runtimeFailures);
@@ -80,6 +82,8 @@ export function finalizeVariant(
 		completion,
 		observations: variant.observations,
 		findings,
+		probes: variant.probes,
+		category,
 	});
 	return {
 		...variant,
@@ -180,7 +184,7 @@ export function createReport(
 	const orderedTargets = [...targets].sort((a, b) => a.id.localeCompare(b.id));
 	return {
 		schemaVersion: "2",
-		scoringVersion: "2",
+		scoringVersion: "3",
 		generatedAt,
 		durationMs,
 		targets: orderedTargets,

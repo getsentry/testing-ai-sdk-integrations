@@ -579,7 +579,7 @@ test("maps every degraded evaluator outcome to a finding", () => {
 	}
 });
 
-test("reports deprecated and unknown conventions and unassigned spans", () => {
+test("reports deprecated and unknown conventions and unassigned GenAI spans", () => {
 	const telemetry = client("conventions", {
 		data: {
 			...client().data,
@@ -597,6 +597,15 @@ test("reports deprecated and unknown conventions and unassigned spans", () => {
 	assert.equal(
 		evaluateUnassignedSpans("variant", [telemetry])[0]?.state,
 		"missing",
+	);
+	const unrelatedSpan = {
+		...client("request"),
+		op: "http.server",
+		data: {},
+	};
+	assert.equal(
+		evaluateUnassignedSpans("variant", [unrelatedSpan])[0]?.state,
+		"healthy",
 	);
 	assert.equal(evaluateUnassignedSpans("variant", [])[0]?.state, "healthy");
 });

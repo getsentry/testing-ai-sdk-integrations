@@ -12,7 +12,7 @@ import {
 function report(): AssessmentReport {
 	return {
 		schemaVersion: "2",
-		scoringVersion: "2",
+		scoringVersion: "3",
 		generatedAt: "2026-01-01T00:00:00.000Z",
 		durationMs: 10,
 		summary: {
@@ -110,6 +110,11 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 	assert.match(html, /10\.42\.0/);
 	assert.match(html, /requested sentry/);
 	assert.match(html, /blocking \+ streaming/);
+	assert.match(html, /Variant scores use fixed telemetry domains/);
+	assert.match(html, /critical at 59/);
+	assert.match(html, /data-target-id="node\/llm\/openai"/);
+	assert.match(html, /function filteredTrendEntries/);
+	assert.match(html, /renderDashboardTrend\(allMatches,filtering\)/);
 	assert.deepEqual(assessment, before);
 
 	const directory = await mkdtemp(path.join(os.tmpdir(), "assessment-html-"));

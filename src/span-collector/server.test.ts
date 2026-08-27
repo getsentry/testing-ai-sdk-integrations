@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { partitionSpansByProbe } from "../assessment/partition.js";
 import { SpanCollector } from "./server.js";
 
 async function postEnvelope(dsn: string, body: string): Promise<Response> {
@@ -11,6 +12,83 @@ async function postEnvelope(dsn: string, body: string): Promise<Response> {
 		headers: { "content-type": "application/x-sentry-envelope" },
 	});
 }
+
+test("collects and assigns Python transaction roots with ISO timestamps", async () => {
+	const collector = new SpanCollector();
+	await collector.start();
+	try {
+		const runId = "python-collector-test";
+		collector.registerRun(runId);
+		const dsn = collector.getDsn(runId);
+		const transaction = [
+			JSON.stringify({ event_id: "python-event" }),
+			JSON.stringify({ type: "transaction" }),
+			JSON.stringify({
+				type: "transaction",
+				transaction: "llm.baseline",
+				contexts: {
+					trace: {
+						span_id: "python-root",
+						trace_id: "python-trace",
+						op: "test.assessment",
+						data: { "test.probe.id": "llm.baseline" },
+					},
+				},
+				start_timestamp: "2026-08-27T05:35:38.442666Z",
+				timestamp: "2026-08-27T05:35:38.443051Z",
+				spans: [],
+			}),
+		].join("\n");
+		const transactionResponse = await postEnvelope(dsn, transaction);
+		assert.equal(transactionResponse.status, 200);
+
+		const spanV2 = [
+			JSON.stringify({ event_id: "python-span-event" }),
+			JSON.stringify({
+				type: "span",
+				content_type: "application/vnd.sentry.items.span.v2+json",
+			}),
+			JSON.stringify({
+				version: 2,
+				items: [
+					{
+						span_id: "python-child",
+						trace_id: "python-trace",
+						parent_span_id: "python-root",
+						name: "chat model",
+						start_timestamp: 1,
+						end_timestamp: 2,
+						attributes: {
+							"sentry.op": { type: "string", value: "gen_ai.chat" },
+						},
+					},
+				],
+			}),
+		].join("\n");
+		const spanResponse = await postEnvelope(dsn, spanV2);
+		assert.equal(spanResponse.status, 200);
+
+		const spans = collector.getSpans(runId);
+		const root = spans.find((span) => span.span_id === "python-root");
+		assert.equal(
+			root?.start_timestamp,
+			Date.parse("2026-08-27T05:35:38.442666Z") / 1_000,
+		);
+		assert.equal(
+			root?.timestamp,
+			Date.parse("2026-08-27T05:35:38.443051Z") / 1_000,
+		);
+		assert.deepEqual(
+			partitionSpansByProbe(spans)
+				.byProbe.get("llm.baseline")
+				?.map((span) => span.span_id)
+				.sort((left, right) => left.localeCompare(right)),
+			["python-child", "python-root"],
+		);
+	} finally {
+		await collector.stop();
+	}
+});
 
 test("collects transaction and span-v2 envelope items for a registered run", async () => {
 	const collector = new SpanCollector();

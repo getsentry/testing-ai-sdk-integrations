@@ -94,10 +94,7 @@ export class CloudflareRunner implements AssessmentRunner {
 				].join("\n"),
 				{ encoding: "utf8", mode: 0o600 },
 			);
-			const configPath = path.join(
-				context.workDir,
-				"wrangler.assessment.json",
-			);
+			const configPath = path.join(context.workDir, "wrangler.assessment.json");
 			await writeFile(
 				configPath,
 				`${JSON.stringify(

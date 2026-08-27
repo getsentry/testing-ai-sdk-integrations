@@ -107,20 +107,18 @@ Normalizers distinguish modern, legacy, malformed, missing, and blocked capabili
 
 `src/assessment/aggregation.ts` deduplicates findings within variants and targets, derives completion and health, computes scores, and creates the report summary.
 
-`src/assessment/scoring.ts` calculates a severity-weighted observation average:
+`src/assessment/scoring.ts` scores fixed telemetry domains rather than raw span
+observations. Repeated spans add evidence without adding positive points. Each
+domain uses its worst applicable outcome: healthy is 100, info is 95, minor is
+80, major is 50, and critical is 20. Product-blocked domains inherit a critical
+capture prerequisite so missing telemetry is not excluded from the score.
 
-| Finding severity | Quality value | Weight |
-| ---------------- | ------------: | -----: |
-| Critical         |             0 |     10 |
-| Major            |            50 |      5 |
-| Minor            |            80 |      2 |
-| Info             |            95 |      1 |
-
-Healthy observations receive 100 with weight 1. Blocked observations do not
-affect the score. Incomplete execution receives score 0 and the `out_of_spec`
-classification. Target scores average their variants; the report score averages
-targets so integrations with more variants do not dominate the user-facing
-result.
+The worst finding limits a complete score to 95 for info, 90 for minor, 75 for
+major, or 59 for critical. A variant that never starts scores 0. Partial
+execution receives a positive score adjusted by the proportion of completed
+probes and remains `out_of_spec`. Target scores average their capped variant
+scores; the report score averages targets so integrations with more variants do
+not dominate the user-facing result.
 
 ### Reporting
 
@@ -129,7 +127,7 @@ result.
 The dashboard shows a compact, searchable platform/framework matrix with:
 
 - platform brand icons
-- severity-weighted scores
+- domain-weighted scores
 - positive quality classifications
 - runtime, version, mode, and option details
 - findings, probes, trace trees, and artifacts

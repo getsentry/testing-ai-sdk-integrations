@@ -8,17 +8,17 @@
     },
     {
       "package": "@mastra/sentry",
-      "version": "1.0.11"
+      "version": "1.2.13"
     },
     {
       "package": "@mastra/observability",
-      "version": "1.7.1"
+      "version": "1.17.3"
     },
     {
       "package": "next",
       "version": "latest"
     }
   ],
-  "versions": ["1.21.0"],
+  "versions": ["1.63.0"],
   "sentryVersions": ["latest"]
 }

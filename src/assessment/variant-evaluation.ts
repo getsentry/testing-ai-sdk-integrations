@@ -111,16 +111,19 @@ export function evaluateVariant(
 		const finding = findingFromObservation(observation);
 		return finding ? [finding] : [];
 	});
-	return finalizeVariant({
-		id: input.variant.id,
-		identity: input.variant.identity,
-		resolvedSentryVersion: input.resolvedSentryVersion,
-		probes: input.probes,
-		observations,
-		findings,
-		runtimeFailures: input.runtimeFailures,
-		spans: input.spans,
-		generatedProgramPath: input.generatedProgramPath,
-		logPath: input.logPath,
-	});
+	return finalizeVariant(
+		{
+			id: input.variant.id,
+			identity: input.variant.identity,
+			resolvedSentryVersion: input.resolvedSentryVersion,
+			probes: input.probes,
+			observations,
+			findings,
+			runtimeFailures: input.runtimeFailures,
+			spans: input.spans,
+			generatedProgramPath: input.generatedProgramPath,
+			logPath: input.logPath,
+		},
+		input.category,
+	);
 }

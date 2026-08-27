@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createReport, summarizeReport } from "./aggregation.js";
+import {
+	aggregateTarget,
+	createReport,
+	summarizeReport,
+} from "./aggregation.js";
 import type { TargetAssessment, VariantAssessment } from "./types.js";
 
 function variant(id: string, score: number): VariantAssessment {
@@ -58,9 +62,17 @@ test("report score gives each integration equal influence", () => {
 	assert.equal(summary.variants, 11);
 });
 
+test("target scores average their capped variant scores", () => {
+	const aggregated = aggregateTarget(
+		{ platform: "node", category: "llm", framework: "integration" },
+		[variant("integration/minor", 90), variant("integration/major", 75)],
+	);
+	assert.equal(aggregated.score, 83);
+});
+
 test("reports identify the scoring contract", () => {
 	const report = createReport([target("integration", 100, [100])], 25);
 
 	assert.equal(report.schemaVersion, "2");
-	assert.equal(report.scoringVersion, "2");
+	assert.equal(report.scoringVersion, "3");
 });

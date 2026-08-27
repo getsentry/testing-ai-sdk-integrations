@@ -104,7 +104,7 @@ jobs:
           PAGES_REPOSITORY: ${{ github.event.repository.name }}
         run: |
           pages_url="https://${PAGES_OWNER}.github.io/${PAGES_REPOSITORY}"
-          curl -sSf "$pages_url/history.json" -o history.json 2>/dev/null || echo '{"schemaVersion":"3","scoringVersion":"2","entries":[]}' > history.json
+          curl -sSf "$pages_url/history.json" -o history.json 2>/dev/null || echo '{"schemaVersion":"3","scoringVersion":"3","entries":[]}' > history.json
 
       - name: Update assessment history
         run: node .github/scripts/update-assessment-history.cjs "$REPORT_JSON" history.json

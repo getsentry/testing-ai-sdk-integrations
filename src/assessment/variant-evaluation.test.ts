@@ -24,6 +24,71 @@ function client(spanId: string): CapturedSpan {
 	};
 }
 
+test("does not treat an agent span as a client span", () => {
+	const probe: ProbeResult = {
+		probeId: "agent.baseline",
+		status: "completed",
+		callModes: ["blocking"],
+		traceIds: ["trace"],
+		spanIds: ["root", "agent"],
+	};
+	const assessment = evaluateVariant({
+		variant: {
+			id: "variant",
+			targetId: "node/agents/openai-agents",
+			identity: {
+				frameworkVersion: "latest",
+				sentryVersion: "latest",
+				options: {},
+			},
+			modelOverrides: {},
+		},
+		category: "agents",
+		probes: [probe],
+		spans: [
+			{
+				span_id: "root",
+				trace_id: "trace",
+				op: "test.assessment",
+				start_timestamp: 1,
+				timestamp: 2,
+				data: { "test.probe.id": "agent.baseline" },
+			},
+			{
+				span_id: "agent",
+				trace_id: "trace",
+				parent_span_id: "root",
+				op: "gen_ai.agent",
+				description: "workflow",
+				start_timestamp: 1.1,
+				timestamp: 1.9,
+				data: { "gen_ai.operation.name": "ai.run.workflow" },
+			},
+		],
+		runtimeFailures: [],
+	});
+
+	assert.equal(
+		assessment.observations.find(
+			(observation) => observation.capability === "spans.client",
+		)?.state,
+		"missing",
+	);
+	for (const capability of [
+		"model.request",
+		"model.response",
+		"messages.input",
+		"messages.output",
+	]) {
+		assert.equal(
+			assessment.observations.find(
+				(observation) => observation.capability === capability,
+			)?.state,
+			"blocked",
+		);
+	}
+});
+
 test("evaluates model and message telemetry for both call modes", () => {
 	const probe: ProbeResult = {
 		probeId: "llm.baseline",

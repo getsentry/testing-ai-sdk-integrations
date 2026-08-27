@@ -18,6 +18,17 @@ function parseJson(line: string | undefined): unknown {
 	}
 }
 
+function parseTimestamp(value: unknown): number | undefined {
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? value : undefined;
+	}
+	if (typeof value !== "string" || value.trim() === "") return undefined;
+	const numeric = Number(value);
+	if (Number.isFinite(numeric)) return numeric;
+	const milliseconds = Date.parse(value);
+	return Number.isFinite(milliseconds) ? milliseconds / 1_000 : undefined;
+}
+
 function v2SpanToCapturedSpan(value: unknown): CapturedSpan | undefined {
 	if (!isRecord(value)) return undefined;
 	const data: Record<string, unknown> = {};
@@ -62,11 +73,13 @@ function embeddedTransactionSpan(
 	if (!isRecord(body.contexts) || !isRecord(body.contexts.trace))
 		return undefined;
 	const trace = body.contexts.trace;
+	const startTimestamp = parseTimestamp(body.start_timestamp);
+	const endTimestamp = parseTimestamp(body.timestamp);
 	if (
 		typeof trace.span_id !== "string" ||
 		typeof trace.trace_id !== "string" ||
-		typeof body.start_timestamp !== "number" ||
-		typeof body.timestamp !== "number"
+		startTimestamp === undefined ||
+		endTimestamp === undefined
 	) {
 		return undefined;
 	}
@@ -87,8 +100,8 @@ function embeddedTransactionSpan(
 				: undefined,
 		op,
 		description,
-		start_timestamp: body.start_timestamp,
-		timestamp: body.timestamp,
+		start_timestamp: startTimestamp,
+		timestamp: endTimestamp,
 		data: isRecord(trace.data) ? trace.data : {},
 		status: typeof trace.status === "string" ? trace.status : undefined,
 	};

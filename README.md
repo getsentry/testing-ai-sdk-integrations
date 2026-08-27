@@ -79,20 +79,26 @@ every probe.
 
 ### Scores
 
-Every completed variant receives a severity-weighted score from 0 to 100, and
-each platform/framework target receives one average score across its internal
-variants. The overall score averages targets so every integration has equal
-influence regardless of its variant count. Healthy observations score 100.
-Findings use these quality values and weights:
+Every variant receives a score from 0 to 100 across a fixed set of telemetry
+domains. Span volume does not affect the score: repeated spans add evidence but
+not positive points. Each domain uses its worst applicable finding, with quality
+values of 95 for info, 80 for minor, 50 for major, and 20 for critical findings.
+Healthy domains score 100.
 
-| Finding  | Quality value | Weight |
-| -------- | ------------: | -----: |
-| Critical |             0 |     10 |
-| Major    |            50 |      5 |
-| Minor    |            80 |      2 |
-| Info     |            95 |      1 |
+The worst finding also limits the final score:
 
-Blocked observations are excluded from the average. Incomplete variants score 0 and are classified as out of spec.
+| Worst finding | Maximum score |
+| ------------- | ------------: |
+| Critical      |            59 |
+| Major         |            75 |
+| Minor         |            90 |
+| Info          |            95 |
+| None          |           100 |
+
+A variant that never starts scores 0. Partial execution receives a positive
+coverage-adjusted score and remains classified as out of spec. Target scores
+average their capped variant scores. The overall score averages targets so every
+integration has equal influence regardless of its variant count.
 
 The dashboard presents the numeric score and finding count without adding a
 quality label. Scores of 85 and above use green consistently across framework,

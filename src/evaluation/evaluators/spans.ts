@@ -1,24 +1,9 @@
-import type { Observation, ProbeResult } from "../../assessment/types.js";
-import type { CapturedSpan } from "../../assessment/types.js"
-
-function isGenAiSpan(span: CapturedSpan): boolean {
-	return (
-		(typeof span.op === "string" && span.op.startsWith("gen_ai")) ||
-		Object.keys(span.data ?? {}).some((attribute) =>
-			attribute.startsWith("gen_ai."),
-		)
-	);
-}
-
-function isClientSpan(span: CapturedSpan): boolean {
-	const operation = span.data?.["gen_ai.operation.name"];
-	return (
-		isGenAiSpan(span) &&
-		typeof operation === "string" &&
-		!operation.includes("tool") &&
-		!operation.includes("agent")
-	);
-}
+import type {
+	CapturedSpan,
+	Observation,
+	ProbeResult,
+} from "../../assessment/types.js";
+import { isClientSpan, isGenAiSpan } from "./telemetry-shared.js";
 
 export interface ClientSpanEvaluation {
 	clientSpan?: CapturedSpan;

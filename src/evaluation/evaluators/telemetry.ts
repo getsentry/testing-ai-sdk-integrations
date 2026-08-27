@@ -117,7 +117,8 @@ export function evaluateUnassignedSpans(
 	variantId: string,
 	spans: readonly CapturedSpan[],
 ): Observation[] {
-	if (spans.length === 0) {
+	const genAiSpans = spans.filter(isGenAiSpan);
+	if (genAiSpans.length === 0) {
 		return [
 			{
 				observationId: "spans.assignment",
@@ -129,7 +130,7 @@ export function evaluateUnassignedSpans(
 			},
 		];
 	}
-	return spans.map((span) => ({
+	return genAiSpans.map((span) => ({
 		observationId: `spans.assignment:${span.span_id}`,
 		capability: "spans.assignment",
 		state: "missing" as const,

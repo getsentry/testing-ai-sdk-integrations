@@ -156,7 +156,7 @@ export interface AssessmentSummary {
 
 export interface AssessmentReport {
 	schemaVersion: "2";
-	scoringVersion: "2";
+	scoringVersion: "2" | "3";
 	generatedAt: string;
 	durationMs: number;
 	targets: TargetAssessment[];
