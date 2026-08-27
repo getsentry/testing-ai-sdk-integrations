@@ -56,7 +56,10 @@ test("marks unfinished probes failed after the terminal event", () => {
 	assert.equal(running.status, "failed");
 	assert.equal(pending.status, "failed");
 	assert.deepEqual(failures, [running.runtimeError, pending.runtimeError]);
-	assert.equal(failures.every((failure) => failure.stopsVariant), true);
+	assert.equal(
+		failures.every((failure) => failure.stopsVariant),
+		true,
+	);
 });
 
 test("reconciles probe status, duration, and runtime failures", () => {
