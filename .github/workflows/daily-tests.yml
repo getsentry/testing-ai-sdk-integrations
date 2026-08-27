@@ -61,6 +61,9 @@ jobs:
           npm ci
           npm run build
 
+      - name: Run unit tests
+        run: npm run test:unit
+
       - name: Run assessments
         continue-on-error: true
         env:
