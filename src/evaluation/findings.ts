@@ -189,14 +189,6 @@ const definitions: Record<string, FindingDefinition> = {
 		title: "Tool result does not match the execution",
 		description: "The captured tool result differs from the expected result.",
 	},
-	"tools.result.legacy": {
-		id: "conventions.deprecated",
-		severity: "minor",
-		title: "Deprecated GenAI convention is in use",
-		description: "The integration emits a deprecated GenAI attribute.",
-		remediation:
-			"Replace each deprecated attribute with the replacement shown in evidence.",
-	},
 	"tools.error.missing": {
 		id: "tools.error.missing",
 		severity: "major",

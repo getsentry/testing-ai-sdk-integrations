@@ -214,7 +214,7 @@ test("evaluates agent hierarchy, tool definitions, results, and errors", () => {
 		assert.equal(legacyResult?.source, "legacy");
 		assert.equal(legacyResult?.actual, 8);
 		assert.equal(legacyResult?.evidence[0]?.attribute, "gen_ai.tool.output");
-		assert.equal(severity(legacyResult), "minor");
+		assert.equal(severity(legacyResult), undefined);
 	}
 
 	const malformed = states(
