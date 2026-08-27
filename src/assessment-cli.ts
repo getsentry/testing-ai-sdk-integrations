@@ -300,15 +300,19 @@ function resolveWork(options: CliOptions): TargetWork[] {
 }
 
 function openReport(reportPath: string): void {
-	let command = "xdg-open";
-	let args = [reportPath];
+	const options = { detached: true, shell: false, stdio: "ignore" } as const;
+	let child;
 	if (process.platform === "darwin") {
-		command = "open";
+		child = spawn("open", [reportPath], options);
 	} else if (process.platform === "win32") {
-		command = "cmd";
-		args = ["/c", "start", "", reportPath];
+		child = spawn(
+			"rundll32.exe",
+			["url.dll,FileProtocolHandler", reportPath],
+			options,
+		);
+	} else {
+		child = spawn("xdg-open", [reportPath], options);
 	}
-	const child = spawn(command, args, { detached: true, stdio: "ignore" });
 	child.on("error", (error) => {
 		console.warn(`Could not open the dashboard: ${error.message}`);
 	});

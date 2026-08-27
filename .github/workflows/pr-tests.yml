@@ -120,7 +120,6 @@ jobs:
     needs: [assess-main, assess-pr]
     permissions:
       contents: read
-      pull-requests: write
     runs-on: ubuntu-latest
     if: always() && needs.assess-main.result != 'cancelled' && needs.assess-pr.result != 'cancelled'
     steps:
@@ -147,8 +146,34 @@ jobs:
           node .github/scripts/compare-assessments.cjs "$main_report" "$pr_report" comparison-output.md
           source comparison-output.env
           echo "has-regressions=$HAS_REGRESSIONS" >> "$GITHUB_OUTPUT"
+      - name: Upload comparison
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: assessment-comparison
+          path: comparison-output.md
+          if-no-files-found: error
+          retention-days: 1
       - name: Write job summary
         run: cat comparison-output.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail on assessment regressions
+        if: steps.compare.outputs.has-regressions == 'true'
+        run: |
+          echo "::error::Assessment regressions detected. See the comparison summary for stable finding and capability changes."
+          exit 1
+
+  publish-assessment-comment:
+    name: Publish assessment comparison
+    needs: compare-assessments
+    permissions:
+      actions: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    if: always() && needs.compare-assessments.result != 'cancelled'
+    steps:
+      - name: Download comparison
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: assessment-comparison
       - name: Find existing assessment comment
         uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
         id: find-comment
@@ -163,8 +188,3 @@ jobs:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
           body-path: comparison-output.md
-      - name: Fail on assessment regressions
-        if: steps.compare.outputs.has-regressions == 'true'
-        run: |
-          echo "::error::Assessment regressions detected. See the comparison summary for stable finding and capability changes."
-          exit 1
