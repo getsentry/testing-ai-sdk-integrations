@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sentry_sdk
+{% block imports %}{% endblock %}
 
 EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ "
 
@@ -12,12 +13,14 @@ def emit(event):
     print(f"{EVENT_PREFIX}{json.dumps(event)}", flush=True)
 
 
+{% block sdk_setup %}
 sentry_sdk.init(
     dsn=os.environ.get("SENTRY_DSN"),
     traces_sample_rate=1.0,
     send_default_pii=True,
     stream_gen_ai_spans=True,
 )
+{% endblock %}
 
 {% block dynamic_imports %}{% endblock %}
 

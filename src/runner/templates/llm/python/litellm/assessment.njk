@@ -1,7 +1,23 @@
 {% extends "base.python.assessment.njk" %}
 
-{% block dynamic_imports %}
+{% block imports %}
 import litellm
+from sentry_sdk.integrations.litellm import LiteLLMIntegration
+from sentry_sdk.integrations.openai import OpenAIIntegration
+{% endblock %}
+
+{% block sdk_setup %}
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    traces_sample_rate=1.0,
+    send_default_pii=True,
+    stream_gen_ai_spans=True,
+    integrations=[LiteLLMIntegration(include_prompts=True)],
+    disabled_integrations=[OpenAIIntegration()],
+)
+{% endblock %}
+
+{% block dynamic_imports %}
 MODEL_PREFIX = "openrouter/anthropic" if {{ provider | tojson }} == "anthropic" else "openai"
 {% endblock %}
 
@@ -54,4 +70,6 @@ MODEL_PREFIX = "openrouter/anthropic" if {{ provider | tojson }} == "anthropic" 
                             sentry_sdk.capture_exception(error)
                             continue
                         raise
+                    finally:
+                        await asyncio.sleep(0.1)
 {% endblock %}
