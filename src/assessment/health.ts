@@ -39,7 +39,9 @@ export function deriveHealth(findings: readonly Finding[]): AssessmentHealth {
 export function deriveCompletion(
 	runtimeFailures: readonly RuntimeFailure[],
 ): AssessmentCompletion {
-	return runtimeFailures.length > 0 ? "incomplete" : "complete";
+	return runtimeFailures.some((failure) => failure.stopsVariant)
+		? "incomplete"
+		: "complete";
 }
 
 export function worseHealth(
