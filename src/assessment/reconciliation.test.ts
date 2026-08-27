@@ -4,9 +4,9 @@ import type { ProbeResult } from "./types.js";
 import { parseHarnessEvents } from "./protocol.js";
 import { reconcileExecution } from "./reconciliation.js";
 
-function pendingProbe(): ProbeResult {
+function pendingProbe(probeId = "llm.baseline"): ProbeResult {
 	return {
-		probeId: "llm.baseline",
+		probeId,
 		status: "pending",
 		callModes: ["blocking", "streaming"],
 		traceIds: [],
@@ -32,6 +32,31 @@ test("preserves the process error when the terminal event is missing", () => {
 		["protocol", "process_exit"],
 	);
 	assert.equal(failures[1]?.message, "process exited with code 1");
+});
+
+test("marks unfinished probes failed after the terminal event", () => {
+	const protocol = parseHarnessEvents(
+		[
+			'@@SENTRY_ASSESSMENT@@ {"type":"probe_started","probeId":"llm.baseline"}',
+			'@@SENTRY_ASSESSMENT@@ {"type":"probe_finished","probeId":"llm.baseline","status":"completed"}',
+			'@@SENTRY_ASSESSMENT@@ {"type":"probe_started","probeId":"llm.multi_turn"}',
+			'@@SENTRY_ASSESSMENT@@ {"type":"assessment_finished"}',
+		].join("\n"),
+	);
+	const completed = pendingProbe();
+	const running = pendingProbe("llm.multi_turn");
+	const pending = pendingProbe("llm.tool_call");
+	const failures = reconcileExecution(
+		[completed, running, pending],
+		{ stdout: "", stderr: "", timedOut: false },
+		protocol,
+	);
+
+	assert.equal(completed.status, "completed");
+	assert.equal(running.status, "failed");
+	assert.equal(pending.status, "failed");
+	assert.deepEqual(failures, [running.runtimeError, pending.runtimeError]);
+	assert.equal(failures.every((failure) => failure.stopsVariant), true);
 });
 
 test("reconciles probe status, duration, and runtime failures", () => {

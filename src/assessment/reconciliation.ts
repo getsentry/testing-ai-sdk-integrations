@@ -72,6 +72,20 @@ export function reconcileExecution(
 		const failure = applyProbeEvent(probe, event);
 		if (failure) failures.push(failure);
 	}
+	if (protocol.finished) {
+		for (const probe of probes) {
+			if (probe.status !== "pending" && probe.status !== "running") continue;
+			const failure: RuntimeFailure = {
+				kind: "protocol",
+				message: `Assessment finished before probe ${probe.probeId} emitted a terminal event.`,
+				probeId: probe.probeId,
+				stopsVariant: true,
+			};
+			probe.status = "failed";
+			probe.runtimeError = failure;
+			failures.push(failure);
+		}
+	}
 	setProbeDurations(probes);
 	return failures;
 }
