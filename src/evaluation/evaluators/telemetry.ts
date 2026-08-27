@@ -17,6 +17,7 @@ import {
 import {
 	evidence,
 	isClientSpan,
+	isCoreGenAiSpan,
 	isGenAiSpan,
 	observation,
 	type ProbeInput,
@@ -39,11 +40,12 @@ export function evaluateProbeTelemetry(
 			? [observation("agent.hierarchy", "blocked", probe, variantId)]
 			: [];
 	}
+	const coreGenAiSpans = genAiSpans.filter(isCoreGenAiSpan);
 	const observations = [
-		...evaluateOperations(probe, variantId, genAiSpans),
+		...evaluateOperations(probe, variantId, coreGenAiSpans),
 		...(input.expectError
 			? []
-			: evaluateTokens(probe, variantId, genAiSpans.filter(isClientSpan))),
+			: evaluateTokens(probe, variantId, coreGenAiSpans.filter(isClientSpan))),
 	];
 	if (category === "agents") {
 		observations.push(...evaluateAgentHierarchy(probe, variantId, spans));

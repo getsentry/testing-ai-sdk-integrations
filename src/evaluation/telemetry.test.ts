@@ -361,18 +361,32 @@ test("evaluates provider errors, conversation IDs, and long-input trimming", () 
 });
 
 test("uses the assessment severity contract", () => {
-	const invalidOperation = client("invalid-operation", {
-		data: { ...client().data, "gen_ai.operation.name": "invalid" },
-		description: "invalid gpt-4o-mini",
+	const customOperation = client("custom-operation", {
+		data: { ...client().data, "gen_ai.operation.name": "model_inference" },
+		description: "model_inference gpt-4o-mini",
 	});
 	const operation = evaluateProbeTelemetry(
 		probe("llm.baseline"),
 		"variant",
 		"llm",
-		[invalidOperation],
+		[customOperation],
 		{ calls: [] },
 	).find((item) => item.capability === "operations");
-	assert.equal(severity(operation), "critical");
+	assert.equal(operation?.state, "healthy");
+	assert.equal(severity(operation), undefined);
+
+	const malformedOperation = client("malformed-operation", {
+		data: { ...client().data, "gen_ai.operation.name": " " },
+		description: " ",
+	});
+	const malformed = evaluateProbeTelemetry(
+		probe("llm.baseline"),
+		"variant",
+		"llm",
+		[malformedOperation],
+		{ calls: [] },
+	).find((item) => item.capability === "operations");
+	assert.equal(severity(malformed), "critical");
 
 	const badDescription = client("bad-description", { description: "wrong" });
 	const description = evaluateProbeTelemetry(

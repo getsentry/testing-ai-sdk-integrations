@@ -5,7 +5,7 @@ import type {
 } from "../../assessment/types.js";
 import {
 	isAgentSpan,
-	isGenAiSpan,
+	isCoreGenAiSpan,
 	isToolSpan,
 	observation,
 	operation,
@@ -75,17 +75,6 @@ export function evaluateTokens(
 	});
 }
 
-function isSupportedOperation(name: string): boolean {
-	return (
-		/^(gen_ai\.)?(chat|completion|generate|generate_content|text_completion|embeddings|responses|invoke_agent|create_agent|execute_tool|tool|tool_call|handoff)$/.test(
-			name,
-		) ||
-		/^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate|run\.|pipeline\.|toolCall)/.test(
-			name,
-		)
-	);
-}
-
 function expectedDescription(span: CapturedSpan): string | undefined {
 	const name = operation(span);
 	if (!name) return undefined;
@@ -109,9 +98,9 @@ export function evaluateOperations(
 	return spans.flatMap((span) => {
 		const name = operation(span);
 		const expected = expectedDescription(span);
-		let operationState: Observation["state"] = "malformed";
+		let operationState: Observation["state"] = "healthy";
 		if (name === undefined) operationState = "missing";
-		else if (isSupportedOperation(name)) operationState = "healthy";
+		else if (name.trim().length === 0) operationState = "malformed";
 
 		let descriptionState: Observation["state"] = "malformed";
 		if (expected === undefined) descriptionState = "missing";
@@ -150,7 +139,7 @@ export function evaluateAgentHierarchy(
 	variantId: string,
 	spans: readonly CapturedSpan[],
 ): Observation[] {
-	const genAiSpans = spans.filter(isGenAiSpan);
+	const genAiSpans = spans.filter(isCoreGenAiSpan);
 	const agents = genAiSpans.filter(isAgentSpan);
 	if (agents.length === 0) {
 		return [observation("agent.hierarchy", "missing", probe, variantId)];

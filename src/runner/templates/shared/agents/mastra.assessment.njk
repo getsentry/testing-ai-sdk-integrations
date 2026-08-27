@@ -10,6 +10,7 @@ const { z } = await import("zod");
 const mastra = new Mastra({
   observability: new Observability({ configs: { sentry: { serviceName: "assessment-mastra", exporters: [new SentryExporter({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 })] } } }),
 });
+let agentRegistrationIndex = 0;
 {% endblock %}
 
 {% block probe %}
@@ -32,8 +33,15 @@ const mastra = new Mastra({
             const messages = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content }));
             try {
               const agent = new Agent({ id: "assessment-agent", name: "Assessment Agent", instructions, model: `openai/${request.model}`, tools });
-              mastra.addAgent?.(agent);
-              await agent.generate(messages, { maxSteps: 10 });
+              mastra.addAgent?.(agent, `assessment-agent-${agentRegistrationIndex++}`);
+              if (request.streaming) {
+                const response = await agent.stream(messages, { maxSteps: 10 });
+                for await (const _chunk of response.textStream) {
+                  // Consume the response to complete the instrumented operation.
+                }
+              } else {
+                await agent.generate(messages, { maxSteps: 10 });
+              }
             } catch (error) {
               if (probe.input.expectError) { Sentry.captureException(error); continue; }
               throw error;

@@ -66,8 +66,30 @@ export function isToolSpan(span: CapturedSpan): boolean {
 	);
 }
 
+function hasClientOperation(span: CapturedSpan): boolean {
+	const name = operation(span);
+	return (
+		/^(gen_ai\.)?(chat|completion|generate|generate_content|text_completion|embeddings|responses)$/.test(
+			name ?? "",
+		) ||
+		/^ai\.(streamText\.doStream|generateText\.doGenerate|generateObject\.doGenerate)$/.test(
+			name ?? "",
+		)
+	);
+}
+
 export function isClientSpan(span: CapturedSpan): boolean {
-	return isGenAiSpan(span) && !isAgentSpan(span) && !isToolSpan(span);
+	if (!isGenAiSpan(span) || isAgentSpan(span) || isToolSpan(span)) return false;
+	return (
+		span.data?.["gen_ai.operation.type"] === "ai_client" ||
+		span.op === "gen_ai" ||
+		span.op?.startsWith("gen_ai.") === true ||
+		hasClientOperation(span)
+	);
+}
+
+export function isCoreGenAiSpan(span: CapturedSpan): boolean {
+	return isAgentSpan(span) || isToolSpan(span) || isClientSpan(span);
 }
 
 export function evidence(

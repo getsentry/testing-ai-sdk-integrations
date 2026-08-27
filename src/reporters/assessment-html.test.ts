@@ -110,8 +110,16 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 	assert.match(html, /10\.42\.0/);
 	assert.match(html, /requested sentry/);
 	assert.match(html, /blocking \+ streaming/);
-	assert.match(html, /Variant scores use fixed telemetry domains/);
-	assert.match(html, /critical at 59/);
+	assert.match(html, /How scoring works/);
+	assert.match(html, /Higher is better/);
+	assert.match(html, /Repeated spans add evidence, not points/);
+	assert.match(html, /85-100/);
+	assert.match(html, /0-69/);
+	assert.match(
+		html,
+		/\.rating-significant_improvements_needed\{--score-color:var\(--red\)\}/,
+	);
+	assert.match(html, /return'#b9363e'/);
 	assert.match(html, /data-target-id="node\/llm\/openai"/);
 	assert.match(html, /function filteredTrendEntries/);
 	assert.match(html, /renderDashboardTrend\(allMatches,filtering\)/);
