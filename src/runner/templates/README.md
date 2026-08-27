@@ -1,358 +1,100 @@
-# Test Templates
+# Framework assessment templates
 
-Base templates and framework-specific templates for generating test files using Nunjucks.
+Framework adapters turn the shared probe catalog into one executable program per resolved variant.
 
-## Directory Structure
+## Layout
 
-```
+```text
 templates/
-├── base.js.njk              # JavaScript base template
-├── base.python.njk          # Python base template
-├── base.cloudflare.njk      # Cloudflare Workers base template
-├── llm/                     # LLM-only framework templates
-│   ├── node/
-│   │   ├── openai/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   └── anthropic/
-│   │       ├── template.njk
-│   │       └── config.json
-│   ├── python/
-│   │   ├── openai/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   └── anthropic/
-│   │       ├── template.njk
-│   │       └── config.json
-│   └── cloudflare/
-│       ├── openai/
-│       │   ├── template.njk
-│       │   └── config.json
-│       └── anthropic/
-│           ├── template.njk
-│           └── config.json
-├── embeddings/              # Embedding framework templates
-│   ├── node/
-│   ├── python/
-│   ├── browser/
-│   ├── cloudflare/
-│   ├── nextjs/
-│   └── php/
-├── agents/                  # Agentic framework templates
-│   ├── node/
-│   │   ├── vercel/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   ├── langgraph/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   └── mastra/
-│   │       ├── template.njk
-│   │       └── config.json
-│   ├── python/
-│   │   ├── openai-agents/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   ├── langgraph/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   ├── pydantic-ai/
-│   │   │   ├── template.njk
-│   │   │   └── config.json
-│   │   └── google-genai/
-│   │       ├── template.njk
-│   │       └── config.json
-│   ├── cloudflare/
-│   │   └── vercel/
-│   │       ├── template.njk
-│   │       └── config.json
-│   └── php/
-│       └── laravel/
-│           ├── config.json
-│           ├── template.njk       # Artisan command
-│           ├── agent.php.njk      # Agent class
-│           └── tool.php.njk       # Tool class
-└── mcp/                     # MCP server framework templates
-    └── python/
-        ├── fastmcp/         # FastMCP high-level SDK
-        │   ├── template.njk
-        │   └── config.json
-        └── mcp/             # MCP Python SDK (highlevel + lowlevel via options)
-            ├── template.njk
-            └── config.json
+├── base.node.assessment.njk
+├── base.python.assessment.njk
+├── base.nextjs.assessment.njk
+├── base.cloudflare.assessment.njk
+├── llm/<platform>/<framework>/
+│   ├── config.json
+│   └── assessment.njk
+└── agents/<platform>/<framework>/
+    ├── config.json
+    └── assessment.njk
 ```
 
-## Base Templates
+Supported platforms are `node`, `python`, `nextjs`, and `cloudflare`.
 
-### `base.js.njk` - JavaScript Base Template
+## Adapter contract
 
-Provides a standard structure for JavaScript tests with the following blocks:
+An adapter extends its platform assessment base and implements framework-specific operations:
 
-- **`imports`** - Import statements (includes `@sentry/node` by default)
-- **`sdk_setup`** - Sentry SDK initialization
-- **`setup`** - Code to run before the test (setup fixtures, clients, etc.)
-- **`test`** - Main test logic (inside async `main()` function)
-- **`teardown`** - Code to run after the test
+```njk
+{% extends "base.node.assessment.njk" %}
 
-### `base.python.njk` - Python Base Template
+{% block dynamic_imports %}
+const { Client } = await import("example-sdk");
+const client = new Client();
+{% endblock %}
 
-Provides a standard structure for Python tests with the following blocks:
-
-- **`imports`** - Import statements (includes `sentry_sdk` by default)
-- **`sdk_setup`** - Sentry SDK initialization
-- **`setup`** - Code to run before the test (setup fixtures, clients, etc.)
-- **`test`** - Main test logic (inside `main()` function)
-- **`teardown`** - Code to run after the test
-
-### `base.cloudflare.njk` - Cloudflare Workers Base Template
-
-Provides a structure for Cloudflare Workers tests using `@sentry/cloudflare`:
-
-- **`setup`** - Code before the handler (module-level declarations)
-- **`sentry_integrations`** - Integrations added to the `withSentry()` config (e.g. `Sentry.vercelAIIntegration()`)
-- **`dynamic_imports`** - Dynamic imports and client setup inside the fetch handler (e.g. `Sentry.instrumentOpenAiClient(client)`)
-- **`test`** - Main test logic inside `Sentry.startSpan()` callback
-
-Key differences from Node.js:
-- Uses `Sentry.withSentry()` wrapper instead of `Sentry.init()`
-- AI SDK clients are instrumented manually (e.g. `Sentry.instrumentOpenAiClient(client)`)
-- API keys accessed via `env` parameter (from `.dev.vars`), not `process.env`
-
-## Usage
-
-### 1. Render Base Template
-
-```typescript
-const renderer = new TemplateRenderer();
-
-const code = renderer.renderBase("js", {
-  testName: "Basic LLM Test",
-  frameworkName: "openai",
-});
-```
-
-### 2. Extend with Custom Blocks
-
-```typescript
-const code = renderer.renderWithBlocks(
-  "python",
-  {
-    testName: "OpenAI Chat Test",
-    frameworkName: "openai",
-  },
-  {
-    imports: "from openai import OpenAI",
-    setup: "client = OpenAI()",
-    test: `
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": "Hello"}]
-    )
-    print(response.choices[0].message.content)
-  `,
-  },
-);
-```
-
-## Block Inheritance
-
-Blocks can use `{{ super() }}` to include the parent block's content:
-
-```nunjucks
-{% block imports %}
-{{ super() }}  {# Includes base imports #}
-from openai import OpenAI  {# Add custom import #}
+{% block probe %}
+for (const request of probe.input.calls) {
+  await client.complete({
+    model: request.model,
+    messages: request.messages,
+    stream: request.streaming,
+  });
+}
 {% endblock %}
 ```
 
-## Framework Templates
+The base harness owns probe ordering, root assessment spans, lifecycle events, error boundaries, blocking behavior, and Sentry flushing. Adapters must not recreate that control flow.
 
-Framework-specific templates extend base templates and implement SDK-specific code.
+Available blocks:
 
-### Location
+- `dynamic_imports` and `probe` on every platform
+- `sentry_integrations` on Cloudflare
 
-- **LLM frameworks:** `llm/{node,python,browser,nextjs,cloudflare}/{framework}/`
-- **Agent frameworks:** `agents/{node,python,nextjs,cloudflare,php}/{framework}/`
-- **Embedding frameworks:** `embeddings/{node,python,browser,nextjs,cloudflare,php}/{framework}/`
-- **MCP frameworks:** `mcp/{python}/{framework}/`
+The renderer supplies `targetId`, `variantId`, `probes`, `isAsync`, version-specific template options, and each resolved config option as top-level values.
 
-### Example: OpenAI Python LLM Template
+## Configuration
 
-**File:** `llm/python/openai/template.njk`
+Minimal `config.json`:
 
-```nunjucks
-{% extends "base.python.njk" %}
-
-{% block imports %}
-{{ super() }}
-from openai import OpenAI
-{% endblock %}
-
-{% block setup %}
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-{% endblock %}
-
-{% block test %}
-response = client.chat.completions.create(
-    model="{{ input.model }}",
-    messages=[
-        {"role": "system", "content": "{{ system }}"},
-        {"role": "user", "content": "{{ input.prompt }}"}
-    ]
-)
-print(response.choices[0].message.content)
-{% endblock %}
+```json
+{
+  "name": "example",
+  "platform": "node",
+  "streamingMode": "both",
+  "dependencies": [{"package": "example-sdk", "version": "framework"}],
+  "versions": ["1.0.0"],
+  "sentryVersions": ["latest"]
+}
 ```
 
-### Example: OpenAI Agents Python Template
+Python configs may set `executionMode` to `sync`, `async`, or `both`. Options create framework-specific variant axes and may override model expectations.
 
-**File:** `agents/python/openai-agents/template.njk`
+When framework versions need different companion packages or adapter APIs, keep them in one target and use version overrides:
 
-```nunjucks
-{% extends "base.python.njk" %}
-
-{% block imports %}
-{{ super() }}
-from openai import OpenAI
-{% endblock %}
-
-{% block setup %}
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-
-# Define tools
-def {{ agent.tools[0].name }}():
-    """{{ agent.tools[0].description }}"""
-    return {{ agent.tools[0].result }}
-
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "{{ agent.tools[0].name }}",
-            "description": "{{ agent.tools[0].description }}",
-            "parameters": {{ agent.tools[0].parameters | dump }}
-        }
+```json
+{
+  "versions": ["6.0.0", "7.0.0"],
+  "versionOverrides": {
+    "6.0.0": {"templateOptions": {"apiStyle": "v6"}},
+    "7.0.0": {
+      "dependencies": {"example-provider": "4.0.0"},
+      "templateOptions": {"apiStyle": "v7"}
     }
-]
-{% endblock %}
-
-{% block test %}
-response = client.chat.completions.create(
-    model="{{ input.model }}",
-    messages=[{"role": "user", "content": "{{ input.prompt }}"}],
-    tools=tools
-)
-print(response.choices[0].message.content)
-{% endblock %}
-```
-
-### Example: MCP Python Template
-
-**File:** `mcp/python/mcp/template.njk`
-
-The MCP template uses the generic **options** system to support two API styles (`highlevel` and `lowlevel`) from a single template. The `config.json` declares:
-
-```json
-{
-  "options": {
-    "apiStyle": ["highlevel", "lowlevel"]
   }
 }
 ```
 
-This expands the test matrix so each test runs with both `apiStyle=highlevel` and `apiStyle=lowlevel`. The resolved option value is available as a top-level template variable (`{{ apiStyle }}`).
+Dependency overrides replace versions for packages already listed in `dependencies`. Template options are exposed to `assessment.njk` but do not create an additional variant axis.
 
-The template conditionally renders different server setup code:
-- **highlevel**: Uses `FastMCP` with decorator-based tool/resource/prompt registration
-- **lowlevel**: Uses `Server` with manual handler registration (`@server.list_tools()`, `@server.call_tool()`, etc.)
+Model expectations may contain `*` wildcards when providers append versions or other suffixes to served model names.
 
-Both styles use `ClientSession` from `mcp.client.session` with `anyio` memory streams for in-process communication (stdio mode) or `sse_client` for SSE transport.
+## Validation
 
-### Template Context Variables
-
-Framework templates receive:
-
-- `testName` - Test case name
-- `frameworkName` - Framework identifier
-- `system` - System message (LLM tests only)
-- `agent` - Agent config with tools (agent tests only)
-- `mcpServer` - MCP server definition with tools, resources, prompts (MCP tests only)
-- `input` / `inputs` - Test input(s) with model, prompt, action, etc.
-- `input.model` - Model identifier
-- `input.prompt` - User prompt
-- Any resolved option values as top-level variables (see Generic Options below)
-
-### Generic Options
-
-Frameworks can define `options` in their `config.json` to create additional test matrix dimensions:
-
-```json
-{
-  "name": "my-framework",
-  "options": {
-    "apiStyle": ["highlevel", "lowlevel"]
-  }
-}
+```bash
+npm run build
+npm run test:unit
+npm test -- list --framework <name>
+npm test -- render --framework <name>
 ```
 
-This doubles the test count — each test runs once per `apiStyle` value. Multiple options multiply further via cartesian product.
-
-**How options flow:**
-
-1. **Config**: `options` defines arrays of possible values per key
-2. **Matrix expansion**: The orchestrator generates all combinations (cartesian product)
-3. **Template variables**: Resolved values are available as top-level variables (e.g., `{{ apiStyle }}`)
-4. **Filenames**: Option values are appended to test filenames (e.g., `test-basic-...-highlevel.py`)
-5. **CLI filtering**: Use `--option key=value` (repeatable) to run only specific values
-
-**Template usage example:**
-
-```nunjucks
-{% if apiStyle == "highlevel" %}
-{# High-level API code #}
-{% elif apiStyle == "lowlevel" %}
-{# Low-level API code #}
-{% endif %}
-```
-
-### Creating Framework Templates
-
-1. Determine framework type (LLM or agent)
-2. Choose platform (node, python, browser, nextjs, php, or cloudflare)
-3. Create framework directory: `{llm,agents,embeddings,mcp}/{node,python,browser,nextjs,php,cloudflare}/{framework}/`
-4. Create template file: `template.njk`
-5. Create config file: `config.json`
-6. Extend appropriate base template
-7. Override blocks with framework-specific code
-
-## Context Variables
-
-All templates receive a context object with:
-
-- `testName` - Name of the test
-- `frameworkName` - Name of the framework being tested
-- Additional variables can be passed as needed
-
-## Generic Options System
-
-Frameworks can declare `options` in their `config.json` to expand the test matrix with additional dimensions beyond the built-in ones (streaming/blocking, sync/async, transport mode).
-
-```json
-{
-  "options": {
-    "apiStyle": ["highlevel", "lowlevel"]
-  }
-}
-```
-
-- Each option key/value combination is expanded via cartesian product into the test matrix
-- Resolved option values are passed as top-level Nunjucks template variables
-- Filter from the CLI with `--option apiStyle=highlevel`
-- Multiple options can be declared; they multiply the matrix accordingly
-
-## Notes
-
-- Templates use Nunjucks syntax (Jinja-like)
-- Autoescape is disabled (we're generating code, not HTML)
-- `trimBlocks` and `lstripBlocks` are enabled for cleaner output
-- Comments use `{# comment #}` syntax
+Inspect the generated `assessment.js` or `assessment.py` under `runs/`. Do not edit generated files.

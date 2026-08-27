@@ -1,7 +1,5 @@
 {
   "name": "anthropic",
-  "displayName": "Anthropic Next.js SDK (Helper Function Instrumentation)",
-  "type": "llm-only",
   "platform": "nextjs",
   "streamingMode": "both",
   "dependencies": [
@@ -18,7 +16,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["0.32.1"],
+  "versions": ["0.121.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
     "request": "claude-haiku-4-5",

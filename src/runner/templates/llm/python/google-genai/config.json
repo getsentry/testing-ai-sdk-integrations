@@ -1,7 +1,5 @@
 {
   "name": "google-genai",
-  "displayName": "Google GenAI Python SDK",
-  "type": "llm-only",
   "platform": "python",
   "executionMode": "both",
   "streamingMode": "both",
@@ -11,7 +9,7 @@
       "version": "framework"
     }
   ],
-  "versions": ["1.61.0"],
+  "versions": ["2.20.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
     "request": "gemini-2.5-flash-lite",

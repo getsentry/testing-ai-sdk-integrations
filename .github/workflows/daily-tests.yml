@@ -1,185 +1,132 @@
-name: Daily Test Report
+name: Daily Assessment Report
 
 on:
   schedule:
-    # Every day at 6 AM UTC
     - cron: "0 6 * * *"
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch:
 
 concurrency:
-  group: daily-tests
+  group: daily-assessments
   cancel-in-progress: true
 
 permissions:
+  contents: read
   pages: write
   id-token: write
 
 jobs:
-  test-and-deploy:
-    name: Run Tests & Deploy Report
+  assess-and-deploy:
+    name: Assess integrations and deploy report
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "24"
+          node-version: "22"
           cache: "npm"
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
 
-      - name: Install uv (Python package manager)
-        uses: astral-sh/setup-uv@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       - name: Get latest Sentry SDK versions
         id: sentry-versions
         run: |
-          echo "js=$(npm view @sentry/node version)" >> $GITHUB_OUTPUT
-          echo "python=$(curl -s https://pypi.org/pypi/sentry-sdk/json | python3 -c 'import sys,json; print(json.load(sys.stdin)["info"]["version"])')" >> $GITHUB_OUTPUT
-          echo "php=$(curl -s https://repo.packagist.org/p2/sentry/sentry-laravel.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["packages"]["sentry/sentry-laravel"][0]["version"])')" >> $GITHUB_OUTPUT
+          echo "js=$(npm view @sentry/node version)" >> "$GITHUB_OUTPUT"
+          echo "python=$(python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/sentry-sdk/json"))["info"]["version"])')" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Node test environments
-        uses: actions/cache@v4
+      - name: Cache assessment environments
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: runs/node
-          key: node-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/node/**/config.json') }}
-          restore-keys: |
-            node-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Browser test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/browser
-          key: browser-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/browser/**/config.json') }}
-          restore-keys: |
-            browser-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Next.js test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/nextjs
-          key: nextjs-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-${{ hashFiles('src/runner/templates/**/nextjs/**/config.json') }}
-          restore-keys: |
-            nextjs-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.js }}-
-
-      - name: Cache Python test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/python
-          key: python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/python/**/config.json') }}
-          restore-keys: |
-            python-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.python }}-
-
-      - name: Cache PHP test environments
-        uses: actions/cache@v4
-        with:
-          path: runs/php
-          key: php-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-${{ hashFiles('src/runner/templates/**/php/**/config.json') }}
-          restore-keys: |
-            php-envs-daily-${{ runner.os }}-sentry-${{ steps.sentry-versions.outputs.php }}-
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.4"
-          tools: composer
+          path: |
+            runs/**/node_modules
+            runs/**/.venv
+          key: assessments-${{ runner.os }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
 
       - name: Install dependencies and build
         run: |
           npm ci
           npm run build
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Run unit tests
+        run: npm run test:unit
 
-      - name: Run tests
+      - name: Run assessments
         continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-          CO_API_KEY: ${{ secrets.CO_API_KEY }}
-        run: npm run test -- -j=12
+        run: npm test -- run --parallel 12
 
-      - name: Generate HTML report
+      - name: Prepare assessment site
         run: |
-          CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
-          npm run report "$CTRF_FILE"
-          TODAY=$(date -u +%Y-%m-%d)
-          mkdir -p "_site/reports/${TODAY}"
-          REPORT=$(ls -t test-results/test-report-*.html | head -1)
-          cp "$REPORT" _site/index.html
-          # Copy scripts directory for source file links
-          if [ -d test-results/scripts ]; then
-            cp -r test-results/scripts _site/scripts
-          fi
-          # Dated copy with adjusted relative links (trends.html and scripts/ are two levels up)
-          sed 's|href="trends.html"|href="../../trends.html"|g; s|href="scripts/|href="../../scripts/|g' "$REPORT" > "_site/reports/${TODAY}/index.html"
+          report_json=$(find test-results -maxdepth 1 -name 'assessment-report-*.json' -type f -print | sort | tail -1)
+          report_html=$(find test-results -maxdepth 1 -name 'assessment-report-*.html' -type f -print | sort | tail -1)
+          test -n "$report_json" && test -n "$report_html"
+          today=$(date -u +%Y-%m-%d)
+          mkdir -p "_site/reports/$today"
+          cp "$report_html" _site/index.html
+          cp "$report_html" "_site/reports/$today/index.html"
+          cp "$report_json" "_site/reports/$today/assessment.json"
+          echo "REPORT_JSON=$report_json" >> "$GITHUB_ENV"
 
-      - name: Upload CTRF artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload assessment artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ctrf-report-${{ github.run_id }}
-          path: test-results/ctrf-report-*.json
+          name: assessment-report-${{ github.run_id }}
+          path: test-results/assessment-report-*
           retention-days: 90
 
-      - name: Upload test execution logs
+      - name: Upload assessment execution logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: test-execution-logs-${{ github.run_id }}
-          path: runs/**/*.log
+          name: assessment-logs-${{ github.run_id }}
+          path: runs/**/assessment.log
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Fetch existing history from GitHub Pages
+      - name: Fetch existing assessment history
         continue-on-error: true
-        run: |
-          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-          curl -sSf "${PAGES_URL}/history.json" -o history.json 2>/dev/null || echo "[]" > history.json
-
-      - name: Seed history from past CI runs (one-time)
         env:
-          GH_TOKEN: ${{ github.token }}
+          PAGES_OWNER: ${{ github.repository_owner }}
+          PAGES_REPOSITORY: ${{ github.event.repository.name }}
         run: |
-          if [ "$(cat history.json 2>/dev/null)" = "[]" ] || [ ! -s history.json ]; then
-            echo "No existing history found, seeding from past workflow runs..."
-            node .github/scripts/extract-history.cjs history.json
-          fi
+          pages_url="https://${PAGES_OWNER}.github.io/${PAGES_REPOSITORY}"
+          curl -sSf "$pages_url/history.json" -o history.json 2>/dev/null || echo '{"schemaVersion":"3","scoringVersion":"3","entries":[]}' > history.json
 
-      - name: Update history with today's results
-        run: |
-          CTRF_FILE=$(ls -t test-results/ctrf-report-*.json | head -1)
-          node .github/scripts/update-history.cjs "$CTRF_FILE" history.json
+      - name: Update assessment history
+        run: node .github/scripts/update-assessment-history.cjs "$REPORT_JSON" history.json
 
-      - name: Fetch existing dated reports from GitHub Pages
+      - name: Fetch existing dated reports
         continue-on-error: true
+        env:
+          PAGES_OWNER: ${{ github.repository_owner }}
+          PAGES_REPOSITORY: ${{ github.event.repository.name }}
         run: |
-          PAGES_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-          node .github/scripts/fetch-existing-reports.cjs history.json _site "${PAGES_URL}"
+          pages_url="https://${PAGES_OWNER}.github.io/${PAGES_REPOSITORY}"
+          node .github/scripts/fetch-existing-reports.cjs history.json _site "$pages_url"
 
-      - name: Merge platform seed into history
-        run: |
-          node .github/scripts/merge-platform-seed.cjs history.json .github/data/platform-seed.json
-
-      - name: Generate trends page
-        run: |
-          node .github/scripts/generate-trends-page.cjs history.json _site/trends.html _site/reports
-          cp history.json _site/history.json
+      - name: Publish assessment history
+        run: cp history.json _site/history.json
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
 
       - name: Deploy to GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

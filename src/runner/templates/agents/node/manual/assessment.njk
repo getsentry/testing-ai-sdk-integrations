@@ -1,0 +1,52 @@
+{% extends "base.node.assessment.njk" %}
+
+{% block probe %}
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
+            const inputTokens = Math.max(1, Math.ceil(request.messages.reduce((total, message) => total + message.content.length, 0) / 4));
+            const originalMessages = JSON.stringify(request.messages);
+            const capturedMessages = originalMessages.length > 10_000
+              ? JSON.stringify(request.messages.map((message) => ({
+                  ...message,
+                  content: message.content.length > 200 ? `${message.content.slice(0, 200)}... [trimmed]` : message.content,
+                })))
+              : originalMessages;
+            const toolDefinitions = (probe.input.tools ?? []).map(({ name, description, parameters }) => ({
+              name,
+              description,
+              parameters,
+            }));
+            const agentName = "assessment-agent";
+            await Sentry.startSpan({ op: "gen_ai.invoke_agent", name: `invoke_agent ${agentName}` }, async (agentSpan) => {
+              agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
+              agentSpan.setAttribute("gen_ai.agent.name", agentName);
+              agentSpan.setAttribute("gen_ai.request.model", request.model);
+              agentSpan.setAttribute("gen_ai.input.messages", capturedMessages);
+              await Sentry.startSpan({ op: "gen_ai.chat", name: `chat ${request.model}` }, (chatSpan) => {
+                chatSpan.setAttribute("gen_ai.operation.name", "chat");
+                chatSpan.setAttribute("gen_ai.agent.name", agentName);
+                chatSpan.setAttribute("gen_ai.request.model", request.model);
+                chatSpan.setAttribute("gen_ai.response.model", request.model);
+                chatSpan.setAttribute("gen_ai.usage.input_tokens", inputTokens);
+                chatSpan.setAttribute("gen_ai.usage.output_tokens", 16);
+                chatSpan.setAttribute("gen_ai.usage.total_tokens", inputTokens + 16);
+                chatSpan.setAttribute("gen_ai.input.messages", capturedMessages);
+                chatSpan.setAttribute("gen_ai.output.messages", JSON.stringify([{ role: "assistant", content: "Assessment response" }]));
+                if (toolDefinitions.length > 0) {
+                  chatSpan.setAttribute("gen_ai.tool.definitions", JSON.stringify(toolDefinitions));
+                }
+              });
+              for (const definition of probe.input.tools ?? []) {
+                await Sentry.startSpan({ op: "gen_ai.execute_tool", name: `execute_tool ${definition.name}` }, (toolSpan) => {
+                  toolSpan.setAttribute("gen_ai.operation.name", "execute_tool");
+                  toolSpan.setAttribute("gen_ai.agent.name", agentName);
+                  toolSpan.setAttribute("gen_ai.tool.name", definition.name);
+                  toolSpan.setAttribute("gen_ai.tool.description", definition.description);
+                  toolSpan.setAttribute("gen_ai.tool.call.arguments", JSON.stringify(definition.arguments));
+                  if (definition.error) toolSpan.setStatus("internal_error");
+                  else toolSpan.setAttribute("gen_ai.tool.call.result", JSON.stringify(definition.result));
+                });
+              }
+            });
+          }
+{% endblock %}

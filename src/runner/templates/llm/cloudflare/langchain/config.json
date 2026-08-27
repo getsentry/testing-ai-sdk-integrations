@@ -1,7 +1,5 @@
 {
   "name": "langchain",
-  "displayName": "LangChain JavaScript SDK (Cloudflare)",
-  "type": "llm-only",
   "platform": "cloudflare",
   "streamingMode": "both",
   "dependencies": [
@@ -11,18 +9,18 @@
     },
     {
       "package": "@langchain/openai",
-      "version": "0.3.0"
+      "version": "1.5.10"
     },
     {
       "package": "@langchain/anthropic",
-      "version": "0.3.21"
+      "version": "1.5.8"
     },
     {
       "package": "@langchain/core",
-      "version": "0.3.49"
+      "version": "1.2.9"
     }
   ],
-  "versions": ["0.3.24"],
+  "versions": ["1.5.10"],
   "sentryVersions": ["latest"],
   "options": {
     "provider": [

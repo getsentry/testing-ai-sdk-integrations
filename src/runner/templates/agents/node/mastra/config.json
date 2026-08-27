@@ -1,7 +1,5 @@
 {
   "name": "mastra",
-  "displayName": "Mastra AI Framework",
-  "type": "agentic",
   "platform": "node",
   "dependencies": [
     {
@@ -10,13 +8,13 @@
     },
     {
       "package": "@mastra/sentry",
-      "version": "beta"
+      "version": "1.2.13"
     },
     {
       "package": "@mastra/observability",
-      "version": "latest"
+      "version": "1.17.3"
     }
   ],
-  "versions": ["1.21.0"],
+  "versions": ["1.63.0"],
   "sentryVersions": ["latest"]
 }

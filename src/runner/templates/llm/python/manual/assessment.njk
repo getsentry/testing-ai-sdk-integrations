@@ -1,0 +1,37 @@
+{% extends "base.python.assessment.njk" %}
+
+{% block probe %}
+                for request in probe["input"]["calls"]:
+                    if request.get("conversationId"):
+                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                    input_tokens = max(
+                        1,
+                        sum(len(message["content"]) for message in request["messages"]) // 4,
+                    )
+                    original_messages = json.dumps(request["messages"])
+                    captured_messages = original_messages
+                    if len(original_messages) > 10_000:
+                        captured_messages = json.dumps([
+                            {
+                                **message,
+                                "content": message["content"][:200] + "... [trimmed]"
+                                if len(message["content"]) > 200
+                                else message["content"],
+                            }
+                            for message in request["messages"]
+                        ])
+                    with sentry_sdk.start_span(op="gen_ai.chat", name=f"chat {request['model']}") as ai_span:
+                        ai_span.set_data("gen_ai.operation.name", "chat")
+                        ai_span.set_data("gen_ai.request.model", request["model"])
+                        ai_span.set_data("gen_ai.response.model", request["model"])
+                        ai_span.set_data("gen_ai.usage.input_tokens", input_tokens)
+                        ai_span.set_data("gen_ai.usage.output_tokens", 16)
+                        ai_span.set_data("gen_ai.usage.total_tokens", input_tokens + 16)
+                        ai_span.set_data("gen_ai.input.messages", captured_messages)
+                        ai_span.set_data(
+                            "gen_ai.output.messages",
+                            json.dumps([{"role": "assistant", "content": "Assessment response"}]),
+                        )
+                        if probe["input"].get("expectError"):
+                            ai_span.set_data("error.type", "AssessmentProviderError")
+{% endblock %}

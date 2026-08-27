@@ -1,0 +1,105 @@
+// Generated Sentry AI assessment worker. Do not edit.
+import * as Sentry from "@sentry/cloudflare";
+
+const EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ ";
+const probes = {{ probes | tojson }};
+
+export default Sentry.withSentry(
+  (env) => ({
+    dsn: env.SENTRY_DSN,
+    sendDefaultPii: true,
+    tracesSampleRate: 1.0,
+    streamGenAiSpans: true,
+    integrations: [
+{% block sentry_integrations %}{% endblock %}
+    ],
+  }),
+  {
+    async fetch(_request, env) {
+      const eventLines = [];
+      const emit = (event) => {
+        const line = `${EVENT_PREFIX}${JSON.stringify(event)}`;
+        eventLines.push(line);
+        console.log(line);
+      };
+      const flushSentry = async (probeId) => {
+        let message;
+        try {
+          if (await Sentry.flush(5000)) return true;
+          message = "Sentry flush timed out before all telemetry was sent.";
+        } catch (error) {
+          message = error instanceof Error ? error.message : String(error);
+        }
+        const failure = { kind: "flush", message, stopsVariant: true };
+        if (probeId) failure.probeId = probeId;
+        emit({ type: "runtime_failure", failure, timestamp: new Date().toISOString() });
+        return false;
+      };
+      let blocked = false;
+
+      try {
+{% block dynamic_imports %}{% endblock %}
+
+        for (const probe of probes) {
+          if (blocked) {
+            emit({ type: "probe_blocked", probeId: probe.id });
+            continue;
+          }
+
+          emit({ type: "probe_started", probeId: probe.id, timestamp: new Date().toISOString() });
+          try {
+            await Sentry.startSpan(
+              {
+                name: probe.id,
+                op: "test.assessment",
+                attributes: {
+                  "test.assessment.id": "{{ targetId }}",
+                  "test.variant.id": "{{ variantId }}",
+                  "test.probe.id": probe.id,
+                },
+              },
+              async () => {
+{% block probe %}
+                throw new Error("Assessment adapter does not implement this probe.");
+{% endblock %}
+              },
+            );
+            emit({ type: "probe_finished", probeId: probe.id, status: "completed", timestamp: new Date().toISOString() });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const failure = {
+              kind: "provider",
+              message,
+              probeId: probe.id,
+              stopsVariant: Boolean(probe.stopsVariantOnFailure),
+            };
+            emit({ type: "probe_failed", probeId: probe.id, status: "failed", failure, timestamp: new Date().toISOString() });
+            if (failure.stopsVariant) blocked = true;
+          } finally {
+            if (!(await flushSentry(probe.id))) blocked = true;
+          }
+        }
+      } catch (error) {
+        const probeId = probes[0]?.id ?? "worker.setup";
+        blocked = true;
+        const failure = {
+          kind: "process_start",
+          message: error instanceof Error ? error.message : String(error),
+          probeId,
+          stopsVariant: true,
+        };
+        emit({ type: "probe_failed", probeId, status: "failed", failure, timestamp: new Date().toISOString() });
+        for (const probe of probes.slice(1)) {
+          emit({ type: "probe_blocked", probeId: probe.id });
+        }
+        console.error(error);
+      }
+
+      emit({ type: "assessment_finished", timestamp: new Date().toISOString() });
+      await flushSentry();
+      return new Response(eventLines.join("\n"), {
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    },
+  },
+);

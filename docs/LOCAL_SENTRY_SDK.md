@@ -1,99 +1,39 @@
-# Using Local Sentry SDK for Development
+# Assessing a local Sentry SDK
 
-This guide explains how to use local, editable installations of Sentry SDKs instead of installing from package registries.
+Use local SDK checkouts instead of registry releases when validating unreleased instrumentation changes.
 
-## Prerequisites
+## Python
 
-### Python
+Requirements:
 
-- **uv** package manager installed (`pip install uv` or `brew install uv`)
-- Local clone of `sentry-python` repository
-
-### JavaScript
-
-- Local clone of `sentry-javascript` repository
-- Built packages (run `yarn build` in the repo)
-
-### PHP (Laravel)
-
-- **Composer** installed
-- Local clone of `sentry-laravel` repository (for `--sentry-laravel`)
-- Optionally, local clone of `sentry-php` repository (for `--sentry-php`, core SDK)
-
-## Usage
-
-### Python SDK
-
-Run tests with the `--sentry-python` flag:
+- a local `sentry-python` checkout
+- `uv`
 
 ```bash
-npm start run -- --framework openai --sentry-python ~/sentry-python
+npm test -- run --framework openai --platform python \
+  --sentry-python ~/repos/sentry-python
 ```
 
-### JavaScript SDK
+The CLI resolves Python variants with `sentryVersion: "local"`, sets `SENTRY_PYTHON_PATH`, and installs the checkout with `uv pip install -e` in each variant environment.
 
-Run tests with the `--sentry-javascript` flag:
+## JavaScript
+
+Build the packages in a local `sentry-javascript` checkout first, then run:
 
 ```bash
-npm start run -- --framework some-js-framework --sentry-javascript ~/sentry-javascript
+npm test -- run --framework openai --platform node \
+  --sentry-javascript ~/repos/sentry-javascript
 ```
 
-### PHP SDK (sentry-laravel)
+The CLI resolves JavaScript variants with `sentryVersion: "local"`, sets `SENTRY_JAVASCRIPT_PATH`, and links the platform package from `packages/node`, `packages/nextjs`, or `packages/cloudflare`.
 
-Run tests with the `--sentry-laravel` flag:
+Use the same flags with render mode to inspect generated programs without installing or calling providers:
 
 ```bash
-npm start run -- --framework laravel --sentry-laravel ~/sentry-laravel
+npm test -- render --framework openai --platform python \
+  --sentry-python ~/repos/sentry-python
 ```
 
-> **Note:** `--sentry-laravel` points to the `sentry/sentry-laravel` package (the Laravel integration).
-> `--sentry-php` is a separate flag for the core `sentry/sentry-php` SDK (reserved for future use).
+## Clearing environments
 
-## How It Works
-
-When using local SDK paths:
-
-1. The CLI sets environment variables (`SENTRY_PYTHON_PATH`, `SENTRY_JAVASCRIPT_PATH`, or `SENTRY_LARAVEL_PATH`)
-2. The framework's `sentryVersion` is set to `"local"`
-3. Work directories use `sentry-local` instead of version number:
-   - Example: `runs/python/openai-1.57.0-sentry-local/`
-4. Python: `uv pip install -e <path>` for editable install
-5. JavaScript: `npm link <path>/packages/node` to link local SDK
-6. PHP (Laravel): Composer path repository with symlink to local `sentry-laravel`
-
-## Benefits
-
-- ✅ **Live changes**: Edits to local SDK are immediately reflected
-- ✅ **Faster development**: No need to rebuild/reinstall after each SDK change
-- ✅ **Easy debugging**: Add print statements or breakpoints in Sentry code
-- ✅ **Test unreleased features**: Test local changes before they're published
-- ✅ **Clear directory names**: `sentry-local` indicates local SDK usage
-
-## Example Output
-
-```bash
-$ npm start run -- --framework openai --sentry-python ~/sentry-python
-
-Using local Sentry Python SDK: /Users/you/sentry-python
-
-Testing 1 framework(s) with 1 test(s)
-
-[openai] Running: Basic LLM Test
-   Setting up Python environment in runs/python/openai-1.57.0-sentry-local...
-  Installing dependencies...
-  Installing local Sentry SDK from: /Users/you/sentry-python
-  ✓ Dependencies installed
-```
-
-## Clearing Cache
-
-To force reinstallation (e.g., after switching branches in sentry-python):
-
-```bash
-rm -rf runs/
-npm start run -- --framework openai --sentry-python ~/sentry-python
-```
-
-## Requirements
-
-Python dependency management requires **uv** (`pip install uv` or `brew install uv`). There is no pip fallback.
+Generated environments are cached under `runs/`. Remove only the affected generated target directory when dependency state needs to be recreated. Do not edit files under `runs/` directly.

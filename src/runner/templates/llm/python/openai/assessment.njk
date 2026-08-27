@@ -1,0 +1,78 @@
+{% extends "base.python.assessment.njk" %}
+
+{% block dynamic_imports %}
+{% if isAsync %}
+from openai import AsyncOpenAI
+client = AsyncOpenAI()
+{% else %}
+from openai import OpenAI
+client = OpenAI()
+{% endif %}
+API_STYLE = {{ apiStyle | tojson }}
+{% endblock %}
+
+{% block probe %}
+                for request in probe["input"]["calls"]:
+                    if request.get("conversationId"):
+                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                    instructions = next(
+                        (message["content"] for message in request["messages"] if message["role"] == "system"),
+                        None,
+                    )
+                    messages = [
+                        {"role": message["role"], "content": message["content"]}
+                        for message in request["messages"]
+                    ]
+                    response_input = [message for message in messages if message["role"] != "system"]
+                    try:
+                        if API_STYLE == "responses":
+                            kwargs = {
+                                "model": request["model"],
+                                "input": response_input,
+                                **({"instructions": instructions} if instructions else {}),
+                            }
+                            if request.get("streaming", False):
+                                stream = await client.responses.create(stream=True, **kwargs) if {{ "True" if isAsync else "False" }} else client.responses.create(stream=True, **kwargs)
+{% if isAsync %}
+                                async for _event in stream:
+                                    pass
+{% else %}
+                                for _event in stream:
+                                    pass
+{% endif %}
+                            else:
+{% if isAsync %}
+                                await client.responses.create(**kwargs)
+{% else %}
+                                client.responses.create(**kwargs)
+{% endif %}
+                        elif request.get("streaming", False):
+                            stream = {% if isAsync %}await {% endif %}client.chat.completions.create(
+                                model=request["model"],
+                                messages=messages,
+                                stream=True,
+                                stream_options={"include_usage": True},
+                            )
+{% if isAsync %}
+                            async for _chunk in stream:
+                                pass
+{% else %}
+                            for _chunk in stream:
+                                pass
+{% endif %}
+                        else:
+{% if isAsync %}
+                            await client.chat.completions.create(
+                                model=request["model"], messages=messages
+                            )
+{% else %}
+                            client.chat.completions.create(
+                                model=request["model"], messages=messages
+                            )
+{% endif %}
+                    except Exception as error:
+                        if probe["input"].get("expectError"):
+                            sentry_sdk.capture_exception(error)
+                            continue
+                        raise
+{% endblock %}

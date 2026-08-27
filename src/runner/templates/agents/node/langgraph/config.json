@@ -1,7 +1,5 @@
 {
   "name": "langgraph",
-  "displayName": "LangGraph JavaScript SDK",
-  "type": "agentic",
   "platform": "node",
   "dependencies": [
     {
@@ -10,22 +8,22 @@
     },
     {
       "package": "@langchain/openai",
-      "version": "0.3.0"
+      "version": "1.5.10"
     },
     {
       "package": "@langchain/anthropic",
-      "version": "0.3.21"
+      "version": "1.5.8"
     },
     {
       "package": "@langchain/core",
-      "version": "0.3.49"
+      "version": "1.2.9"
     },
     {
       "package": "zod",
       "version": "3"
     }
   ],
-  "versions": ["0.2.67"],
+  "versions": ["1.4.13"],
   "sentryVersions": ["latest"],
   "options": {
     "provider": [

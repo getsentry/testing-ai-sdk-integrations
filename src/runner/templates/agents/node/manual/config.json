@@ -1,7 +1,5 @@
 {
   "name": "manual",
-  "displayName": "Manual JavaScript Agent (Reference)",
-  "type": "agentic",
   "platform": "node",
   "dependencies": [],
   "versions": ["1.0.0"],

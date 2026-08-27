@@ -1,0 +1,109 @@
+{% extends baseTemplate %}
+
+{% block dynamic_imports %}
+{% if agentStyle == "class" %}
+{% if apiStyle == "v7" %}
+const { ToolLoopAgent, isStepCount, jsonSchema, tool } = await import("ai");
+const stopAfterSteps = isStepCount;
+{% else %}
+const { ToolLoopAgent, jsonSchema, stepCountIs, tool } = await import("ai");
+const stopAfterSteps = stepCountIs;
+{% endif %}
+{% else %}
+{% if apiStyle == "v7" %}
+const { generateText, isStepCount, jsonSchema, streamText, tool } = await import("ai");
+const stopAfterSteps = isStepCount;
+{% else %}
+const { generateText, jsonSchema, stepCountIs, streamText, tool } = await import("ai");
+const stopAfterSteps = stepCountIs;
+{% endif %}
+{% endif %}
+{% if provider == "anthropic" %}
+const { createAnthropic } = await import("@ai-sdk/anthropic");
+const provider = createAnthropic({ apiKey: process.env.OPENROUTER_API_KEY, baseURL: "https://openrouter.ai/api/v1" });
+{% else %}
+const { createOpenAI } = await import("@ai-sdk/openai");
+const provider = createOpenAI({ apiKey: process.env.OPENROUTER_API_KEY, baseURL: "https://openrouter.ai/api/v1" });
+{% endif %}
+{% endblock %}
+
+{% block probe %}
+          const tools = Object.fromEntries((probe.input.tools ?? []).map((definition) => [
+            definition.name,
+            tool({
+              description: definition.description,
+              inputSchema: jsonSchema(definition.parameters),
+              execute: async () => {
+                if (definition.error) throw new Error(definition.error);
+                return definition.result;
+              },
+            }),
+          ]));
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") {
+              Sentry.setConversationId(request.conversationId);
+            }
+            const system = request.messages.find((message) => message.role === "system")?.content;
+            const prompt = request.messages.filter((message) => message.role !== "system").at(-1)?.content;
+            try {
+{% if agentStyle == "class" %}
+              const agent = new ToolLoopAgent({
+                model: provider(request.model),
+                instructions: system,
+                tools,
+                stopWhen: stopAfterSteps(10),
+{% if apiStyle == "v7" %}
+                telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
+{% else %}
+                experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
+{% endif %}
+              });
+              if (request.streaming) {
+                const response = await agent.stream({ prompt });
+                for await (const _chunk of response.textStream) {
+                  // Consume the response to complete the instrumented operation.
+                }
+              } else {
+                await agent.generate({ prompt });
+              }
+{% else %}
+              if (request.streaming) {
+                const response = streamText({
+                  model: provider(request.model),
+                  system,
+                  prompt,
+                  tools,
+                  stopWhen: stopAfterSteps(10),
+{% if apiStyle == "v7" %}
+                  telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
+{% else %}
+                  experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
+{% endif %}
+                });
+                for await (const _chunk of response.textStream) {
+                  // Consume the response to complete the instrumented operation.
+                }
+              } else {
+                await generateText({
+                  model: provider(request.model),
+                  system,
+                  prompt,
+                  tools,
+                  stopWhen: stopAfterSteps(10),
+{% if apiStyle == "v7" %}
+                  telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
+{% else %}
+                  experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
+{% endif %}
+                });
+              }
+{% endif %}
+            } catch (error) {
+              if (probe.input.expectError) {
+                Sentry.captureException(error);
+                continue;
+              }
+              throw error;
+            }
+          }
+{% endblock %}

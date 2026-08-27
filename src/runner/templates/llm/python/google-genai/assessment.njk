@@ -1,0 +1,38 @@
+{% extends "base.python.assessment.njk" %}
+
+{% block dynamic_imports %}
+from google import genai
+client = genai.Client(api_key=os.environ["GOOGLE_GENAI_API_KEY"])
+{% endblock %}
+
+{% block probe %}
+                for request in probe["input"]["calls"]:
+                    if request.get("conversationId"):
+                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                    system = next((message["content"] for message in request["messages"] if message["role"] == "system"), None)
+                    contents = [{"role": "model" if message["role"] == "assistant" else message["role"], "parts": [{"text": message["content"]}]} for message in request["messages"] if message["role"] != "system"]
+                    kwargs = {"model": request["model"], "contents": contents}
+                    if system:
+                        kwargs["config"] = genai.types.GenerateContentConfig(system_instruction=system)
+                    try:
+                        if request.get("streaming", False):
+{% if isAsync %}
+                            stream = await client.aio.models.generate_content_stream(**kwargs)
+                            async for _chunk in stream:
+                                pass
+{% else %}
+                            for _chunk in client.models.generate_content_stream(**kwargs):
+                                pass
+{% endif %}
+                        else:
+{% if isAsync %}
+                            await client.aio.models.generate_content(**kwargs)
+{% else %}
+                            client.models.generate_content(**kwargs)
+{% endif %}
+                    except Exception as error:
+                        if probe["input"].get("expectError"):
+                            sentry_sdk.capture_exception(error)
+                            continue
+                        raise
+{% endblock %}

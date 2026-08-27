@@ -1,7 +1,5 @@
 {
   "name": "langchain",
-  "displayName": "LangChain Next.js (Helper Function Instrumentation)",
-  "type": "llm-only",
   "platform": "nextjs",
   "streamingMode": "both",
   "dependencies": [

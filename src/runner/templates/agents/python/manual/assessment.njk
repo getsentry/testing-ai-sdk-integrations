@@ -1,0 +1,57 @@
+{% extends "base.python.assessment.njk" %}
+
+{% block probe %}
+                for request in probe["input"]["calls"]:
+                    if request.get("conversationId"):
+                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                    input_tokens = max(1, sum(len(message["content"]) for message in request["messages"]) // 4)
+                    original_messages = json.dumps(request["messages"])
+                    captured_messages = original_messages
+                    if len(original_messages) > 10_000:
+                        captured_messages = json.dumps([
+                            {
+                                **message,
+                                "content": message["content"][:200] + "... [trimmed]"
+                                if len(message["content"]) > 200
+                                else message["content"],
+                            }
+                            for message in request["messages"]
+                        ])
+                    tool_definitions = [
+                        {
+                            "name": definition["name"],
+                            "description": definition["description"],
+                            "parameters": definition["parameters"],
+                        }
+                        for definition in probe["input"].get("tools", [])
+                    ]
+                    agent_name = "assessment-agent"
+                    with sentry_sdk.start_span(op="gen_ai.invoke_agent", name=f"invoke_agent {agent_name}") as agent_span:
+                        agent_span.set_data("gen_ai.operation.name", "invoke_agent")
+                        agent_span.set_data("gen_ai.agent.name", agent_name)
+                        agent_span.set_data("gen_ai.request.model", request["model"])
+                        agent_span.set_data("gen_ai.input.messages", captured_messages)
+                        with sentry_sdk.start_span(op="gen_ai.chat", name=f"chat {request['model']}") as chat_span:
+                            chat_span.set_data("gen_ai.operation.name", "chat")
+                            chat_span.set_data("gen_ai.agent.name", agent_name)
+                            chat_span.set_data("gen_ai.request.model", request["model"])
+                            chat_span.set_data("gen_ai.response.model", request["model"])
+                            chat_span.set_data("gen_ai.usage.input_tokens", input_tokens)
+                            chat_span.set_data("gen_ai.usage.output_tokens", 16)
+                            chat_span.set_data("gen_ai.usage.total_tokens", input_tokens + 16)
+                            chat_span.set_data("gen_ai.input.messages", captured_messages)
+                            chat_span.set_data("gen_ai.output.messages", json.dumps([{"role": "assistant", "content": "Assessment response"}]))
+                            if tool_definitions:
+                                chat_span.set_data("gen_ai.tool.definitions", json.dumps(tool_definitions))
+                        for definition in probe["input"].get("tools", []):
+                            with sentry_sdk.start_span(op="gen_ai.execute_tool", name=f"execute_tool {definition['name']}") as tool_span:
+                                tool_span.set_data("gen_ai.operation.name", "execute_tool")
+                                tool_span.set_data("gen_ai.agent.name", agent_name)
+                                tool_span.set_data("gen_ai.tool.name", definition["name"])
+                                tool_span.set_data("gen_ai.tool.description", definition["description"])
+                                tool_span.set_data("gen_ai.tool.call.arguments", json.dumps(definition["arguments"]))
+                                if "error" in definition:
+                                    tool_span.set_status("internal_error")
+                                else:
+                                    tool_span.set_data("gen_ai.tool.call.result", json.dumps(definition.get("result")))
+{% endblock %}

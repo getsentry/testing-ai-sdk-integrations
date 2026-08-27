@@ -1,83 +1,22 @@
-# LLM Framework Templates
+# LLM assessment adapters
 
-Templates for frameworks that support direct LLM calls (no agent wrapper).
+LLM adapters execute the shared `llm.*` probe catalog through a direct model SDK.
 
-## Compatible Frameworks
+Each adapter must:
 
-| Platform   | Framework     | Directory              | Status  |
-| ---------- | ------------- | ---------------------- | ------- |
-| JavaScript | OpenAI SDK    | `node/openai/`         | 🚧 TODO |
-| JavaScript | Anthropic SDK | `node/anthropic/`      | 🚧 TODO |
-| JavaScript | Google GenAI  | `node/google-genai/`   | 🚧 TODO |
-| Python     | OpenAI SDK    | `python/openai/`       | ✅ Done |
-| Python     | Anthropic SDK | `python/anthropic/`    | 🚧 TODO |
-| Python     | Google GenAI  | `python/google-genai/` | 🚧 TODO |
-| Python     | LiteLLM       | `python/litellm/`      | 🚧 TODO |
+- extend the matching `base.<platform>.assessment.njk` harness
+- initialize the SDK client once in `dynamic_imports`
+- execute every request in `probe.input.calls`
+- pass `request.model` and `request.messages`
+- consume both blocking and streaming responses when requested
+- apply `request.conversationId` when the runtime supports conversation tracking
+- capture the intentional provider error locally and rethrow unexpected errors
 
-## Test Compatibility
+The platform base owns lifecycle events, root spans, continuation, blocked probes, and flushing. Keep equivalent request semantics aligned across JavaScript and Python.
 
-LLM templates should implement tests that have:
+Validate an adapter with:
 
-- `system` property (system message)
-- `input.model` property (model identifier)
-- `input.prompt` property (user prompt)
-
-Example test from `test-cases/llm/basic.ts`:
-
-```typescript
-{
-  system: 'You are a helpful assistant.',
-  input: {
-    model: 'gpt-4o',
-    prompt: 'What is the capital of France?',
-  }
-}
+```bash
+npm run build
+npm test -- render --category llm --framework <name>
 ```
-
-## Template Requirements
-
-Each LLM template must:
-
-1. **Extend base template**
-
-   ```nunjucks
-   {% extends "base.{node,python}.njk" %}
-   ```
-
-2. **Import SDK**
-
-   ```nunjucks
-   {% block imports %}
-   {{ super() }}
-   from framework import Client
-   {% endblock %}
-   ```
-
-3. **Initialize client**
-
-   ```nunjucks
-   {% block setup %}
-   client = Client(api_key=os.environ.get("FRAMEWORK_API_KEY"))
-   {% endblock %}
-   ```
-
-4. **Call LLM**
-   ```nunjucks
-   {% block test %}
-   response = client.chat.create(
-       model="{{ input.model }}",
-       messages=[
-           {"role": "system", "content": "{{ system }}"},
-           {"role": "user", "content": "{{ input.prompt }}"}
-       ]
-   )
-   print(response.content)
-   {% endblock %}
-   ```
-
-## Notes
-
-- Use `{{ system }}` for system message
-- Use `{{ input.model }}` for model
-- Use `{{ input.prompt }}` for user prompt
-- Framework-specific parameters can be added as needed

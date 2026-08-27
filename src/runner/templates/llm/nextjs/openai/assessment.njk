@@ -1,0 +1,49 @@
+{% extends "base.nextjs.assessment.njk" %}
+
+{% block dynamic_imports %}
+const { default: OpenAI } = await import("openai");
+const client = Sentry.instrumentOpenAiClient(new OpenAI());
+const apiStyle = {{ apiStyle | tojson }};
+{% endblock %}
+
+{% block probe %}
+          for (const request of probe.input.calls) {
+            if (request.conversationId && typeof Sentry.setConversationId === "function") {
+              Sentry.setConversationId(request.conversationId);
+            }
+            try {
+              if (apiStyle === "responses") {
+                const instructions = request.messages.find((message) => message.role === "system")?.content;
+                const input = request.messages
+                  .filter((message) => message.role !== "system")
+                  .map((message) => ({ role: message.role, content: message.content }));
+                if (request.streaming) {
+                  const response = await client.responses.create({ model: request.model, instructions, input, stream: true });
+                  for await (const _event of response) {
+                    // Consume the full stream so instrumentation observes the response.
+                  }
+                } else {
+                  await client.responses.create({ model: request.model, instructions, input });
+                }
+              } else if (request.streaming) {
+                const response = await client.chat.completions.create({
+                  model: request.model,
+                  messages: request.messages,
+                  stream: true,
+                  stream_options: { include_usage: true },
+                });
+                for await (const _chunk of response) {
+                  // Consume the full stream so instrumentation observes the response.
+                }
+              } else {
+                await client.chat.completions.create({ model: request.model, messages: request.messages });
+              }
+            } catch (error) {
+              if (probe.input.expectError) {
+                Sentry.captureException(error);
+                continue;
+              }
+              throw error;
+            }
+          }
+{% endblock %}

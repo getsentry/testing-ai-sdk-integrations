@@ -1,7 +1,5 @@
 {
   "name": "google-genai",
-  "displayName": "Google GenAI JavaScript SDK",
-  "type": "llm-only",
   "platform": "node",
   "streamingMode": "both",
   "dependencies": [
@@ -10,7 +8,7 @@
       "version": "framework"
     }
   ],
-  "versions": ["1.38.0"],
+  "versions": ["2.19.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
     "request": "gemini-2.5-flash-lite",

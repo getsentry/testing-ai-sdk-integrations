@@ -1,5 +1,5 @@
-name: "Run AI SDK Integration Tests"
-description: "Run AI SDK integration tests for a specific language (js or python) and report failures"
+name: "Run AI SDK Integration Assessments"
+description: "Assess Sentry AI SDK integrations and publish native assessment reports"
 author: "Sentry Telemetry Experience Team"
 
 branding:
@@ -8,35 +8,35 @@ branding:
 
 inputs:
   platform:
-    description: "Platform to test. One of: node, python, php, or leave empty for both"
+    description: "Platform to assess: node, python, nextjs, cloudflare, js, or empty for all"
     required: false
     default: ""
   framework:
-    description: "Specific framework to test (e.g., openai, anthropic, langchain)"
+    description: "Framework name or wildcard to assess (for example openai or vercel-*)"
     required: false
     default: ""
-  test:
-    description: "Specific test to run (e.g., 'Basic LLM Test')"
+  category:
+    description: "Assessment category: llm or agents"
     required: false
     default: ""
+  option:
+    description: "Variant filter in key=value form"
+    required: false
+    default: ""
+  quick:
+    description: "Assess one representative variant per target"
+    required: false
+    default: "false"
   parallel:
-    description: "Number of tests to run in parallel"
+    description: "Maximum number of variants to assess concurrently"
     required: false
-    default: "4"
+    default: "10"
   sentry-python-path:
-    description: "Path to local sentry-python repository for editable install"
+    description: "Path to a local sentry-python checkout for editable installation"
     required: false
     default: ""
   sentry-javascript-path:
-    description: "Path to local sentry-javascript repository for linking"
-    required: false
-    default: ""
-  sentry-php-path:
-    description: "Path to local sentry-php repository (core PHP SDK)"
-    required: false
-    default: ""
-  sentry-laravel-path:
-    description: "Path to local sentry-laravel repository for composer path repository"
+    description: "Path to a local sentry-javascript checkout for package linking"
     required: false
     default: ""
   openai-api-key:
@@ -48,270 +48,188 @@ inputs:
   google-genai-api-key:
     description: "Google GenAI API key"
     required: true
-
 outputs:
-  success:
-    description: "Whether all tests passed"
-    value: ${{ steps.run-tests.outputs.success }}
-  total:
-    description: "Total number of tests run"
-    value: ${{ steps.run-tests.outputs.total }}
-  passed:
-    description: "Number of tests passed"
-    value: ${{ steps.run-tests.outputs.passed }}
-  failed:
-    description: "Number of tests failed"
-    value: ${{ steps.run-tests.outputs.failed }}
+  report-path:
+    description: "Absolute path to the native assessment JSON report"
+    value: ${{ steps.run-assessments.outputs.report-path }}
+  targets:
+    description: "Number of assessed targets"
+    value: ${{ steps.run-assessments.outputs.targets }}
+  variants:
+    description: "Number of assessed variants"
+    value: ${{ steps.run-assessments.outputs.variants }}
+  complete:
+    description: "Number of complete variants"
+    value: ${{ steps.run-assessments.outputs.complete }}
+  incomplete:
+    description: "Number of incomplete variants"
+    value: ${{ steps.run-assessments.outputs.incomplete }}
+  critical:
+    description: "Number of critical findings"
+    value: ${{ steps.run-assessments.outputs.critical }}
+  major:
+    description: "Number of major findings"
+    value: ${{ steps.run-assessments.outputs.major }}
+  minor:
+    description: "Number of minor findings"
+    value: ${{ steps.run-assessments.outputs.minor }}
+  info:
+    description: "Number of informational findings"
+    value: ${{ steps.run-assessments.outputs.info }}
+  health:
+    description: "Overall assessment health or out_of_spec when execution is incomplete"
+    value: ${{ steps.run-assessments.outputs.health }}
 
 runs:
   using: "composite"
   steps:
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
       with:
-        node-version: "20"
+        node-version: "22"
 
     - name: Setup Python
       if: inputs.platform == 'python' || inputs.platform == ''
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       with:
         python-version: "3.12"
 
-    - name: Install uv (Python package manager)
+    - name: Install uv
       if: inputs.platform == 'python' || inputs.platform == ''
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
     - name: Install dependencies and build
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        npm install
+        npm ci
         npm run build
 
-    - name: Install Playwright browsers
-      if: inputs.platform == '' || inputs.platform == 'browser' || inputs.platform == 'js'
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: npx playwright install --with-deps chromium
-
-    - name: Run tests
-      id: run-tests
+    - name: Run assessments
+      id: run-assessments
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
+        INPUT_PLATFORM: ${{ inputs.platform }}
+        INPUT_FRAMEWORK: ${{ inputs.framework }}
+        INPUT_CATEGORY: ${{ inputs.category }}
+        INPUT_OPTION: ${{ inputs.option }}
+        INPUT_QUICK: ${{ inputs.quick }}
+        INPUT_PARALLEL: ${{ inputs.parallel }}
+        INPUT_SENTRY_PYTHON_PATH: ${{ inputs.sentry-python-path }}
+        INPUT_SENTRY_JAVASCRIPT_PATH: ${{ inputs.sentry-javascript-path }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
         GOOGLE_GENAI_API_KEY: ${{ inputs.google-genai-api-key }}
       run: |
         set +e
+        args=(run --parallel "$INPUT_PARALLEL")
+        [[ -n "$INPUT_PLATFORM" ]] && args+=(--platform "$INPUT_PLATFORM")
+        [[ -n "$INPUT_FRAMEWORK" ]] && args+=(--framework "$INPUT_FRAMEWORK")
+        [[ -n "$INPUT_CATEGORY" ]] && args+=(--category "$INPUT_CATEGORY")
+        [[ -n "$INPUT_OPTION" ]] && args+=(--option "$INPUT_OPTION")
+        [[ "$INPUT_QUICK" == "true" ]] && args+=(--quick)
+        [[ -n "$INPUT_SENTRY_PYTHON_PATH" ]] && args+=(--sentry-python "$INPUT_SENTRY_PYTHON_PATH")
+        [[ -n "$INPUT_SENTRY_JAVASCRIPT_PATH" ]] && args+=(--sentry-javascript "$INPUT_SENTRY_JAVASCRIPT_PATH")
 
-        # Build command arguments
-        ARGS=""
-
-        if [ -n "${{ inputs.platform }}" ]; then
-          ARGS="$ARGS --platform ${{ inputs.platform }}"
-        fi
-
-        if [ -n "${{ inputs.framework }}" ]; then
-          ARGS="$ARGS --framework ${{ inputs.framework }}"
-        fi
-
-        if [ -n "${{ inputs.test }}" ]; then
-          ARGS="$ARGS --test \"${{ inputs.test }}\""
-        fi
-
-        if [ -n "${{ inputs.parallel }}" ]; then
-          ARGS="$ARGS -j=${{ inputs.parallel }}"
-        fi
-
-        if [ -n "${{ inputs.sentry-python-path }}" ]; then
-          ARGS="$ARGS --sentry-python ${{ inputs.sentry-python-path }}"
-        fi
-
-        if [ -n "${{ inputs.sentry-javascript-path }}" ]; then
-          ARGS="$ARGS --sentry-javascript ${{ inputs.sentry-javascript-path }}"
-        fi
-
-        if [ -n "${{ inputs.sentry-php-path }}" ]; then
-          ARGS="$ARGS --sentry-php ${{ inputs.sentry-php-path }}"
-        fi
-
-        if [ -n "${{ inputs.sentry-laravel-path }}" ]; then
-          ARGS="$ARGS --sentry-laravel ${{ inputs.sentry-laravel-path }}"
-        fi
-
-        # Run tests
-        echo "Running: npm run test -- $ARGS"
-        eval "npm run test -- $ARGS"
-        EXIT_CODE=$?
+        npm test -- "${args[@]}"
+        exit_code=$?
         set -e
 
-        # Parse CTRF report for outputs (find latest report with timestamp)
-        CTRF_REPORT=$(ls -t test-results/ctrf-report-*.json 2>/dev/null | head -1)
-        if [ -n "$CTRF_REPORT" ] && [ -f "$CTRF_REPORT" ]; then
-          TOTAL=$(jq -r '.results.summary.tests' "$CTRF_REPORT")
-          PASSED=$(jq -r '.results.summary.passed' "$CTRF_REPORT")
-          FAILED=$(jq -r '.results.summary.failed' "$CTRF_REPORT")
-          
-          echo "total=$TOTAL" >> $GITHUB_OUTPUT
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          echo "ctrf_report=$CTRF_REPORT" >> $GITHUB_OUTPUT
-        else
-          echo "total=0" >> $GITHUB_OUTPUT
-          echo "passed=0" >> $GITHUB_OUTPUT
-          echo "failed=0" >> $GITHUB_OUTPUT
-          echo "ctrf_report=" >> $GITHUB_OUTPUT
+        report=$(find test-results -maxdepth 1 -name 'assessment-report-*.json' -type f -print | sort | tail -1)
+        if [[ -z "$report" ]]; then
+          echo "Assessment execution did not produce a native JSON report." >&2
+          exit 1
         fi
 
-        if [ $EXIT_CODE -eq 0 ]; then
-          echo "success=true" >> $GITHUB_OUTPUT
-        else
-          echo "success=false" >> $GITHUB_OUTPUT
-        fi
+        absolute_report="${{ github.action_path }}/$report"
+        echo "report-path=$absolute_report" >> "$GITHUB_OUTPUT"
+        echo "targets=$(jq -r '.summary.targets' "$report")" >> "$GITHUB_OUTPUT"
+        echo "variants=$(jq -r '.summary.variants' "$report")" >> "$GITHUB_OUTPUT"
+        echo "complete=$(jq -r '.summary.complete' "$report")" >> "$GITHUB_OUTPUT"
+        echo "incomplete=$(jq -r '.summary.incomplete' "$report")" >> "$GITHUB_OUTPUT"
+        echo "critical=$(jq -r '.summary.findings.critical' "$report")" >> "$GITHUB_OUTPUT"
+        echo "major=$(jq -r '.summary.findings.major' "$report")" >> "$GITHUB_OUTPUT"
+        echo "minor=$(jq -r '.summary.findings.minor' "$report")" >> "$GITHUB_OUTPUT"
+        echo "info=$(jq -r '.summary.findings.info' "$report")" >> "$GITHUB_OUTPUT"
+        health=$(jq -r '
+          if .summary.incomplete > 0 then "out_of_spec"
+          elif .summary.health.broken > 0 then "broken"
+          elif .summary.health.degraded > 0 then "degraded"
+          elif .summary.health.healthy_with_notes > 0 then "healthy_with_notes"
+          else "healthy" end
+        ' "$report")
+        echo "health=$health" >> "$GITHUB_OUTPUT"
+        exit "$exit_code"
 
-        exit $EXIT_CODE
-
-    - name: Upload test results
+    - name: Upload assessment reports
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: test-results
-        path: ${{ github.action_path }}/test-results/
-        if-no-files-found: ignore
+        name: assessment-results
+        path: ${{ github.action_path }}/test-results/assessment-report-*
+        if-no-files-found: warn
 
-    - name: Create or update issue on failure
-      if: failure()
-      uses: actions/github-script@v7
+    - name: Create or update assessment issue
+      if: always()
+      continue-on-error: true
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+      env:
+        REPORT_PATH: ${{ steps.run-assessments.outputs.report-path }}
       with:
         script: |
           const fs = require('fs');
+          const reportPath = process.env.REPORT_PATH;
+          if (!reportPath || !fs.existsSync(reportPath)) return;
+
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const { summary } = report;
+          if (summary.incomplete === 0 && summary.findings.critical === 0 && summary.findings.major === 0) return;
+
           const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-
-          const formatDuration = (ms) => ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
-          const getStatusIcon = (status) => {
-            const icons = { passed: '\u2713', failed: '\u2717', skipped: '\u25CB' };
-            return icons[status] || '-';
-          };
-
-          let resultsContent = 'Test execution failed. Check the [workflow run](' + runUrl + ') for details.';
-          // Find latest CTRF report
-          const testResultsDir = '${{ github.action_path }}/test-results';
-          let ctrfPath = '';
-          if (fs.existsSync(testResultsDir)) {
-            const files = fs.readdirSync(testResultsDir)
-              .filter(f => f.startsWith('ctrf-report-') && f.endsWith('.json'))
-              .sort()
-              .reverse();
-            if (files.length > 0) {
-              ctrfPath = testResultsDir + '/' + files[0];
-            }
-          }
-
-          if (fs.existsSync(ctrfPath)) {
-            try {
-              const report = JSON.parse(fs.readFileSync(ctrfPath, 'utf8'));
-              const summary = report.results.summary;
-              const tests = report.results.tests;
-              const duration = summary.stop - summary.start;
-
-              let content = '## Summary\n\n';
-              content += '| Metric | Value |\n|--------|-------|\n';
-              content += `| **Total Tests** | ${summary.tests} |\n`;
-              content += `| **Passed** | ${summary.passed} |\n`;
-              content += `| **Failed** | ${summary.failed} |\n`;
-              content += `| **Skipped** | ${summary.skipped || 0} |\n`;
-              content += `| **Duration** | ${formatDuration(duration)} |\n\n`;
-
-              const byFramework = {};
-              tests.forEach(test => {
-                const framework = test.suite && test.suite[0] ? test.suite[0] : 'unknown';
-                if (!byFramework[framework]) byFramework[framework] = [];
-                byFramework[framework].push(test);
-              });
-
-              content += '## Results by Framework\n\n';
-              
-              Object.keys(byFramework).sort().forEach(framework => {
-                const frameworkTests = byFramework[framework];
-                const failed = frameworkTests.filter(t => t.status === 'failed').length;
-                
-                const statusIcon = failed > 0 ? 'FAILED' : 'PASSED';
-                content += `### ${statusIcon} - ${framework}\n\n`;
-                content += '| Test | Status | Duration |\n|------|--------|----------|\n';
-                
-                frameworkTests.forEach(test => {
-                  const testName = test.name.replace(framework + ' :: ', '');
-                  const icon = getStatusIcon(test.status);
-                  const dur = test.duration ? formatDuration(test.duration) : '-';
-                  content += `| ${testName} | ${icon} ${test.status} | ${dur} |\n`;
-                });
-                content += '\n';
-              });
-
-              const failedTests = tests.filter(t => t.status === 'failed');
-              if (failedTests.length > 0) {
-                content += '## Failed Tests Details\n\n';
-                failedTests.forEach(test => {
-                  const framework = test.suite && test.suite[0] ? test.suite[0] : 'unknown';
-                  const testName = test.name.replace(framework + ' :: ', '');
-                  content += '<details>\n';
-                  content += `<summary><strong>${framework}</strong> - ${testName}</summary>\n\n`;
-                  if (test.message) content += `**Error:** ${test.message}\n\n`;
-                  if (test.trace) content += '```\n' + test.trace + '\n```\n';
-                  content += '</details>\n\n';
-                });
-              }
-
-              resultsContent = content;
-            } catch (e) {
-              console.log('Could not parse test results:', e.message);
-            }
-          }
-
-          const issueLabel = 'ai-integration-test-failure';
-          const date = new Date();
-          const formattedDate = date.toISOString();
-
-          const platform = '${{ inputs.platform }}' || 'all';
-          const framework = '${{ inputs.framework }}' || 'all';
-
+          const incomplete = report.targets
+            .filter(target => target.completion === 'incomplete')
+            .map(target => `- \`${target.id}\`: ${target.variants.filter(variant => variant.completion === 'incomplete').length} incomplete variant(s)`);
+          const findings = report.targets.flatMap(target => target.findings
+            .filter(finding => finding.severity === 'critical' || finding.severity === 'major')
+            .map(finding => `- **${finding.severity}** \`${target.id}\` / \`${finding.findingId}\`: ${finding.title}`));
           const body = [
-            '## AI Integration Test Failure',
+            '## AI SDK integration assessment',
             '',
-            `**Date**: ${formattedDate}`,
-            `**Platform**: ${platform}`,
-            `**Framework**: ${framework}`,
-            `**Workflow Run**: ${runUrl}`,
+            `**Generated:** ${report.generatedAt}`,
+            `**Workflow run:** ${runUrl}`,
             '',
-            resultsContent,
+            '| Targets | Variants | Complete | Incomplete | Critical | Major | Minor | Info |',
+            '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+            `| ${summary.targets} | ${summary.variants} | ${summary.complete} | ${summary.incomplete} | ${summary.findings.critical} | ${summary.findings.major} | ${summary.findings.minor} | ${summary.findings.info} |`,
             '',
+            ...(incomplete.length ? ['### Incomplete targets', '', ...incomplete, ''] : []),
+            ...(findings.length ? ['### Critical and major findings', '', ...findings.slice(0, 100), ''] : []),
             '---',
-            '*This issue was automatically created by the [AI Integration Testing framework](https://github.com/getsentry/testing-ai-sdk-integrations).*'
+            '*Generated by the Sentry AI SDK integration assessment action.*',
           ].join('\n');
 
-          const issues = await github.rest.issues.listForRepo({
+          const title = 'AI SDK integration assessment needs attention';
+          const response = await github.rest.issues.listForRepo({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            labels: issueLabel,
-            state: 'open'
+            state: 'open',
+            per_page: 100,
           });
-
-          if (issues.data.length > 0) {
+          const issue = response.data.find(item => item.title === title && !item.pull_request);
+          if (issue) {
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issues.data[0].number,
-              body: body
+              issue_number: issue.number,
+              title,
+              body,
             });
-            console.log(`Updated existing issue #${issues.data[0].number}`);
           } else {
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'AI Integration Tests Failed',
-              body: body,
-              labels: [issueLabel, 'automated']
+              title,
+              body,
             });
-            console.log('Created new issue');
           }

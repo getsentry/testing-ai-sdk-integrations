@@ -1,7 +1,5 @@
 {
   "name": "openai",
-  "displayName": "OpenAI JavaScript SDK",
-  "type": "llm-only",
   "platform": "node",
   "streamingMode": "both",
   "options": {
@@ -13,6 +11,6 @@
       "version": "framework"
     }
   ],
-  "versions": ["4.96.0"],
+  "versions": ["7.7.0"],
   "sentryVersions": ["latest"]
 }

@@ -1,0 +1,34 @@
+{% extends "base.cloudflare.assessment.njk" %}
+
+{% block dynamic_imports %}
+{% if provider == "anthropic" %}
+      const { ChatAnthropic } = await import("@langchain/anthropic");
+{% else %}
+      const { ChatOpenAI } = await import("@langchain/openai");
+{% endif %}
+      const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core/messages");
+      const callbackHandler = Sentry.createLangChainCallbackHandler();
+{% endblock %}
+
+{% block probe %}
+                for (const request of probe.input.calls) {
+                  if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
+                  const messages = request.messages.map((message) => message.role === "system" ? new SystemMessage(message.content) : message.role === "assistant" ? new AIMessage(message.content) : new HumanMessage(message.content));
+{% if provider == "anthropic" %}
+                  const chat = new ChatAnthropic({ modelName: request.model, anthropicApiKey: env.OPENROUTER_API_KEY, anthropicApiUrl: "https://openrouter.ai/api", thinking: { type: "enabled", budget_tokens: 1024 } });
+{% else %}
+                  const chat = new ChatOpenAI({ modelName: request.model, openAIApiKey: env.OPENAI_API_KEY });
+{% endif %}
+                  try {
+                    if (request.streaming) {
+                      const stream = await chat.stream(messages, { callbacks: [callbackHandler] });
+                      for await (const _chunk of stream) { /* consume stream */ }
+                    } else {
+                      await chat.invoke(messages, { callbacks: [callbackHandler] });
+                    }
+                  } catch (error) {
+                    if (probe.input.expectError) { Sentry.captureException(error); continue; }
+                    throw error;
+                  }
+                }
+{% endblock %}

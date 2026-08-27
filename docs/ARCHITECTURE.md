@@ -1,546 +1,168 @@
 # Architecture
 
-## Overview
+## Purpose
 
-Test framework for Sentry AI SDK integrations. Test definitions (TypeScript) combined with framework templates (Nunjucks) generate runnable test files. A span collector HTTP server captures Sentry data for validation.
+This repository assesses Sentry instrumentation for LLM SDKs and agent frameworks. It gathers runtime evidence, identifies independent telemetry gaps, and keeps those findings separate from execution failures.
 
-## Components
+## Assessment Flow
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Test Definition                            │
-│  { name, type, inputs, agent?, checks: Check[] }                │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-            ┌─────────────────┴─────────────────┐
-            │ static config                     │ checks array
-            ▼                                   ▼
-┌───────────────────────┐              ┌───────────────────────┐
-│        Runner         │              │      Validator        │
-│  + Framework Template │              │  (Chai assertions)    │
-└───────────────────────┘              └───────────────────────┘
-            │                                   ▲
-            │ rendered test                     │ spans
-            ▼                                   │
-┌───────────────────────┐              ┌───────────────────────┐
-│   Test Execution      │─────────────▶│    Span Collector     │
-│   (runs/ directory)   │   Sentry     │    (HTTP server)      │
-└───────────────────────┘              └───────────────────────┘
-```
-
-### Orchestrator (`src/orchestrator.ts`)
-
-Entry point. Discovers frameworks, builds test matrix, coordinates execution, generates reports.
-
-### Span Collector (`src/span-collector/`)
-
-HTTP server that mimics Sentry's envelope endpoint. Creates dynamic DSN endpoints per test run, collects spans.
-
-### Test Cases (`src/test-cases/`)
-
-TypeScript test definitions shared across all frameworks. Each test has a `type` ("llm", "agent", "embeddings", or "mcp") that determines which frameworks can run it.
-
-### Runner (`src/runner/`)
-
-- `runner.ts` - Main runner orchestration
-- `javascript-runner.ts` - Node.js environment setup and execution
-- `browser-runner.ts` - Browser environment setup, Vite bundling, and Playwright execution
-- `python-runner.ts` - Python/uv environment setup and execution
-- `php-runner.ts` - PHP/Laravel environment setup and execution
-- `template-renderer.ts` - Nunjucks template rendering
-- `framework-discovery.ts` - Auto-discovers frameworks from templates directory
-
-### Validator (`src/validator.ts`)
-
-Runs each check function from the test definition's `checks` array against captured spans.
-
-### Reporters (`src/reporters/`)
-
-- `ctrf-reporter.ts` - CTRF JSON report generation
-- `live-status.ts` - Real-time terminal status display
-
-## Test Definition Format
-
-Test definitions use an explicit `checks` array with reusable check functions:
-
-```typescript
-// src/test-cases/llm/basic.ts
-import { TestDefinition } from "../../types.js";
-import {
-  checkAISpanCount,
-  checkChatSpanAttributes,
-  checkValidTokenUsage,
-  checkInputMessagesSchema,
-} from "../checks.js";
-
-export const basicLLMTest: TestDefinition = {
-  name: "Basic LLM Test",
-  description: "Single completion call with system message",
-  type: "llm",
-
-  inputs: [
-    {
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "What is the capital of France?" },
-      ],
-    },
-  ],
-
-  checks: [
-    checkAISpanCount(1),
-    checkChatSpanAttributes,
-    checkValidTokenUsage,
-    checkInputMessagesSchema,
-  ],
-};
+```text
+Framework config
+      │
+      ▼
+Target and variant resolution
+      │
+      ▼
+Assessment program rendering
+      │
+      ▼
+Ordered probe execution
+      │
+      ▼
+Local Sentry span collector
+      │
+      ▼
+Normalization and evaluation
+      │
+      ▼
+Findings, scores, JSON, and HTML
 ```
 
-### Agent Test Definition
+## Domain Hierarchy
 
-```typescript
-// src/test-cases/agents/tool-call.ts
-import { TestDefinition } from "../../types.js";
-import {
-  checkAgentSpanAttributes,
-  checkChatSpanAttributes,
-  checkToolSpanAttributes,
-  checkValidTokenUsage,
-  checkToolCalls,
-} from "../checks.js";
-
-export const toolCallAgentTest: TestDefinition = {
-  name: "Tool Call Agent Test",
-  description: "Agent with successful tool calling",
-  type: "agent",
-
-  agent: {
-    name: "math_assistant",
-    description: "A math assistant that can perform calculations",
-    tools: [
-      {
-        name: "add",
-        description: "Add two numbers together",
-        parameters: {
-          type: "object",
-          properties: {
-            a: { type: "number", description: "First number" },
-            b: { type: "number", description: "Second number" },
-          },
-          required: ["a", "b"],
-        },
-        result: 8,
-      },
-    ],
-  },
-
-  inputs: [
-    {
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: "What is 3 + 5? Use the add tool." }],
-    },
-  ],
-
-  checks: [
-    checkAgentSpanAttributes,
-    checkChatSpanAttributes,
-    checkToolSpanAttributes,
-    checkValidTokenUsage,
-    checkToolCalls([{ name: "add", input: { a: 3, b: 5 }, output: 8 }]),
-  ],
-};
+```text
+AssessmentReport
+└── TargetAssessment: platform/category/framework
+    └── VariantAssessment: versions, modes, and options
+        ├── ProbeResult
+        ├── Observation
+        ├── Finding
+        ├── RuntimeFailure
+        └── CapturedSpan
 ```
 
-## Framework Classification
+Targets preserve the native report hierarchy. The HTML overview shows one compact row and one score for each platform/framework target; internal variants remain available on expansion.
 
-| Type           | Test Type    | Supports            | Examples                                    |
-| -------------- | ------------ | ------------------- | ------------------------------------------- |
-| **llm-only**   | `llm`        | Simple completions  | OpenAI SDK, Anthropic SDK, LangChain        |
-| **agentic**    | `agent`      | Agents with tools   | Vercel AI, LangGraph, Mastra, OpenAI Agents |
-| **embeddings** | `embeddings` | Embedding calls     | OpenAI, LangChain, Google GenAI             |
-| **mcp-server** | `mcp`        | MCP server testing  | FastMCP                                     |
+## Main Components
 
-Frameworks with type `agentic` run agent tests. Frameworks with type `llm-only` run LLM tests. Frameworks with type `mcp-server` run MCP tests.
+### CLI
 
-## Framework Templates
+`src/assessment-cli.ts` is the entry point for both `npm test` and `npm run assess`. It discovers targets, applies target and variant filters, renders programs, executes variants with bounded concurrency, and writes reports.
 
-Each framework has a directory with `config.json` and `template.njk`:
+Supported categories are `llm` and `agents`. Supported platforms are Node.js, Python, Next.js, and Cloudflare Workers. The `js` filter includes Node.js, Next.js, and Cloudflare Workers.
 
-```
-src/runner/templates/
+### Framework Discovery and Matrix
 
-├── base.node.njk                     # Base JavaScript (Node) template
-├── base.python.njk                   # Base Python template
-├── base.browser.njk                  # Base JavaScript (Browser) template
-├── base.php.njk                      # Base PHP (Laravel) template
-├── llm/                              # LLM-only frameworks
-│   ├── node/
-│   │   ├── openai/
-│   │   │   ├── config.json
-│   │   │   └── template.njk
-│   │   ├── anthropic/
-│   │   ├── google-genai/
-│   │   └── langchain/
-│   ├── browser/
-│   │   ├── openai/
-│   │   ├── anthropic/
-│   │   ├── google-genai/
-│   │   └── langchain/
-│   └── python/
-│       ├── openai/
-│       ├── anthropic/
-│       ├── langchain/
-│       └── litellm/
-├── agents/                           # Agentic frameworks
-│   ├── node/
-│   │   ├── vercel/
-│   │   ├── langgraph/
-│   │   └── mastra/
-│   ├── python/
-│   │   ├── openai-agents/
-│   │   ├── langgraph/
-│   │   ├── pydantic-ai/
-│   │   └── google-genai/
-│   └── php/
-│       └── laravel/
-├── embeddings/                       # Embedding frameworks
-│   ├── node/
-│   ├── python/
-│   ├── browser/
-│   ├── cloudflare/
-│   ├── nextjs/
-│   └── php/
-└── mcp/                              # MCP server frameworks
-    └── python/
-        ├── fastmcp/
-        └── mcp/
+`src/runner/framework-discovery.ts` discovers framework configurations under:
+
+```text
+src/runner/templates/<category>/<platform>/<framework>/
 ```
 
-### Framework Configuration (`config.json`)
+`src/assessment/discovery.ts` converts discovered configuration into the
+assessment schema. `src/assessment/matrix.ts` expands framework versions,
+Sentry versions, execution environments, and option axes into stable variant
+IDs. Streaming is not a variant axis: each canonical call runs in both blocking
+and streaming modes inside one ordered assessment program, and each probe
+records the call modes it exercised. Probes are not a matrix dimension.
 
-```json
-{
-  "name": "openai",
-  "displayName": "OpenAI JavaScript SDK",
-  "type": "llm-only",
-  "platform": "node",
-  "streamingMode": "both",
-  "dependencies": [{ "package": "openai", "version": "framework" }],
-  "versions": ["4.96.0"],
-  "sentryVersions": ["latest"],
-  "modelOverrides": {
-    "request": "gpt-4o-mini",
-    "response": "gpt-4o-mini*"
-  },
-  "skip": {
-    "tests": ["Long Input LLM Test"],
-    "checks": {
-      "Basic LLM Test": ["checkAgentHierarchy"]
-    }
-  }
-}
+### Probe Programs
+
+`src/assessment/catalog.ts` defines ordered probe catalogs.
+`src/probes/inputs.ts` supplies canonical provider-independent inputs.
+
+`src/assessment/program-renderer.ts` renders one program per variant from
+platform base harnesses and framework assessment adapters. The generated
+harness initializes Sentry once, runs applicable probes in order, flushes
+evidence, and emits prefixed JSON lifecycle and runtime-failure events. Flush
+timeouts and errors stop later probes and make the variant incomplete.
+
+`src/assessment/protocol.ts` parses those events without treating ordinary
+framework output as control data.
+
+### Execution and Collection
+
+`src/assessment/executor.ts` coordinates rendering, environment setup,
+platform execution, protocol parsing, span collection, and evaluation for one
+variant. The variant identity keeps the requested Sentry version used by stable
+IDs, while `resolvedSentryVersion` records the package version actually installed.
+Reporters consume this data without mutating the assessment report.
+
+Platform runners implement a shared execution contract and create isolated environments under `runs/` and preserve
+execution logs. `src/span-collector/server.ts` receives Sentry envelopes under
+a variant run ID and normalizes transaction-embedded and span-v2 payloads into
+`CapturedSpan` objects. Malformed envelopes are recorded as collector runtime
+failures instead of being discarded.
+
+`src/assessment/partition.ts` assigns spans to probes using trace and parent
+relationships.
+
+### Evaluation
+
+Evaluators under `src/evaluation/` convert captured spans into atomic observations. Missing or malformed telemetry is data, not an exception. Prerequisite failures block dependent observations instead of creating cascades of derivative findings.
+
+Normalizers distinguish modern, legacy, malformed, missing, and blocked capability states. `src/evaluation/findings.ts` maps actionable observations to stable, severity-ranked findings.
+
+### Aggregation and Scoring
+
+`src/assessment/aggregation.ts` deduplicates findings within variants and targets, derives completion and health, computes scores, and creates the report summary.
+
+`src/assessment/scoring.ts` scores fixed telemetry domains rather than raw span
+observations. Repeated spans add evidence without adding positive points. Each
+domain uses its worst applicable outcome: healthy is 100, info is 95, minor is
+80, major is 50, and critical is 20. Product-blocked domains inherit a critical
+capture prerequisite so missing telemetry is not excluded from the score.
+
+The worst finding limits a complete score to 95 for info, 90 for minor, 75 for
+major, or 59 for critical. A variant that never starts scores 0. Partial
+execution receives a positive score adjusted by the proportion of completed
+probes and remains `out_of_spec`. Target scores average their capped variant
+scores; the report score averages targets so integrations with more variants do
+not dominate the user-facing result.
+
+### Reporting
+
+`src/reporters/json-reporter.ts` writes the native schema-v2 JSON report. `src/reporters/assessment-html.ts` creates a standalone dashboard from the same typed data.
+
+The dashboard shows a compact, searchable platform/framework matrix with:
+
+- platform brand icons
+- domain-weighted scores
+- positive quality classifications
+- runtime, version, mode, and option details
+- findings, probes, trace trees, and artifacts
+
+Scores of 85 and above use green at every report level. Red is reserved for
+out-of-spec runtime execution. Product findings use yellow and amber states even
+when their technical severity is critical.
+
+### Automation
+
+`action.yml` runs the same assessment CLI and exposes native completion, health, and finding metrics. It uploads JSON and HTML reports and creates a best-effort issue summary for incomplete execution or critical and major findings.
+
+The daily workflow archives each native report, stores compact schema-v3
+history, and publishes an overall score chart with framework, target, and
+variant sparklines directly in the assessment dashboard. History entries retain scoring and matrix metadata so future scoring
+changes are explicit. The pull request workflow compares matching variants by
+stable finding and capability IDs. Existing findings do not fail pull requests
+unless they are new or become worse.
+
+## Completion and Product Quality
+
+Completion and quality are separate:
+
+- A stopping setup, rendering, process, timeout, collector, flush, or protocol failure makes a variant incomplete.
+- Missing, malformed, legacy, or incorrect telemetry creates product findings but does not stop later probes.
+- A report is still written when product findings exist.
+- The CLI exits nonzero when requested variants are incomplete.
+
+## Generated Files
+
+```text
+runs/<platform>/<category>/<framework>/<variant-id>/assessment.<ext>
+runs/<platform>/<category>/<framework>/<variant-id>/assessment.log
+test-results/assessment-report-<timestamp>.json
+test-results/assessment-report-<timestamp>.html
 ```
 
-### Configuration Fields
-
-| Field            | Description                                           |
-| ---------------- | ----------------------------------------------------- |
-| `name`           | Framework identifier                                  |
-| `displayName`    | Human-readable name                                   |
-| `type`           | `"llm-only"`, `"agentic"`, `"embeddings"`, or `"mcp-server"` |
-| `platform`       | `"node"`, `"python"`, `"browser"`, `"nextjs"`, `"php"`, or `"cloudflare"` |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`              |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"`         |
-| `transportMode`  | MCP only: `"stdio"`, `"sse"`, or `"both"`              |
-| `dependencies`   | NPM/uv packages to install                            |
-| `versions`       | Framework versions to test                            |
-| `sentryVersions` | Sentry SDK versions to test against                   |
-| `modelOverrides` | Override model names for validation                   |
-| `skip.tests`     | Test names to skip entirely                           |
-| `skip.checks`    | Per-test check names to skip                          |
-
-## Directory Structure
-
-```
-testing-ai-sdk-integrations/
-├── package.json                # Orchestrator dependencies
-├── tsconfig.json
-├── .env                        # API keys (gitignored)
-│
-├── src/                        # TypeScript source (ES modules)
-│   ├── cli.ts                  # CLI entry point
-│   ├── orchestrator.ts         # Main test coordinator
-│   ├── types.ts                # Core type definitions
-│   ├── validator.ts            # Test validation logic
-│   ├── setup.ts                # Setup utilities
-│   ├── concurrency.ts          # Parallel execution support
-│   │
-│   ├── test-cases/             # Test definitions
-│   │   ├── index.ts            # Test registry
-│   │   ├── checks.ts           # Reusable check functions
-│   │   ├── utils.ts            # Test utilities
-│   │   ├── llm/                # LLM test cases
-│   │   │   ├── basic.ts
-│   │   │   ├── multi-turn.ts
-│   │   │   ├── basic-error.ts
-│   │   │   ├── vision.ts
-│   │   │   └── long-input.ts
-│   │   ├── agents/             # Agent test cases
-│   │   │   ├── basic.ts
-│   │   │   ├── tool-call.ts
-│   │   │   ├── tool-error.ts
-│   │   │   ├── vision.ts
-│   │   │   └── long-input.ts
-│   │   └── mcp/               # MCP server test cases
-│   │       ├── basic-tool.ts
-│   │       ├── tool-error.ts
-│   │       ├── multi-tool.ts
-│   │       ├── resource-read.ts
-│   │       └── prompt-get.ts
-│   │
-│   ├── runner/                 # Test execution
-│   │   ├── runner.ts
-│   │   ├── javascript-runner.ts
-│   │   ├── python-runner.ts
-│   │   ├── framework-config.ts
-│   │   ├── framework-discovery.ts
-│   │   ├── template-renderer.ts
-│   │   └── templates/          # Framework templates
-│   │
-│   ├── span-collector/         # HTTP server
-│   │   ├── server.ts
-│   │   └── store.ts
-│   │
-│   └── reporters/              # Output reporters
-│       ├── ctrf-reporter.ts
-│       └── live-status.ts
-│
-├── dist/                       # Compiled JavaScript
-├── runs/                       # Generated test environments (gitignored)
-│   ├── node/
-│   │   └── openai-4.96.0-sentry-latest/
-│   │       ├── node_modules/
-│   │       ├── package.json
-│   │       └── test-basic-llm-test.js
-│   ├── browser/
-│   │   └── openai-4.96.0-sentry-latest/
-│   │       ├── node_modules/
-│   │       ├── dist/             # Vite-bundled HTML files
-│   │       └── test-basic-llm-test-streaming.html
-│   ├── python/
-│   │   └── openai-1.82.0-sentry-latest/
-│   │       ├── .venv/
-│   │       └── test-basic-llm-test-async-streaming.py
-│   └── php/
-│       └── laravel-0.1.0-sentry-latest/
-│           ├── vendor/
-│           ├── app/Ai/Agents/
-│           ├── app/Ai/Tools/
-│           ├── app/Console/Commands/
-│           └── test-basic-agent-test.php
-│
-├── test-results/               # Generated reports
-│   ├── ctrf-report-*.json
-│   └── test-report-*.html
-│
-├── docs/                       # Documentation
-└── archive/                    # Old implementation (reference)
-```
-
-## Execution Flow
-
-1. **CLI** parses arguments, creates Orchestrator
-2. **Discovery** scans `templates/` for framework `config.json` files
-3. **Matrix Generation** creates test combinations:
-   - Framework × Test Definition × Execution Modes (sync/async, streaming/blocking, transport: stdio/sse)
-4. **For each test run:**
-   - Check/create environment cache (`runs/{platform}/{framework}-{version}/`)
-   - Install dependencies if needed (npm install / uv sync)
-   - **Render** template with test definition context + Sentry DSN
-   - **Execute** rendered test file
-   - **Collect** spans from Span Collector HTTP server
-   - **Validate** by running each check function against spans
-5. **Report** results to console + CTRF JSON + HTML
-
-## Template Context
-
-Templates receive this context when rendering:
-
-```javascript
-{
-  // From test definition
-  testName: "Basic LLM Test",
-  inputs: [{ model: "gpt-4o-mini", messages: [...] }],
-  agent: { name: "...", tools: [...] },  // For agent tests
-  mcpServer: { name: "...", tools: [...] },  // For MCP tests
-  causeAPIError: false,
-
-  // From framework config
-  frameworkName: "openai",
-
-  // From orchestrator
-  sentryDsn: "http://public@localhost:9999/123456",
-
-  // Execution mode flags
-  isAsync: true,      // Python only
-  isStreaming: false,
-  isStdio: true,      // MCP only
-  isSse: false,       // MCP only
-  transportMode: "stdio",  // MCP only
-}
-```
-
-## Check Functions
-
-Checks are reusable validation functions defined in `src/test-cases/checks.ts`:
-
-```typescript
-interface Check {
-  name: string;
-  fn: (
-    spans: CapturedSpan[],
-    config: FrameworkConfig,
-    testDef: TestDefinition,
-  ) => void;
-}
-```
-
-### Available Checks
-
-**Structure:**
-
-- `checkAISpanCount(n)` - Validate exact or range of AI span count
-
-**Span Attributes:**
-
-- `checkChatSpanAttributes` - Validate chat/completion spans
-- `checkAgentSpanAttributes` - Validate agent invocation spans
-- `checkToolSpanAttributes` - Validate tool execution spans
-- `checkAvailableTools` - Validate available_tools attribute
-- `checkResponseToolCalls([...])` - Validate tool calls in response
-- `checkToolCalls([...])` - Validate tool execution with input/output
-
-**Tokens:**
-
-- `checkValidTokenUsage` - Token counts exist and are valid
-- `checkInputTokensCached` - Cached tokens ≤ input tokens
-- `checkOutputTokensReasoning` - Reasoning tokens ≤ output tokens
-
-**Messages:**
-
-- `checkInputMessagesSchema` - Validate message schema
-- `checkBinaryRedaction` - Binary content is redacted
-- `checkMessageTrimming` - Long messages are trimmed
-- `checkTrimmingMetadata` - Trimming metadata is present
-
-**Hierarchy:**
-
-- `checkAgentHierarchy` - Agent span hierarchy and name propagation
-
-**MCP:**
-
-- `checkMCPSpanCount(n)` - Validate MCP span count
-- `checkMCPToolSpanAttributes` - Validate MCP tool spans (op, description, attributes)
-- `checkMCPToolResult` - Tool result content exists, is_error=false
-- `checkMCPToolError` - Tool result is_error=true, span status=error
-- `checkMCPResourceSpanAttributes` - Resource spans with URI and protocol
-- `checkMCPPromptSpanAttributes` - Prompt spans with name and message count
-- `checkMCPServerAttributes` - Common MCP attributes (transport, session.id)
-- `checkMCPMultipleTools([...])` - Validate multiple tool spans with names
-
-## Supported Frameworks
-
-### Node.js
-
-| Type   | Framework    | Streaming | Notes                                     |
-| ------ | ------------ | --------- | ----------------------------------------- |
-| llm    | openai       | both      | OpenAI SDK                                |
-| llm    | anthropic    | both      | Anthropic SDK                             |
-| llm    | google-genai | both      | Google Generative AI                      |
-| llm    | langchain    | both      | LangChain                                 |
-| agents | vercel       | -         | Vercel AI SDK                             |
-| agents | langgraph    | -         | LangGraph                                 |
-| agents | mastra       | -         | Mastra AI Framework (uses @mastra/sentry) |
-
-### Browser
-
-| Type   | Framework    | Streaming | Notes                                     |
-| ------ | ------------ | --------- | ----------------------------------------- |
-| llm    | openai       | both      | OpenAI SDK                                |
-| llm    | anthropic    | both      | Anthropic SDK                             |
-| llm    | google-genai | both      | Google Generative AI                      |
-| llm    | langchain    | both      | LangChain                                 |
-| agents | vercel       | -         | Vercel AI SDK                             |
-| agents | mastra       | -         | Mastra AI Framework (uses @mastra/sentry) |
-
-### Python
-
-| Type   | Framework     | Streaming | Execution  |
-| ------ | ------------- | --------- | ---------- |
-| llm    | openai        | both      | sync/async |
-| llm    | anthropic     | both      | sync/async |
-| llm    | langchain     | both      | sync/async |
-| llm    | litellm       | both      | sync/async |
-| agents | openai-agents | -         | async      |
-| agents | langgraph     | -         | sync/async |
-| agents | pydantic-ai   | -         | async      |
-| agents | google-genai  | -         | sync/async |
-
-### PHP (Laravel)
-
-| Type   | Framework | Streaming | Notes                         |
-| ------ | --------- | --------- | ----------------------------- |
-| agents | laravel   | -         | Laravel AI via sentry-laravel |
-
-### MCP (Python)
-
-| Type       | Framework | Transport  | Execution | Notes                                        |
-| ---------- | --------- | ---------- | --------- | -------------------------------------------- |
-| mcp-server | fastmcp   | stdio/sse  | async     | FastMCP via sentry MCPIntegration              |
-| mcp-server | mcp       | stdio/sse  | async     | MCP Python SDK (highlevel + lowlevel options)  |
-
-## CLI Commands
-
-```bash
-# Run all tests
-npm run test run
-
-# List discovered frameworks
-npm run test list
-
-# Filter by framework/platform/test
-npm run test -- --framework openai
-npm run test -- --platform python
-npm run test -- --test "Basic LLM Test"
-
-# Execution mode filters
-npm run test -- --streaming    # Only streaming tests
-npm run test -- --blocking     # Only non-streaming tests
-npm run test -- --sync         # Only sync tests (Python)
-npm run test -- --async        # Only async tests (Python)
-
-# Parallel execution
-npm run test -- -j=4
-
-# Verbose output
-npm run test -- --verbose
-
-# Use local Sentry SDK
-npm run test -- --sentry-python /path/to/sentry-python
-npm run test -- --sentry-javascript /path/to/sentry-javascript
-
-# Setup only (generate files without running)
-npm run test setup -- --framework openai
-```
-
-## Special Framework: Mastra
-
-Mastra uses its own Sentry integration (`@mastra/sentry`) rather than `@sentry/node`. Key differences:
-
-- Uses `SentryExporter` from `@mastra/sentry` with Mastra's `Observability` system
-- Attribute names follow newer OpenTelemetry conventions:
-  - `gen_ai.input.messages` instead of `gen_ai.request.messages`
-  - `gen_ai.tool.call.arguments` instead of `gen_ai.tool.input`
-- Tool type is `"tool"` instead of `"function"`
-- Template does not extend base.node.njk (standalone implementation)
+Do not edit `dist/`, `runs/`, or `test-results/` directly. Rebuild, rerender, or rerun from `src/`.

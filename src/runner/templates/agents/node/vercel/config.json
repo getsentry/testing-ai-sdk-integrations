@@ -1,7 +1,5 @@
 {
   "name": "vercel",
-  "displayName": "Vercel AI SDK",
-  "type": "agentic",
   "platform": "node",
   "streamingMode": "both",
   "dependencies": [
@@ -18,7 +16,23 @@
       "version": "3.0.105"
     }
   ],
-  "versions": ["6.0.116"],
+  "versions": ["6.0.116", "7.0.79"],
+  "versionOverrides": {
+    "6.0.116": {
+      "templateOptions": {
+        "apiStyle": "v6"
+      }
+    },
+    "7.0.79": {
+      "dependencies": {
+        "@ai-sdk/openai": "4.0.47",
+        "@ai-sdk/anthropic": "4.0.42"
+      },
+      "templateOptions": {
+        "apiStyle": "v7"
+      }
+    }
+  },
   "sentryVersions": ["latest"],
   "options": {
     "agentStyle": ["function", "class"],
@@ -37,7 +51,7 @@
         "overrides": {
           "modelOverrides": {
             "request": "anthropic/claude-haiku-4-5",
-            "response": "anthropic/claude-haiku-4-5*"
+            "response": "anthropic/claude-haiku-4.5*"
           }
         }
       }

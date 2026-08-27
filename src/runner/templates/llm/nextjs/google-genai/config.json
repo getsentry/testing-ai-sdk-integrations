@@ -1,7 +1,5 @@
 {
   "name": "google-genai",
-  "displayName": "Google GenAI Next.js SDK (Helper Function Instrumentation)",
-  "type": "llm-only",
   "platform": "nextjs",
   "streamingMode": "both",
   "dependencies": [
@@ -18,7 +16,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["1.38.0"],
+  "versions": ["2.19.0"],
   "sentryVersions": ["latest"],
   "modelOverrides": {
     "request": "gemini-2.5-flash-lite",

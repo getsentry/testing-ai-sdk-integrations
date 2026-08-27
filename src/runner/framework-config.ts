@@ -1,166 +1,81 @@
-/**
- * An option value can be a plain string or an object with overrides.
- * Overrides are merged into the framework config for that option combination.
- */
 export type OptionValue =
-  | string
-  | {
-      value: string;
-      overrides: Partial<
-        Pick<FrameworkConfig, "modelOverrides" | "skip" | "toolNameMapping">
-      >;
-    };
+	| string
+	| {
+			value: string;
+			overrides: {
+				modelOverrides?: FrameworkConfig["modelOverrides"];
+			};
+	  };
 
-/**
- * Framework configuration schema
- */
+interface FrameworkVersionOverride {
+	/** Dependency versions to use for this framework version, keyed by package. */
+	dependencies?: Record<string, string>;
+
+	/** Values exposed only to the assessment template for this framework version. */
+	templateOptions?: Record<string, string | number | boolean>;
+}
 
 export interface FrameworkConfig {
-  /** Whether this framework is disabled (excluded from discovery and test runs) */
-  disabled?: boolean;
+	/** Framework identifier, such as openai or openai-agents. */
+	name: string;
 
-  /** Framework identifier (e.g., "openai", "openai-agents") */
-  name: string;
+	/** Runtime platform. */
+	platform: "node" | "python" | "nextjs" | "cloudflare";
 
-  /** Human-readable display name */
-  displayName: string;
+	/** Package dependencies installed in the generated environment. */
+	dependencies: FrameworkDependency[];
 
-  /** Framework type: llm-only, agentic, embeddings, or mcp-server */
-  type: "llm-only" | "agentic" | "embeddings" | "mcp-server";
+	/** Framework versions included in the variant matrix. */
+	versions: string[];
 
-  /** Platform: Node.js, Browser, Next.js, Python, PHP, or Cloudflare */
-  platform: "node" | "python" | "browser" | "nextjs" | "php" | "cloudflare";
+	/** Dependency and template overrides coupled to a specific framework version. */
+	versionOverrides?: Record<string, FrameworkVersionOverride>;
 
-  /** Package dependencies to install */
-  dependencies: FrameworkDependency[];
+	/** Sentry SDK versions included in the variant matrix. */
+	sentryVersions: string[];
 
-  /** Common versions to test */
-  versions: string[];
+	/** Python execution mode. */
+	executionMode?: "sync" | "async" | "both";
 
-  /** Sentry SDK versions to test against */
-  sentryVersions: string[];
+	/** Whether generated calls use streaming, blocking, or both. */
+	streamingMode?: "streaming" | "blocking" | "both";
 
-  /** Python only: execution mode for the framework */
-  executionMode?: "sync" | "async" | "both";
+	/** Framework-specific option axes. Object values may override model expectations. */
+	options?: Record<string, OptionValue[]>;
 
-  /** Streaming mode: whether the framework supports streaming responses */
-  streamingMode?: "streaming" | "blocking" | "both";
+	/** Expected request and response model names. Values may contain `*` wildcards. */
+	modelOverrides?: {
+		request?: string;
+		response?: string;
+	};
 
-  /** MCP only: transport mode for server communication */
-  transportMode?: "stdio" | "sse" | "both";
-
-  /**
-   * Generic options that expand the test matrix.
-   * Each key maps to an array of possible values.
-   * Values can be plain strings or objects with overrides:
-   *   - string: simple value (e.g., "highlevel")
-   *   - { value: string, overrides: {...} }: value with config overrides
-   *
-   * Overrides are merged into the framework config for that option combination.
-   * Supported override fields: modelOverrides, skip, toolNameMapping.
-   *
-   * Example: { "modelSetup": ["single", { "value": "fallback", "overrides": { "modelOverrides": { "request": "gpt-4o" } } }] }
-   * Values are exposed to templates as variables (e.g., {{ modelSetup }}).
-   */
-  options?: Record<string, OptionValue[]>;
-
-  /** Model overrides: Some frameworks use different models than requested */
-  modelOverrides?: {
-    request?: string;
-    response?: string;
-  };
-
-  /** Tool name mapping: Map expected tool names to framework-reported names */
-  toolNameMapping?: {
-    [expectedName: string]: string;
-  };
-
-  /** Minimum platform version required (e.g., "3.10" for Python). Defaults to platform default if omitted. */
-  minimumPlatformVersion?: string;
-
-  /** Skip configuration: Tests or checks that should be skipped */
-  skip?: {
-    tests?: string[]; // Array of test names to skip entirely
-    checks?: {
-      // Per-test check skipping
-      [testName: string]: string[]; // Array of check method names to skip
-    };
-  };
-
-  /** Optional: Additional test matrix axes */
-  matrix?: {
-    /** Model providers to test (e.g., ["openai", "anthropic"]) */
-    modelProviders?: string[];
-
-    /** Additional custom axes */
-    [key: string]: string[] | undefined;
-  };
+	/** Minimum runtime version, such as Python 3.10. */
+	minimumPlatformVersion?: string;
 }
 
 export interface FrameworkDependency {
-  /** Package name */
-  package: string;
-
-  /** Version (or "latest", "framework" to match framework version) */
-  version: string;
+	package: string;
+	/** Registry version, `latest`, `framework`, or `sentry`. */
+	version: string;
 }
 
-/**
- * Load framework configuration from JSON file
- */
-export function loadFrameworkConfig(configPath: string): FrameworkConfig {
-  const fs = require("fs");
+/** Fully resolved dependency configuration used by a platform runner. */
+export interface ResolvedFramework {
+	name: string;
+	platform: FrameworkConfig["platform"];
+	version: string;
+	sentryVersion: string;
+	dependencies: FrameworkDependency[];
+	minimumPlatformVersion?: string;
+}
 
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`Framework config not found: ${configPath}`);
-  }
-
-  try {
-    const content = fs.readFileSync(configPath, "utf-8");
-    const config = JSON.parse(content) as FrameworkConfig;
-
-    // Validate required fields
-    const requiredFields = [
-      "name",
-      "displayName",
-      "type",
-      "platform",
-      "dependencies",
-      "versions",
-      "sentryVersions",
-    ];
-    for (const field of requiredFields) {
-      if (!(field in config)) {
-        throw new Error(`Missing required field: ${field}`);
-      }
-    }
-
-    // Validate type field
-    if (config.type !== "llm-only" && config.type !== "agentic" && config.type !== "embeddings" && config.type !== "mcp-server") {
-      throw new Error(
-        `Invalid type: ${config.type}. Must be 'llm-only', 'agentic', 'embeddings', or 'mcp-server'`,
-      );
-    }
-
-    // Validate platform field
-    if (
-      config.platform !== "node" &&
-      config.platform !== "python" &&
-      config.platform !== "browser" &&
-      config.platform !== "nextjs" &&
-      config.platform !== "php" &&
-      config.platform !== "cloudflare"
-    ) {
-      throw new Error(
-        `Invalid platform: ${config.platform}. Must be 'node', 'python', 'browser', 'nextjs', 'php', or 'cloudflare'`,
-      );
-    }
-
-    return config;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in ${configPath}: ${error.message}`);
-    }
-    throw error;
-  }
+export function resolveFrameworkDependencies(
+	config: Pick<FrameworkConfig, "dependencies" | "versionOverrides">,
+	frameworkVersion: string,
+): FrameworkDependency[] {
+	const overrides = config.versionOverrides?.[frameworkVersion]?.dependencies;
+	return config.dependencies.map((dependency) => ({
+		...dependency,
+		version: overrides?.[dependency.package] ?? dependency.version,
+	}));
 }

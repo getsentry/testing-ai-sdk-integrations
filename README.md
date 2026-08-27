@@ -1,881 +1,182 @@
-# Sentry AI SDK Integration Tests
+# Sentry AI SDK Integration Assessments
 
-A comprehensive testing framework for validating Sentry's automatic instrumentation of popular AI SDKs.
+Assesses Sentry instrumentation for LLM SDKs and agent frameworks across JavaScript, Python, Next.js, and Cloudflare Workers.
 
-## Overview
+Each run expands framework configurations into runtime variants, executes an ordered probe program, collects Sentry spans locally, and evaluates the captured GenAI telemetry. Product gaps remain visible as findings instead of failing the run like conventional tests.
 
-Sentry SDKs (JavaScript and Python) automatically instrument popular AI SDKs like OpenAI, Anthropic, and LangChain. This repository tests those integrations to ensure they:
+## Requirements
 
-- Capture performance data (spans, transactions)
-- Track AI-specific metadata (models, tokens, prompts, completions)
-- Report errors with proper context
-- Work correctly as AI SDK versions evolve
+- Node.js 22+
+- npm 10+
+- Python 3.10+ and [uv](https://docs.astral.sh/uv/) for Python targets
+- API keys for the providers being assessed
 
-## Project Structure
-
-```
-testing-ai-sdk-integrations/
-├── src/                              # TypeScript source code (ES modules)
-│   ├── cli.ts                        # CLI entry point
-│   ├── orchestrator.ts               # Main test coordinator
-│   ├── types.ts                      # Core type definitions
-│   ├── validator.ts                  # Test validation logic
-│   ├── setup.ts                      # Setup utilities
-│   ├── concurrency.ts                # Parallel execution support
-│   ├── test-cases/                   # Test definitions
-│   │   ├── index.ts                  # Test registry
-│   │   ├── checks.ts                 # Reusable check functions
-│   │   ├── utils.ts                  # Test utilities (skip, assertions)
-│   │   ├── llm/                      # LLM test cases
-│   │   │   ├── basic.ts              # Basic single completion test
-│   │   │   ├── multi-turn.ts         # Multi-turn conversation test
-│   │   │   ├── basic-error.ts        # Error handling test
-│   │   │   ├── vision.ts             # Vision/image input test
-│   │   │   └── long-input.ts         # Long input trimming test
-│   │   └── agents/                   # Agent test cases
-│   │       ├── basic.ts              # Basic agent (no tools)
-│   │       ├── tool-call.ts          # Agent with tool calling
-│   │       ├── tool-error.ts         # Tool error handling
-│   │       ├── vision.ts             # Vision agent test
-│   │       └── long-input.ts         # Long input agent test
-│   ├── runner/                       # Test execution
-│   │   ├── runner.ts                 # Main runner
-│   │   ├── javascript-runner.ts      # JS (Node + Next.js) execution
-│   │   ├── browser-runner.ts         # Browser execution (Playwright)
-│   │   ├── python-runner.ts          # Python execution
-│   │   ├── php-runner.ts             # PHP (Laravel) execution
-│   │   ├── framework-config.ts       # Framework configuration types
-│   │   ├── framework-discovery.ts    # Auto-discovers frameworks
-│   │   ├── template-renderer.ts      # Nunjucks template rendering
-│   │   └── templates/                # Framework templates
-│   │       ├── base.node.njk         # Base JavaScript (Node) template
-│   │       ├── base.python.njk       # Base Python template
-│   │       ├── base.browser.njk      # Base JavaScript (Browser) template
-│   │       ├── base.nextjs.njk       # Base Next.js template
-│   │       ├── base.php.njk          # Base PHP (Laravel) template
-│   │       ├── llm/                  # LLM framework templates
-│   │       │   ├── node/{openai,anthropic,google-genai,langchain}/
-│   │       │   ├── browser/{openai,anthropic,google-genai,langchain}/
-│   │       │   ├── nextjs/{openai,anthropic,google-genai,langchain}/
-│   │       │   └── python/{openai,anthropic,langchain,litellm}/
-│   │       └── agents/               # Agent framework templates
-│   │           ├── node/{langgraph,mastra,vercel}/
-│   │           ├── nextjs/{mastra,vercel}/
-│   │           ├── python/{langgraph,openai-agents,pydantic-ai,google-genai}/
-│   │           └── php/{laravel}/
-│   ├── span-collector/               # HTTP server to capture Sentry data
-│   │   ├── server.ts                 # Hono HTTP server
-│   │   └── store.ts                  # In-memory span storage
-│   └── reporters/                    # Test output reporters
-│       ├── ctrf-reporter.ts          # CTRF JSON report generator
-│       └── live-status.ts            # Real-time test status display
-├── dist/                             # Compiled JavaScript output
-├── runs/                             # Generated test files per run
-├── test-results/                     # Generated reports
-│   └── ctrf-report.json
-├── .env                              # Environment variables (gitignored)
-├── .env.example                      # Template for API keys
-└── package.json
-```
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+ (for JavaScript tests and orchestration)
-- Python 3.9+ (for Python tests)
-- uv (Python package manager, recommended)
-- API keys for AI services (OpenAI, Anthropic, Google)
-
-### Setup
-
-1. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd testing-ai-sdk-integrations
-```
-
-2. Copy and configure environment variables:
+Copy `.env.example` to `.env` and add the required keys:
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys
-```
-
-3. Install dependencies and build:
-
-```bash
 npm install
 npm run build
 ```
 
-4. List available frameworks:
+## Run Assessments
+
+The assessment runner is the repository's `npm test` command:
 
 ```bash
-npm run test list
+# List targets and variant counts
+npm test -- list
+
+# Run all assessments
+npm test
+npm test -- run
+
+# Render programs without calling providers
+npm test -- setup
+npm test -- render
 ```
 
-5. Run all tests:
+Filter the assessment variant matrix:
 
 ```bash
-npm run test run
+npm test -- --framework openai
+npm test -- --platform python
+npm test -- --platform js
+npm test -- --type llm
+npm test -- --category agents
+npm test -- --sync
+npm test -- --option apiStyle=responses
+npm test -- --probe llm.baseline
+npm test -- --framework openai --framework 'vercel-*' --platform node --quick
+npm test -- -j=4 --verbose
+npm test -- --framework openai --open
 ```
 
-### CLI Usage
+`--platform js` includes Node.js, Next.js, and Cloudflare Workers. Repeat framework, platform, category, or probe filters to match any selected value. `--probe` is a debugging filter and does not add a probe-level report row. Use `--quick` to run one representative variant per target for a faster overview.
+
+Use local Sentry SDK checkouts with `--sentry-python <path>` or `--sentry-javascript <path>`; see [docs/LOCAL_SENTRY_SDK.md](docs/LOCAL_SENTRY_SDK.md).
+
+`npm run assess -- ...` remains an alias for the same runner.
+
+## Assessment Model
+
+The report hierarchy is:
+
+```text
+Assessment report
+└── Target: platform/category/framework
+    └── Variant: versions, execution environments, and options
+        └── Probe: one runtime operation
+            └── Observations, findings, and span evidence
+```
+
+A runtime failure can stop a variant and block later probes. Product telemetry
+findings do not stop execution, so one run can capture several independent
+improvements. Streaming and blocking calls run together inside the same
+assessment program instead of creating separate variants. Each canonical call
+is executed once in each mode, and the report records the modes covered by
+every probe.
+
+### Scores
+
+Every variant receives a score from 0 to 100 across a fixed set of telemetry
+domains. Span volume does not affect the score: repeated spans add evidence but
+not positive points. Each domain uses its worst applicable finding, with quality
+values of 95 for info, 80 for minor, 50 for major, and 20 for critical findings.
+Healthy domains score 100.
+
+The worst finding also limits the final score:
+
+| Worst finding | Maximum score |
+| ------------- | ------------: |
+| Critical      |            59 |
+| Major         |            75 |
+| Minor         |            90 |
+| Info          |            95 |
+| None          |           100 |
+
+A variant that never starts scores 0. Partial execution receives a positive
+coverage-adjusted score and remains classified as out of spec. Target scores
+average their capped variant scores. The overall score averages targets so every
+integration has equal influence regardless of its variant count.
+
+The dashboard presents the numeric score and finding count without adding a
+quality label. Scores of 85 and above use green consistently across framework,
+target, and variant rows. Incomplete execution remains visually distinct from
+product findings.
+
+## Reports
+
+Each run writes:
+
+```text
+test-results/assessment-report-<timestamp>.json
+test-results/assessment-report-<timestamp>.html
+```
+
+The JSON report is the source of truth. The standalone HTML dashboard shows one compact row per platform/framework target with its icon, score, and finding count. Internal variants, probes, trace trees, and runtime evidence remain available in the expandable detail view.
+
+Regenerate a dashboard from an existing assessment report:
 
 ```bash
-# Run all tests
-npm run test run
-
-# Run tests for a specific framework
-npm run test -- --framework openai
-
-# Run tests for a specific platform
-npm run test -- --platform python
-npm run test -- --platform browser
-npm run test -- --platform nextjs
-npm run test -- --platform php                        # PHP platform (Laravel)
-npm run test -- --platform js                         # all JS platforms (node + browser)
-
-# Run a specific test
-npm run test -- --test "Basic LLM Test"
-
-# Run with verbose output
-npm run test -- --framework openai --verbose
-
-# Run only streaming tests
-npm run test -- --streaming
-
-# Run only blocking (non-streaming) tests
-npm run test -- --blocking
-
-# Run only sync tests (Python)
-npm run test -- --platform python --sync
-
-# Run only async tests (Python)
-npm run test -- --platform python --async
-
-# Run tests in parallel
-npm run test -- -j=4
-
-# Run tests and open report in browser
-npm run test -- --framework openai --open
-
-# Setup only (generate test files without running)
-npm run test setup -- --framework openai
-
-# Use local Sentry SDK
-npm run test -- --sentry-python /path/to/sentry-python
-npm run test -- --sentry-javascript /path/to/sentry-javascript
+npm run report -- test-results/assessment-report-<timestamp>.json
 ```
 
-### CLI Options
+Generated programs and execution logs are stored under `runs/`.
 
-| Option                                      | Description                                  |
-| ------------------------------------------- | -------------------------------------------- |
-| `--framework <name>`                        | Filter by framework name                     |
-| `--test <name>`                             | Filter by test name                          |
-| `--platform <node\|python\|browser\|nextjs\|php\|js>` | Filter by platform (`js` = node + browser)   |
-| `--sync`                                    | Run only sync tests (Python, default: both)  |
-| `--async`                                   | Run only async tests (Python, default: both) |
-| `--streaming`                               | Run only streaming tests (default: both)     |
-| `--blocking`                                | Run only blocking tests (default: both)      |
-| `-j, --parallel <N>`                        | Run up to N tests in parallel                |
-| `-v, --verbose`                             | Show detailed output                         |
-| `--live-status`                             | Enable real-time status display              |
-| `--open`                                    | Open HTML report in browser after test run   |
-| `--sentry-python <path>`                    | Use local Sentry Python SDK                  |
-| `--sentry-javascript <path>`                | Use local Sentry JavaScript SDK              |
+## GitHub Action
 
-## Test Matrix Structure
-
-Tests are organized in a hierarchical structure:
-
-```
-Type / Platform / Framework / Test Case
-```
-
-| Dimension     | Description                | Examples                                                                                                       |
-| ------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Type**      | Category of AI integration | `llm` (low-level LLM SDKs), `agents` (agentic frameworks)                                                      |
-| **Platform**  | Runtime environment        | `node` (Node.js), `browser` (Playwright), `nextjs` (Next.js), `python` (Python), `php` (Laravel). CLI also accepts `js` (= node + browser) |
-| **Framework** | AI SDK being tested        | `openai`, `anthropic`, `langchain`, `langgraph`, etc.                                                          |
-| **Test Case** | Specific test scenario     | `Basic LLM Test`, `Tool Call Agent Test`, etc.                                                                 |
-
-This structure is reflected in the templates directory:
-
-```
-src/runner/templates/
-├── llm/                      # Type: LLM
-│   ├── node/                 # Platform: Node.js
-│   │   ├── openai/           # Framework
-│   │   ├── anthropic/
-│   │   ├── google-genai/
-│   │   └── langchain/
-│   ├── browser/              # Platform: Browser (Playwright)
-│   │   ├── openai/
-│   │   ├── anthropic/
-│   │   ├── google-genai/
-│   │   └── langchain/
-│   ├── nextjs/               # Platform: Next.js
-│   │   ├── openai/
-│   │   ├── anthropic/
-│   │   ├── google-genai/
-│   │   └── langchain/
-│   └── python/               # Platform: Python
-│       ├── openai/
-│       ├── anthropic/
-│       ├── langchain/
-│       └── litellm/
-└── agents/                   # Type: Agents
-    ├── node/
-    │   ├── langgraph/
-    │   ├── mastra/
-    │   └── vercel/
-    ├── nextjs/
-    │   ├── mastra/
-    │   └── vercel/
-    ├── python/
-    │   ├── langgraph/
-    │   ├── openai-agents/
-    │   ├── pydantic-ai/
-    │   └── google-genai/
-    └── php/
-        └── laravel/
-```
-
-When tests run, each **Test Case** is rendered using the framework's template and executed. For example:
-
-- `llm / python / openai / Basic LLM Test` → Tests OpenAI Python SDK with a simple completion
-- `agents / node / langgraph / Tool Call Agent Test` → Tests LangGraph JS with tool calling
-
-## Supported Frameworks
-
-| Type   | Platform | Framework       | Streaming | Execution Modes |
-| ------ | -------- | --------------- | --------- | --------------- |
-| llm    | Node.js  | `openai`        | both      | -               |
-| llm    | Node.js  | `anthropic`     | both      | -               |
-| llm    | Node.js  | `google-genai`  | both      | -               |
-| llm    | Node.js  | `langchain`     | both      | -               |
-| llm    | Browser  | `openai`        | both      | -               |
-| llm    | Browser  | `anthropic`     | both      | -               |
-| llm    | Browser  | `google-genai`  | both      | -               |
-| llm    | Browser  | `langchain`     | both      | -               |
-| llm    | Next.js  | `openai`        | both      | -               |
-| llm    | Next.js  | `anthropic`     | both      | -               |
-| llm    | Next.js  | `google-genai`  | both      | -               |
-| llm    | Next.js  | `langchain`     | both      | -               |
-| llm    | Python   | `openai`        | both      | sync/async      |
-| llm    | Python   | `anthropic`     | both      | sync/async      |
-| llm    | Python   | `langchain`     | both      | sync/async      |
-| llm    | Python   | `litellm`       | both      | sync/async      |
-| agents | Node.js  | `vercel`        | -         | -               |
-| agents | Node.js  | `langgraph`     | -         | -               |
-| agents | Node.js  | `mastra`        | -         | -               |
-| agents | Next.js  | `vercel`        | -         | -               |
-| agents | Next.js  | `mastra`        | -         | -               |
-| agents | Python   | `openai-agents` | -         | async           |
-| agents | Python   | `langgraph`     | -         | sync/async      |
-| agents | Python   | `pydantic-ai`   | -         | async           |
-| agents | Python   | `google-genai`  | -         | sync/async      |
-| agents | PHP      | `laravel`       | -         | -               |
-
-## Test Cases
-
-Test cases are defined in `src/test-cases/` and apply to frameworks based on their **type**.
-
-### LLM Test Cases (for `llm` type frameworks)
-
-| Test Case              | Description                               |
-| ---------------------- | ----------------------------------------- |
-| `Basic LLM Test`       | Single completion with system message     |
-| `Multi Turn LLM Test`  | Multi-turn conversation                   |
-| `Basic Error LLM Test` | API error handling                        |
-| `Vision LLM Test`      | Image input processing                    |
-| `Long Input LLM Test`  | Message trimming for large inputs (>20KB) |
-
-### Agent Test Cases (for `agents` type frameworks)
-
-| Test Case               | Description                             |
-| ----------------------- | --------------------------------------- |
-| `Basic Agent Test`      | Agent without tools (simple completion) |
-| `Tool Call Agent Test`  | Agent with successful tool calling      |
-| `Tool Error Agent Test` | Agent with tool that raises exception   |
-| `Vision Agent Test`     | Agent that processes images             |
-| `Long Input Agent Test` | Agent with large input trimming         |
-
-## Check Functions
-
-Each test case specifies an explicit list of **checks** that validate the captured Sentry spans. Checks are reusable functions defined in `src/test-cases/checks.ts`.
-
-### Check Structure
-
-A check is an object with a `name` and validation function:
-
-```typescript
-interface Check {
-  name: string;
-  fn: (
-    spans: CapturedSpan[],
-    config: FrameworkConfig,
-    testDef: TestDefinition,
-  ) => void;
-}
-```
-
-Test cases explicitly list their checks:
-
-```typescript
-export const basicLLMTest: TestDefinition = {
-  name: "Basic LLM Test",
-  type: "llm",
-  inputs: [...],
-
-  checks: [
-    checkAISpanCount(1),
-    checkChatSpanAttributes,
-    checkValidTokenUsage,
-    checkInputTokensCached,
-    checkOutputTokensReasoning,
-  ],
-};
-```
-
-### Available Checks
-
-#### Structure Checks
-
-| Check                 | Description                                |
-| --------------------- | ------------------------------------------ |
-| `checkAISpanCount(n)` | Factory function to validate AI span count |
-
-The `checkAISpanCount` factory function accepts:
-
-- A number for exact count: `checkAISpanCount(1)`, `checkAISpanCount(3)`
-- An object with bounds: `checkAISpanCount({ min: 1 })`, `checkAISpanCount({ max: 5 })`, `checkAISpanCount({ min: 2, max: 4 })`
-
-#### Span Type Attribute Checks
-
-| Check                           | Description                                                       |
-| ------------------------------- | ----------------------------------------------------------------- |
-| `checkChatSpanAttributes`       | Validates chat/completion spans (model, messages, tokens)         |
-| `checkAgentSpanAttributes`      | Validates agent invocation spans (gen_ai.agent.name)              |
-| `checkToolSpanAttributes`       | Validates tool execution spans (type, name, description)          |
-| `checkHandoffSpanAttributes`    | Validates handoff spans (agent-to-agent transfers)                |
-| `checkAvailableTools`           | Validates gen_ai.request.available_tools matches test's tool defs |
-| `checkResponseToolCalls([...])` | Factory to validate gen_ai.response.tool_calls on chat spans      |
-| `checkToolCalls([...])`         | Factory to validate tool execution spans with input/output        |
-
-Each check **fails if no spans of that type are found**. Use these to verify the expected span types are captured.
-
-**Tool validation factories:**
-
-```typescript
-// Validate tool calls in LLM response (gen_ai.response.tool_calls)
-checkResponseToolCalls([
-  { name: "add", arguments: { a: 3, b: 5 } },
-  { name: "multiply", arguments: { a: 8, b: 4 } },
-]);
-
-// Validate tool execution spans (gen_ai.tool.*)
-checkToolCalls([
-  {
-    name: "add",
-    type: "function",
-    description: "Add two numbers together",
-    input: { a: 3, b: 5 },
-    output: 8,
-  },
-]);
-```
-
-#### Token Checks
-
-| Check                        | Description                                             |
-| ---------------------------- | ------------------------------------------------------- |
-| `checkValidTokenUsage`       | Token counts exist on invoke_agent and chat spans       |
-| `checkInputTokensCached`     | Cached tokens ≤ input tokens (skips if not present)     |
-| `checkOutputTokensReasoning` | Reasoning tokens ≤ output tokens (skips if not present) |
-
-#### Message Schema Checks
-
-| Check                      | Description                                                  |
-| -------------------------- | ------------------------------------------------------------ |
-| `checkInputMessagesSchema` | Validates `gen_ai.input.messages` follows Sentry conventions |
-
-The `checkInputMessagesSchema` check validates that the input messages attribute follows the [Sentry conventions schema](https://getsentry.github.io/sentry-conventions/generated/attributes/gen_ai.html#gen_aiinputmessages):
-
-- Must be an array of message objects
-- Each message must have a `role` field: "user", "assistant", "tool", or "system"
-- Each message must have a `parts` array (new format) or `content` field (legacy)
-- Parts can have types: "text", "tool_call", "tool_call_response", "image"
-- Validates type-specific fields (e.g., tool_call must have name)
-
-#### Message Trimming Checks
-
-| Check                   | Description                         |
-| ----------------------- | ----------------------------------- |
-| `checkMessageTrimming`  | Messages are trimmed below 15KB     |
-| `checkTrimmingMetadata` | Original length metadata is present |
-
-#### Agent-specific Checks
-
-| Check                 | Description                                                                       |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `checkAgentHierarchy` | Validates agent span hierarchy and `gen_ai.agent.name` propagation to child spans |
-
-### Checks by Test Case
-
-#### LLM Tests
-
-**Basic LLM Test:**
-
-- `checkAISpanCount(1)`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
-
-**Multi-Turn LLM Test:**
-
-- `checkAISpanCount(3)`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
-
-**Basic Error LLM Test:**
-
-- `checkAISpanCount({ min: 1 })`, `checkErrorCaptured` (inline)
-
-**Vision LLM Test:**
-
-- `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkInputMessagesSchema`
-
-**Long Input LLM Test:**
-
-- `checkChatSpanAttributes`, `checkMessageTrimming`, `checkTrimmingMetadata`, `checkInputMessagesSchema`
-
-#### Agent Tests
-
-**Basic Agent Test:**
-
-- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkAgentHierarchy`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
-
-**Tool Call Agent Test:**
-
-- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkToolSpanAttributes`, `checkValidTokenUsage`, `checkAgentHierarchy`, `checkAvailableTools`, `checkResponseToolCalls([...])`, `checkToolCalls([...])`, `checkInputMessagesSchema`, `checkInputTokensCached`, `checkOutputTokensReasoning`
-
-**Tool Error Agent Test:**
-
-- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkToolSpanAttributes`, `checkAgentHierarchy`, `checkAvailableTools`, `checkResponseToolCalls([...])`, `checkInputMessagesSchema`, `checkToolErrorSpan` (inline)
-
-**Vision Agent Test:**
-
-- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkValidTokenUsage`, `checkAgentHierarchy`, `checkInputMessagesSchema`
-
-**Long Input Agent Test:**
-
-- `checkAgentSpanAttributes`, `checkChatSpanAttributes`, `checkMessageTrimming`, `checkTrimmingMetadata`, `checkAgentHierarchy`, `checkInputMessagesSchema`
-
-## How It Works
-
-1. **Discovery**: Scans `templates/` directory for framework configurations
-2. **Matrix Generation**: Creates test matrix (framework × test × execution modes)
-3. **Template Rendering**: Generates runnable test files using Nunjucks templates
-4. **Execution**: Runs tests with Sentry DSN pointing to local span collector
-5. **Validation**: Runs each check function against captured spans
-6. **Reporting**: Generates console output and CTRF JSON report
-
-```
-TestDefinition (TypeScript)  +  Framework Template (Nunjucks)
-                    ↓
-        Template Renderer generates test file
-                    ↓
-        Runner executes test file
-                    ↓
-        Sentry SDK sends spans to Span Collector
-                    ↓
-        Validator runs checks array on captured spans
-                    ↓
-        Reporter outputs results
-```
-
-## OpenTelemetry Attribute Migration
-
-The test framework supports both **legacy** and **OpenTelemetry (OTEL)** attribute formats, enabling smooth migration to the OTEL standard while maintaining backward compatibility.
-
-### Automatic Fallback & Deprecation Warnings
-
-- **New attributes first**: Checks always try OTEL attributes first (e.g., `gen_ai.input.messages`)
-- **Legacy fallback**: Automatically falls back to legacy attributes (e.g., `gen_ai.request.messages`) if new ones aren't present
-- **Non-blocking warnings**: When legacy attributes are detected, deprecation warnings are logged but tests still pass
-- **Dynamic tracking**: Deprecation mappings are loaded from the [sentry-conventions](https://github.com/getsentry/sentry-conventions) submodule
-
-### Example Output
-
-When a framework uses legacy attributes, you'll see:
-
-```
-⚠  DEPRECATION WARNING in checkInputMessagesSchema: 2 usage(s) of deprecated attributes
-   - gen_ai.request.messages (2 spans): Attribute "gen_ai.request.messages" is deprecated. Use "gen_ai.input.messages" instead (OTEL standard).
-✓ Test passed (with deprecation warnings)
-```
-
-### Updating Conventions
-
-To pull the latest attribute definitions:
-
-```bash
-npm run update-conventions
-npm run build
-```
-
-## Adding a New Framework
-
-### 1. Create Template Directory
-
-```bash
-mkdir -p src/runner/templates/{llm|agents}/{node|python|browser|nextjs|php}/your-framework
-```
-
-### 2. Create `config.json`
-
-```json
-{
-  "name": "your-framework",
-  "displayName": "Your Framework SDK",
-  "type": "llm-only",
-  "platform": "node",
-  "streamingMode": "both",
-  "dependencies": [{ "package": "your-framework", "version": "framework" }],
-  "versions": ["1.0.0"],
-  "sentryVersions": ["latest"]
-}
-```
-
-### 3. Create `template.njk`
-
-```njk
-{% extends "base.node.njk" %}
-
-{% block setup %}
-let client;
-{% endblock %}
-
-{% block dynamic_imports %}
-      const SDK = (await import("your-framework")).default;
-      client = new SDK();
-{% endblock %}
-
-{% block test %}
-{% for input in inputs %}
-      const response = await client.complete({
-        model: "{{ input.model }}",
-        messages: {{ input.messages | dump }},
-      });
-      console.log("Response:", response.content);
-{% endfor %}
-{% endblock %}
-```
-
-### 4. Build and Test
-
-```bash
-npm run build
-npm run test -- --framework your-framework --verbose
-```
-
-## Adding a New Test Case
-
-### 1. Create Test File
-
-Test cases use an explicit `checks` array to define validations:
-
-```typescript
-// src/test-cases/llm/your-test.ts
-import { TestDefinition } from "../../types.js";
-import {
-  checkAISpanCount,
-  checkChatSpanAttributes,
-  checkValidTokenUsage,
-} from "../checks.js";
-
-export const yourTest: TestDefinition = {
-  name: "Your Test Name",
-  description: "What this test validates",
-  type: "llm", // or 'agent'
-
-  inputs: [
-    {
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: "Test prompt" }],
-    },
-  ],
-
-  checks: [
-    checkAISpanCount({ min: 1 }),
-    checkChatSpanAttributes,
-    checkValidTokenUsage,
-  ],
-};
-
-export default yourTest;
-```
-
-### 2. Adding Custom Checks
-
-For test-specific validations, define custom checks inline:
-
-```typescript
-import { expect } from "chai";
-import { TestDefinition, Check } from "../../types.js";
-import { checkAISpanCount } from "../checks.js";
-import { extractGenAISpans, skipIf } from "../utils.js";
-
-// Custom check for this test
-const checkSpecificBehavior: Check = {
-  name: "checkSpecificBehavior",
-  fn: (spans, config, testDef) => {
-    const aiSpans = extractGenAISpans(spans);
-    skipIf(aiSpans.length === 0, "No AI spans captured");
-
-    // Your custom validation logic
-    expect(aiSpans[0].data?.["custom.attribute"]).to.exist;
-  },
-};
-
-export const yourTest: TestDefinition = {
-  name: "Your Test Name",
-  type: "llm",
-  inputs: [...],
-
-  checks: [
-    checkAISpanCount({ min: 1 }),
-    checkSpecificBehavior,  // Custom check
-  ],
-};
-```
-
-### 3. Register in Index
-
-```typescript
-// src/test-cases/index.ts
-import { yourTest } from "./llm/your-test.js";
-
-export const testCases = {
-  llm: {
-    // ... existing tests
-    yourTest: yourTest,
-  },
-};
-```
-
-### 4. Build and Test
-
-```bash
-npm run build
-npm run test -- --test "Your Test Name" --verbose
-```
-
-## Framework Configuration
-
-Each framework has a `config.json` with these fields:
-
-| Field            | Description                                   |
-| ---------------- | --------------------------------------------- |
-| `name`           | Framework identifier                          |
-| `displayName`    | Human-readable name                           |
-| `type`           | `"llm-only"` or `"agentic"`                   |
-| `platform`       | `"node"`, `"python"`, `"browser"`, `"php"`, or `"nextjs"`  |
-| `streamingMode`  | `"streaming"`, `"blocking"`, or `"both"`      |
-| `executionMode`  | Python only: `"sync"`, `"async"`, or `"both"` |
-| `dependencies`   | NPM/pip packages to install                   |
-| `versions`       | Framework versions to test                    |
-| `sentryVersions` | Sentry SDK versions to test against           |
-| `modelOverrides` | Override model names for validation           |
-| `skip`           | Tests or checks to skip                       |
-
-## Test Utilities
-
-Available in `src/test-cases/utils.ts`:
-
-### Core Utilities
-
-| Function               | Purpose                                |
-| ---------------------- | -------------------------------------- |
-| `skip(reason)`         | Skip the current check with a reason   |
-| `skipIf(cond, reason)` | Conditionally skip a check             |
-| `extractGenAISpans()`  | Filter spans for `gen_ai.*` operations |
-| `checkTokenUsage()`    | Validate token count attributes        |
-| `assertAttributes()`   | Schema-based attribute validation      |
-| `printSpanSummary()`   | Debug helper to print captured spans   |
-
-### Span Type Filters
-
-| Function             | Purpose                                      |
-| -------------------- | -------------------------------------------- |
-| `findAgentSpans()`   | Find `invoke_agent` spans (top-level agents) |
-| `findChatSpans()`    | Find `chat`/`completion` spans (LLM calls)   |
-| `findToolSpans()`    | Find tool execution spans                    |
-| `findHandoffSpans()` | Find agent-to-agent handoff spans            |
-
-### Tool Input Validation
-
-| Function            | Purpose                                      |
-| ------------------- | -------------------------------------------- |
-| `assertToolInput()` | Validate tool input arguments against schema |
-| `getToolInput()`    | Get parsed tool input arguments from span    |
-
-### Attribute Schema
-
-The `assertAttributes` function supports flexible matching:
-
-```typescript
-assertAttributes(spans, {
-  "gen_ai.operation.name": true, // Must exist (any value)
-  "gen_ai.request.model": "gpt-4", // Exact match
-  "gen_ai.response.model": "gpt-4*", // Pattern match (wildcard)
-  sensitive_field: false, // Must NOT exist
-});
-```
-
-### Tool Input Schema
-
-The `assertToolInput` function validates tool arguments:
-
-```typescript
-const toolSpans = findToolSpans(extractGenAISpans(spans));
-assertToolInput(toolSpans[0], {
-  a: true, // Argument must exist
-  b: true, // Argument must exist
-  optional: false, // Argument must NOT exist
-});
-```
-
-## Environment Variables
-
-Create a `.env` file with your API keys:
-
-```bash
-OPENAI_API_KEY=sk-...
-OPENROUTER_API_KEY=sk-or-...
-GOOGLE_GENAI_API_KEY=...
-```
-
-## Debugging
-
-### Verbose Mode
-
-```bash
-npm run test -- --framework openai --verbose
-```
-
-### Setup Only (Inspect Generated Files)
-
-```bash
-npm run test setup -- --framework openai
-# Check runs/ directory for generated test files
-```
-
-### Print Span Data
-
-Use `printSpanSummary()` in a custom check:
-
-```typescript
-import { printSpanSummary } from "../utils.js";
-
-const debugCheck: Check = {
-  name: "debugCheck",
-  fn: (spans) => {
-    printSpanSummary(spans);
-  },
-};
-```
-
-## Using as a GitHub Action
-
-This repository can be used as a reusable GitHub Action in SDK repositories to run AI integration tests on a schedule.
-
-### Setup in SDK Repositories
-
-Create a workflow in your SDK repo (e.g., `.github/workflows/ai-integration-tests.yml`):
+Use the repository action anywhere the previous integration runner was used. It now
+runs assessments and returns native report metrics:
 
 ```yaml
-name: AI Integration Tests
-
-on:
-  schedule:
-    - cron: "0 9 * * 1" # Weekly on Monday at 9am UTC
-  workflow_dispatch:
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout SDK repository
-        uses: actions/checkout@v4
-
-      - name: Run AI Integration Tests
-        uses: getsentry/testing-ai-sdk-integrations@v1
-        with:
-          platform: python # or 'node', or leave empty for both
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
-          google-genai-api-key: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-```
-
-### Action Inputs
-
-| Input                    | Required | Default       | Description                                                                                   |
-| ------------------------ | -------- | ------------- | --------------------------------------------------------------------------------------------- |
-| `platform`               | No       | `""`          | Platform to test: `node`, `python`, `browser`, `nextjs`, `php`, `js` (= node + browser), or empty for all |
-| `framework`              | No       | `""`          | Specific framework to test (e.g., `openai`, `langchain`)                                      |
-| `test`                   | No       | `""`          | Specific test to run (e.g., `Basic LLM Test`)                                                 |
-| `parallel`               | No       | `4`           | Number of tests to run in parallel                                                            |
-| `sentry-python-path`     | No       | `""`          | Path to local sentry-python for editable install                                              |
-| `sentry-javascript-path` | No       | `""`          | Path to local sentry-javascript for linking                                                   |
-| `openai-api-key`         | Yes      | -             | OpenAI API key                                                                                |
-| `openrouter-api-key`      | Yes      | -             | OpenRouter API key for Anthropic-compatible requests                                        |
-| `google-genai-api-key`   | Yes      | -             | Google GenAI API key                                                                          |
-
-### Action Outputs
-
-| Output    | Description                                   |
-| --------- | --------------------------------------------- |
-| `success` | `true` if all tests passed, `false` otherwise |
-| `total`   | Total number of tests run                     |
-| `passed`  | Number of tests that passed                   |
-| `failed`  | Number of tests that failed                   |
-
-### Advanced Usage
-
-```yaml
-# Test specific framework with local SDK
-- name: Run AI Integration Tests
-  id: ai-tests
-  uses: getsentry/testing-ai-sdk-integrations@v1
+- id: assess
+  uses: getsentry/testing-ai-sdk-integrations@main
   with:
-    platform: python
+    platform: node
     framework: openai
-    parallel: 8
-    sentry-python-path: ${{ github.workspace }}
+    parallel: 4
     openai-api-key: ${{ secrets.OPENAI_API_KEY }}
     openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
     google-genai-api-key: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-
-- name: Check results
-  run: |
-    echo "Success: ${{ steps.ai-tests.outputs.success }}"
-    echo "Passed: ${{ steps.ai-tests.outputs.passed }}/${{ steps.ai-tests.outputs.total }}"
 ```
 
-### How It Works
+Outputs include `report-path`, `targets`, `variants`, `complete`, `incomplete`,
+`critical`, `major`, `minor`, `info`, and `health`. Product findings do not fail
+the action. Incomplete execution returns a nonzero exit code.
 
-- The action installs dependencies and builds the test framework
-- Runs tests for the specified platform/framework with parallel execution
-- Uploads test results as artifacts
-- On failure, automatically creates or updates an issue in the calling repository
-- Issues are labeled with `ai-integration-test-failure` for easy tracking
-- Test results with detailed failure information are included in the issue body
+The daily workflow publishes native JSON and HTML reports plus schema-v3 trend
+history. The assessment dashboard shows the overall score chart below the search
+bar and uses the same score styling and sparklines for frameworks, targets, and
+variants. The pull request workflow compares stable finding and capability IDs
+and fails only when it detects an explicit regression.
 
-## References
+## How It Works
 
-- **Sentry JavaScript SDK:** https://github.com/getsentry/sentry-javascript
-- **Sentry Python SDK:** https://github.com/getsentry/sentry-python
-- **Vercel AI SDK:** https://sdk.vercel.ai/docs
-- **OpenAI Python SDK:** https://github.com/openai/openai-python
-- **Mastra AI Framework:** https://mastra.ai/docs
+1. `src/runner/framework-discovery.ts` discovers framework configurations.
+2. `src/assessment/matrix.ts` resolves framework versions, Sentry versions, execution environments, and options into variants.
+3. `src/assessment/program-renderer.ts` renders one assessment program per variant.
+4. A platform runner executes all applicable probes in order.
+5. `src/span-collector/server.ts` receives and partitions Sentry spans.
+6. Evaluators create capability observations and severity-ranked findings.
+7. Aggregation writes native JSON and HTML assessment reports.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture and [TESTING.md](TESTING.md) for validation commands.
+
+## Adding a Framework
+
+Create a framework directory under:
+
+```text
+src/runner/templates/{llm|agents}/{node|python|nextjs|cloudflare}/<framework>/
+```
+
+Add `config.json` and an assessment adapter such as `assessment.njk`, then validate discovery and rendering:
+
+```bash
+npm run build
+npm test -- list --framework <framework>
+npm test -- render --framework <framework>
+```
+
+Keep model expectations and framework options explicit. Do not hide known telemetry gaps to make an assessment look healthy.
