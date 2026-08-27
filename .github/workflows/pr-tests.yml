@@ -1,4 +1,4 @@
-name: PR Assessment Comparison
+name: PR Assessment
 
 on:
   pull_request:
@@ -12,58 +12,6 @@ permissions:
   contents: read
 
 jobs:
-  assess-main:
-    name: Assess main
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: main
-          submodules: true
-          persist-credentials: false
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: "22"
-          cache: "npm"
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: "3.12"
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
-      - name: Get latest Sentry SDK versions
-        id: sentry-versions
-        run: |
-          echo "js=$(npm view @sentry/node version)" >> "$GITHUB_OUTPUT"
-          echo "python=$(python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/sentry-sdk/json"))["info"]["version"])')" >> "$GITHUB_OUTPUT"
-      - name: Cache assessment environments
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: |
-            runs/**/node_modules
-            runs/**/.venv
-          key: assessments-${{ runner.os }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
-      - name: Install dependencies and build
-        run: |
-          npm ci
-          npm run build
-      - name: Run assessments
-        continue-on-error: true
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-        run: npm test -- run --parallel 12
-      - name: Upload main assessment
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: assessment-main
-          path: test-results/assessment-report-*.json
-          if-no-files-found: error
-          retention-days: 1
-
   assess-pr:
     name: Assess PR
     runs-on: ubuntu-latest
@@ -114,77 +62,3 @@ jobs:
           path: test-results/assessment-report-*.json
           if-no-files-found: error
           retention-days: 1
-
-  compare-assessments:
-    name: Compare assessments
-    needs: [assess-main, assess-pr]
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    if: always() && needs.assess-main.result != 'cancelled' && needs.assess-pr.result != 'cancelled'
-    steps:
-      - name: Checkout PR
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - name: Download main assessment
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: assessment-main
-          path: assessment-main
-      - name: Download PR assessment
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: assessment-pr
-          path: assessment-pr
-      - name: Compare native assessment reports
-        id: compare
-        run: |
-          main_report=$(find assessment-main -name 'assessment-report-*.json' -type f -print | sort | tail -1)
-          pr_report=$(find assessment-pr -name 'assessment-report-*.json' -type f -print | sort | tail -1)
-          test -n "$main_report" && test -n "$pr_report"
-          node .github/scripts/compare-assessments.cjs "$main_report" "$pr_report" comparison-output.md
-          source comparison-output.env
-          echo "has-regressions=$HAS_REGRESSIONS" >> "$GITHUB_OUTPUT"
-      - name: Upload comparison
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: assessment-comparison
-          path: comparison-output.md
-          if-no-files-found: error
-          retention-days: 1
-      - name: Write job summary
-        run: cat comparison-output.md >> "$GITHUB_STEP_SUMMARY"
-      - name: Fail on assessment regressions
-        if: steps.compare.outputs.has-regressions == 'true'
-        run: |
-          echo "::error::Assessment regressions detected. See the comparison summary for stable finding and capability changes."
-          exit 1
-
-  publish-assessment-comment:
-    name: Publish assessment comparison
-    needs: compare-assessments
-    permissions:
-      actions: read
-      pull-requests: write
-    runs-on: ubuntu-latest
-    if: always() && needs.compare-assessments.result != 'cancelled'
-    steps:
-      - name: Download comparison
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: assessment-comparison
-      - name: Find existing assessment comment
-        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
-        id: find-comment
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          body-includes: "Assessment comparison uses stable variant"
-      - name: Create or update PR comment
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-id: ${{ steps.find-comment.outputs.comment-id }}
-          edit-mode: replace
-          body-path: comparison-output.md
