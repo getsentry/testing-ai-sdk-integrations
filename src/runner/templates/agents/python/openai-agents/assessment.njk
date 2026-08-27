@@ -1,7 +1,12 @@
 {% extends "base.python.assessment.njk" %}
 
 {% block dynamic_imports %}
-from agents import Agent, Runner
+from openai import AsyncOpenAI
+from agents import Agent, Runner, set_default_openai_client
+set_default_openai_client(
+    AsyncOpenAI(api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1"),
+    use_for_tracing=False,
+)
 {% endblock %}
 
 {% block probe %}

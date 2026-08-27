@@ -26,7 +26,7 @@
 {% if provider == "anthropic" %}
                   const llm = new ChatAnthropic({ modelName: request.model, anthropicApiKey: env.OPENROUTER_API_KEY, anthropicApiUrl: "https://openrouter.ai/api", thinking: { type: "enabled", budget_tokens: 1024 } });
 {% else %}
-                  const llm = new ChatOpenAI({ modelName: request.model, openAIApiKey: env.OPENAI_API_KEY });
+                  const llm = new ChatOpenAI({ modelName: request.model, apiKey: env.OPENROUTER_API_KEY, configuration: { baseURL: "https://openrouter.ai/api/v1" } });
 {% endif %}
                   try {
                     const agent = createReactAgent({ llm, tools, name: "assessment-agent" });

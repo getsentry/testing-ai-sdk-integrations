@@ -1,6 +1,8 @@
 {% extends "base.python.assessment.njk" %}
 
 {% block dynamic_imports %}
+os.environ["OPENAI_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
+os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
 from pydantic_ai import Agent
 {% if modelSetup == "fallback" %}
 from pydantic_ai.models.fallback import FallbackModel

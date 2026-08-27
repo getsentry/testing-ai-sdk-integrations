@@ -17,7 +17,7 @@
 {% if provider == "anthropic" %}
                   const chat = new ChatAnthropic({ modelName: request.model, anthropicApiKey: env.OPENROUTER_API_KEY, anthropicApiUrl: "https://openrouter.ai/api", thinking: { type: "enabled", budget_tokens: 1024 } });
 {% else %}
-                  const chat = new ChatOpenAI({ modelName: request.model, openAIApiKey: env.OPENAI_API_KEY });
+                  const chat = new ChatOpenAI({ modelName: request.model, apiKey: env.OPENAI_API_KEY });
 {% endif %}
                   try {
                     if (request.streaming) {

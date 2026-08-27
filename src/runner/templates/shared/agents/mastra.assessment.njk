@@ -32,7 +32,7 @@ let agentRegistrationIndex = 0;
             const instructions = request.messages.find((message) => message.role === "system")?.content ?? "Respond briefly.";
             const messages = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content }));
             try {
-              const agent = new Agent({ id: "assessment-agent", name: "Assessment Agent", instructions, model: `openai/${request.model}`, tools });
+              const agent = new Agent({ id: "assessment-agent", name: "Assessment Agent", instructions, model: `openrouter/openai/${request.model}`, tools });
               mastra.addAgent?.(agent, `assessment-agent-${agentRegistrationIndex++}`);
               if (request.streaming) {
                 const response = await agent.stream(messages, { maxSteps: 10 });

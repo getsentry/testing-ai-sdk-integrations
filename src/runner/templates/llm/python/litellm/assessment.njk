@@ -18,7 +18,7 @@ sentry_sdk.init(
 {% endblock %}
 
 {% block dynamic_imports %}
-MODEL_PREFIX = "openrouter/anthropic" if {{ provider | tojson }} == "anthropic" else "openai"
+MODEL_PREFIX = "openrouter/anthropic" if {{ provider | tojson }} == "anthropic" else "openrouter/openai"
 {% endblock %}
 
 {% block probe %}

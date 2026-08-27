@@ -20,7 +20,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 {% if provider == "anthropic" %}
                     chat = ChatAnthropic(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api")
 {% else %}
-                    chat = ChatOpenAI(model=request["model"])
+                    chat = ChatOpenAI(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
 {% endif %}
                     try:
                         if request.get("streaming", False):
