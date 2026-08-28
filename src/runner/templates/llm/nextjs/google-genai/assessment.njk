@@ -7,6 +7,7 @@ const client = Sentry.instrumentGoogleGenAIClient(new GoogleGenAI({ apiKey: proc
 
 {% block probe %}
           for (const request of probe.input.calls) {
+            await runAssessmentCall(probe, request, async () => {
             if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
             const systemInstruction = request.messages.find((message) => message.role === "system")?.content;
             const contents = request.messages.filter((message) => message.role !== "system").map((message) => ({
@@ -22,8 +23,9 @@ const client = Sentry.instrumentGoogleGenAIClient(new GoogleGenAI({ apiKey: proc
                 await client.models.generateContent({ model: request.model, contents, config });
               }
             } catch (error) {
-              if (probe.input.expectError) { Sentry.captureException(error); continue; }
+              if (probe.input.expectError) { Sentry.captureException(error); return; }
               throw error;
             }
+            });
           }
 {% endblock %}

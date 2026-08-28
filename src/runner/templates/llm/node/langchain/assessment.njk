@@ -11,6 +11,7 @@ const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core
 
 {% block probe %}
           for (const request of probe.input.calls) {
+            await runAssessmentCall(probe, request, async () => {
             if (request.conversationId && typeof Sentry.setConversationId === "function") {
               Sentry.setConversationId(request.conversationId);
             }
@@ -45,9 +46,10 @@ const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core
             } catch (error) {
               if (probe.input.expectError) {
                 Sentry.captureException(error);
-                continue;
+                return;
               }
               throw error;
             }
+            });
           }
 {% endblock %}

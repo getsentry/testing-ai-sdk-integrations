@@ -6,7 +6,7 @@ import {
 	blockedModelObservations,
 	evaluateModels,
 } from "../evaluation/evaluators/models.js";
-import { evaluateClientSpan } from "../evaluation/evaluators/spans.js";
+import { evaluateClientSpans } from "../evaluation/evaluators/spans.js";
 import {
 	evaluateConventions,
 	evaluateProbeTelemetry,
@@ -62,14 +62,26 @@ function observationsForProbe(
 		? {
 				...canonicalInput,
 				calls: callModes.flatMap((mode) =>
-					canonicalInput.calls.map((call) => ({
+					canonicalInput.calls.map((call, callIndex) => ({
 						...call,
 						streaming: mode === "streaming",
+						assessmentCallId: `${probe.probeId}:${mode}:${callIndex}`,
+						assessmentCallMode: mode,
+						allowsMultipleClientSpans:
+							category === "agents" &&
+							"tools" in canonicalInput &&
+							canonicalInput.tools !== undefined &&
+							canonicalInput.tools.length > 0,
 					})),
 				),
 			}
 		: undefined;
-	const client = evaluateClientSpan(probe, variant.id, spans);
+	const client = evaluateClientSpans(
+		probe,
+		variant.id,
+		spans,
+		input?.calls ?? [],
+	);
 	const telemetry = input
 		? evaluateProbeTelemetry(probe, variant.id, category, spans, input)
 		: [];

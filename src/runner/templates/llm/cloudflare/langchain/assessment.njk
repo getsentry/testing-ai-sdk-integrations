@@ -12,6 +12,7 @@
 
 {% block probe %}
                 for (const request of probe.input.calls) {
+                  await runAssessmentCall(probe, request, async () => {
                   if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
                   const messages = request.messages.map((message) => message.role === "system" ? new SystemMessage(message.content) : message.role === "assistant" ? new AIMessage(message.content) : new HumanMessage(message.content));
 {% if provider == "anthropic" %}
@@ -27,8 +28,9 @@
                       await chat.invoke(messages, { callbacks: [callbackHandler] });
                     }
                   } catch (error) {
-                    if (probe.input.expectError) { Sentry.captureException(error); continue; }
+                    if (probe.input.expectError) { Sentry.captureException(error); return; }
                     throw error;
                   }
+                  });
                 }
 {% endblock %}

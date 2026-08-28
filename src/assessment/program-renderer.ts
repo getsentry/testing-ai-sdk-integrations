@@ -34,10 +34,12 @@ export function renderAssessmentProgram(
 		const modes = callModes(target.streamingMode);
 		probeCallModes[probe.id] = modes;
 		const calls = modes.flatMap((mode) =>
-			input.calls.map((call) => ({
+			input.calls.map((call, callIndex) => ({
 				...call,
 				model: variant.modelOverrides.request ?? call.model,
 				streaming: mode === "streaming",
+				assessmentCallId: `${probe.id}:${mode}:${callIndex}`,
+				assessmentCallMode: mode,
 			})),
 		);
 		return [{ ...probe, input: { ...input, calls } }];

@@ -11,15 +11,16 @@ set_default_openai_client(
 
 {% block probe %}
                 for request in probe["input"]["calls"]:
-                    if request.get("conversationId"):
-                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
-                    prompt = "\n".join(message["content"] for message in request["messages"])
-                    try:
-                        agent = Agent(name="assessment-agent", instructions="Respond briefly.", model=request["model"])
-                        await Runner.run(agent, input=prompt)
-                    except Exception as error:
-                        if probe["input"].get("expectError"):
-                            sentry_sdk.capture_exception(error)
-                            continue
-                        raise
+                    with assessment_call(probe, request):
+                        if request.get("conversationId"):
+                            sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                        prompt = "\n".join(message["content"] for message in request["messages"])
+                        try:
+                            agent = Agent(name="assessment-agent", instructions="Respond briefly.", model=request["model"])
+                            await Runner.run(agent, input=prompt)
+                        except Exception as error:
+                            if probe["input"].get("expectError"):
+                                sentry_sdk.capture_exception(error)
+                                continue
+                            raise
 {% endblock %}

@@ -24,7 +24,14 @@ const definitions: Record<string, FindingDefinition> = {
 		id: "spans.client.missing",
 		severity: "critical",
 		title: "Client span is missing",
-		description: "The required client span was not captured.",
+		description: "An assessment call did not produce its required client span.",
+	},
+	"spans.client.malformed": {
+		id: "spans.client.malformed",
+		severity: "major",
+		title: "Client span cardinality is invalid",
+		description:
+			"Client spans were duplicated or could not be matched to an assessment call.",
 	},
 	"model.request.missing": {
 		id: "model.request.missing",

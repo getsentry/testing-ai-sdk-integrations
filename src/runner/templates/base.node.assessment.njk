@@ -15,6 +15,24 @@ Sentry.init({
 
 const probes = {{ probes | tojson }};
 
+async function runAssessmentCall(probe, request, callback) {
+  if (typeof request.assessmentCallId !== "string" || typeof request.assessmentCallMode !== "string") {
+    throw new Error(`Assessment call metadata is missing for ${probe.id}.`);
+  }
+  return Sentry.startSpan(
+    {
+      name: request.assessmentCallId,
+      op: "test.assessment.call",
+      attributes: {
+        "test.probe.id": probe.id,
+        "test.call.id": request.assessmentCallId,
+        "test.call.mode": request.assessmentCallMode,
+      },
+    },
+    callback,
+  );
+}
+
 async function flushSentry(probeId) {
   let message;
   try {

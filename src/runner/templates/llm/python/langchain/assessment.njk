@@ -11,35 +11,36 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 {% block probe %}
                 for request in probe["input"]["calls"]:
-                    if request.get("conversationId"):
-                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
-                    messages = [
-                        SystemMessage(content=message["content"]) if message["role"] == "system" else AIMessage(content=message["content"]) if message["role"] == "assistant" else HumanMessage(content=message["content"])
-                        for message in request["messages"]
-                    ]
-{% if provider == "anthropic" %}
-                    chat = ChatAnthropic(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api")
-{% else %}
-                    chat = ChatOpenAI(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
-{% endif %}
-                    try:
-                        if request.get("streaming", False):
-{% if isAsync %}
-                            async for _chunk in chat.astream(messages):
-                                pass
-{% else %}
-                            for _chunk in chat.stream(messages):
-                                pass
-{% endif %}
-                        else:
-{% if isAsync %}
-                            await chat.ainvoke(messages)
-{% else %}
-                            chat.invoke(messages)
-{% endif %}
-                    except Exception as error:
-                        if probe["input"].get("expectError"):
-                            sentry_sdk.capture_exception(error)
-                            continue
-                        raise
+                    with assessment_call(probe, request):
+                        if request.get("conversationId"):
+                            sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                        messages = [
+                            SystemMessage(content=message["content"]) if message["role"] == "system" else AIMessage(content=message["content"]) if message["role"] == "assistant" else HumanMessage(content=message["content"])
+                            for message in request["messages"]
+                        ]
+    {% if provider == "anthropic" %}
+                        chat = ChatAnthropic(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api")
+    {% else %}
+                        chat = ChatOpenAI(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
+    {% endif %}
+                        try:
+                            if request.get("streaming", False):
+    {% if isAsync %}
+                                async for _chunk in chat.astream(messages):
+                                    pass
+    {% else %}
+                                for _chunk in chat.stream(messages):
+                                    pass
+    {% endif %}
+                            else:
+    {% if isAsync %}
+                                await chat.ainvoke(messages)
+    {% else %}
+                                chat.invoke(messages)
+    {% endif %}
+                        except Exception as error:
+                            if probe["input"].get("expectError"):
+                                sentry_sdk.capture_exception(error)
+                                continue
+                            raise
 {% endblock %}

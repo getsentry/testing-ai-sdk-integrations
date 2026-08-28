@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { evaluateClientSpans } from "../evaluation/evaluators/spans.js";
 import type { CapturedSpan, ProbeResult } from "./types.js";
 import { evaluateVariant } from "./variant-evaluation.js";
 
-function client(spanId: string): CapturedSpan {
+function client(spanId: string, parentSpanId = "root"): CapturedSpan {
 	return {
 		span_id: spanId,
 		trace_id: "trace",
-		parent_span_id: "root",
+		parent_span_id: parentSpanId,
 		op: "gen_ai.chat",
 		description: "chat gpt-4o-mini",
 		start_timestamp: spanId === "blocking" ? 1.1 : 1.2,
@@ -23,6 +24,55 @@ function client(spanId: string): CapturedSpan {
 		},
 	};
 }
+
+function assessmentCall(
+	spanId: string,
+	callId: string,
+	mode: "blocking" | "streaming",
+): CapturedSpan {
+	return {
+		span_id: spanId,
+		trace_id: "trace",
+		parent_span_id: "root",
+		op: "test.assessment.call",
+		description: callId,
+		start_timestamp: 1.05,
+		timestamp: 1.95,
+		data: {
+			"test.probe.id": callId.split(":", 1)[0],
+			"test.call.id": callId,
+			"test.call.mode": mode,
+		},
+	};
+}
+
+test("allows multiple client spans for an agent tool loop", () => {
+	const toolProbe: ProbeResult = {
+		probeId: "agent.tools_success",
+		status: "completed",
+		callModes: ["blocking"],
+		traceIds: ["trace"],
+		spanIds: [],
+	};
+	const result = evaluateClientSpans(
+		toolProbe,
+		"variant",
+		[
+			assessmentCall("tool-call", "agent.tools_success:blocking:0", "blocking"),
+			client("tool-client-1", "tool-call"),
+			client("tool-client-2", "tool-call"),
+		],
+		[
+			{
+				assessmentCallId: "agent.tools_success:blocking:0",
+				assessmentCallMode: "blocking",
+				allowsMultipleClientSpans: true,
+			},
+		],
+	);
+
+	assert.equal(result.observations[0]?.state, "healthy");
+});
 
 test("does not treat an agent span as a client span", () => {
 	const probe: ProbeResult = {
@@ -122,8 +172,10 @@ test("evaluates model and message telemetry for both call modes", () => {
 				timestamp: 2,
 				data: { "test.probe.id": "llm.baseline" },
 			},
-			client("blocking"),
-			client("streaming"),
+			assessmentCall("blocking-call", "llm.baseline:blocking:0", "blocking"),
+			assessmentCall("streaming-call", "llm.baseline:streaming:0", "streaming"),
+			client("blocking", "blocking-call"),
+			client("streaming", "streaming-call"),
 		],
 		runtimeFailures: [],
 	});
@@ -143,16 +195,78 @@ test("evaluates model and message telemetry for both call modes", () => {
 	}
 });
 
+test("requires exactly one client span for each call mode", () => {
+	const probe: ProbeResult = {
+		probeId: "llm.baseline",
+		status: "completed",
+		callModes: ["blocking", "streaming"],
+		traceIds: ["trace"],
+		spanIds: [],
+	};
+	const assessment = evaluateVariant({
+		variant: {
+			id: "variant",
+			targetId: "node/llm/openai",
+			identity: {
+				frameworkVersion: "latest",
+				sentryVersion: "latest",
+				options: {},
+			},
+			modelOverrides: {},
+		},
+		category: "llm",
+		probes: [probe],
+		spans: [
+			{
+				span_id: "root",
+				trace_id: "trace",
+				op: "test.assessment",
+				start_timestamp: 1,
+				timestamp: 2,
+				data: { "test.probe.id": "llm.baseline" },
+			},
+			assessmentCall("blocking-call", "llm.baseline:blocking:0", "blocking"),
+			assessmentCall("streaming-call", "llm.baseline:streaming:0", "streaming"),
+			client("blocking-1", "blocking-call"),
+			client("blocking-2", "blocking-call"),
+		],
+		runtimeFailures: [],
+	});
+
+	const cardinality = assessment.observations.filter(
+		(observation) => observation.capability === "spans.client",
+	);
+	assert.deepEqual(
+		cardinality.map((observation) => [
+			(observation.actual as { mode: string }).mode,
+			observation.state,
+		]),
+		[
+			["blocking", "malformed"],
+			["streaming", "missing"],
+		],
+	);
+	assert.ok(
+		assessment.findings.some(
+			(finding) => finding.findingId === "spans.client.malformed",
+		),
+	);
+	assert.ok(
+		assessment.findings.some(
+			(finding) => finding.findingId === "spans.client.missing",
+		),
+	);
+});
+
 test("ignores internal AI spans when evaluating client telemetry", () => {
 	const probe: ProbeResult = {
 		probeId: "agent.baseline",
 		status: "completed",
 		callModes: ["blocking"],
 		traceIds: ["trace"],
-		spanIds: ["root", "agent", "client", "internal"],
+		spanIds: ["root", "agent-call", "agent", "client", "internal"],
 	};
-	const clientSpan = client("client");
-	clientSpan.parent_span_id = "agent";
+	const clientSpan = client("client", "agent");
 	clientSpan.data = {
 		...clientSpan.data,
 		"gen_ai.agent.name": "Assessment Agent",
@@ -180,10 +294,11 @@ test("ignores internal AI spans when evaluating client telemetry", () => {
 				timestamp: 2,
 				data: { "test.probe.id": "agent.baseline" },
 			},
+			assessmentCall("agent-call", "agent.baseline:blocking:0", "blocking"),
 			{
 				span_id: "agent",
 				trace_id: "trace",
-				parent_span_id: "root",
+				parent_span_id: "agent-call",
 				op: "gen_ai.invoke_agent",
 				description: "invoke_agent Assessment Agent",
 				start_timestamp: 1.05,

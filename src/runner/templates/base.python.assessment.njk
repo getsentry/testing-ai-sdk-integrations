@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Generated Sentry AI assessment program. Do not edit.
 import asyncio
+from contextlib import contextmanager
 import json
 import os
 import sentry_sdk
@@ -25,6 +26,19 @@ sentry_sdk.init(
 {% block dynamic_imports %}{% endblock %}
 
 PROBES = json.loads(r'''{{ probes | tojson }}''')
+
+
+@contextmanager
+def assessment_call(probe, request):
+    call_id = request.get("assessmentCallId")
+    call_mode = request.get("assessmentCallMode")
+    if not isinstance(call_id, str) or not isinstance(call_mode, str):
+        raise RuntimeError(f"Assessment call metadata is missing for {probe['id']}.")
+    with sentry_sdk.start_span(op="test.assessment.call", name=call_id) as span:
+        span.set_data("test.probe.id", probe["id"])
+        span.set_data("test.call.id", call_id)
+        span.set_data("test.call.mode", call_mode)
+        yield
 
 
 def flush_sentry(probe_id=None):

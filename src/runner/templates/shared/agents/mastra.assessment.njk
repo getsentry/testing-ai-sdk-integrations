@@ -28,6 +28,7 @@ let agentRegistrationIndex = 0;
             }),
           ]));
           for (const request of probe.input.calls) {
+            await runAssessmentCall(probe, request, async () => {
             if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
             const instructions = request.messages.find((message) => message.role === "system")?.content ?? "Respond briefly.";
             const messages = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content }));
@@ -43,8 +44,9 @@ let agentRegistrationIndex = 0;
                 await agent.generate(messages, { maxSteps: 10 });
               }
             } catch (error) {
-              if (probe.input.expectError) { Sentry.captureException(error); continue; }
+              if (probe.input.expectError) { Sentry.captureException(error); return; }
               throw error;
             }
+            });
           }
 {% endblock %}

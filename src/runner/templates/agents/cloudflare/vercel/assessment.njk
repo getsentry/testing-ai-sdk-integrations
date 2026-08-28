@@ -44,6 +44,7 @@ const provider = createOpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https:
             }),
           ]));
           for (const request of probe.input.calls) {
+            await runAssessmentCall(probe, request, async () => {
             if (request.conversationId && typeof Sentry.setConversationId === "function") {
               Sentry.setConversationId(request.conversationId);
             }
@@ -105,9 +106,10 @@ const provider = createOpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https:
             } catch (error) {
               if (probe.input.expectError) {
                 Sentry.captureException(error);
-                continue;
+                return;
               }
               throw error;
             }
+            });
           }
 {% endblock %}

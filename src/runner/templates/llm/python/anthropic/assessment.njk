@@ -13,30 +13,31 @@ client = {% if isAsync %}AsyncAnthropic{% else %}Anthropic{% endif %}(
 
 {% block probe %}
                 for request in probe["input"]["calls"]:
-                    if request.get("conversationId"):
-                        sentry_sdk.ai.set_conversation_id(request["conversationId"])
-                    system = next((message["content"] for message in request["messages"] if message["role"] == "system"), None)
-                    messages = [{"role": message["role"], "content": message["content"]} for message in request["messages"] if message["role"] != "system"]
-                    try:
-                        if request.get("streaming", False):
-{% if isAsync %}
-                            async with client.messages.stream(model=request["model"], max_tokens=1024, system=system, messages=messages) as stream:
-                                async for _event in stream:
-                                    pass
-{% else %}
-                            with client.messages.stream(model=request["model"], max_tokens=1024, system=system, messages=messages) as stream:
-                                for _event in stream:
-                                    pass
-{% endif %}
-                        else:
-{% if isAsync %}
-                            await client.messages.create(model=request["model"], max_tokens=1024, system=system, messages=messages)
-{% else %}
-                            client.messages.create(model=request["model"], max_tokens=1024, system=system, messages=messages)
-{% endif %}
-                    except Exception as error:
-                        if probe["input"].get("expectError"):
-                            sentry_sdk.capture_exception(error)
-                            continue
-                        raise
+                    with assessment_call(probe, request):
+                        if request.get("conversationId"):
+                            sentry_sdk.ai.set_conversation_id(request["conversationId"])
+                        system = next((message["content"] for message in request["messages"] if message["role"] == "system"), None)
+                        messages = [{"role": message["role"], "content": message["content"]} for message in request["messages"] if message["role"] != "system"]
+                        try:
+                            if request.get("streaming", False):
+    {% if isAsync %}
+                                async with client.messages.stream(model=request["model"], max_tokens=1024, system=system, messages=messages) as stream:
+                                    async for _event in stream:
+                                        pass
+    {% else %}
+                                with client.messages.stream(model=request["model"], max_tokens=1024, system=system, messages=messages) as stream:
+                                    for _event in stream:
+                                        pass
+    {% endif %}
+                            else:
+    {% if isAsync %}
+                                await client.messages.create(model=request["model"], max_tokens=1024, system=system, messages=messages)
+    {% else %}
+                                client.messages.create(model=request["model"], max_tokens=1024, system=system, messages=messages)
+    {% endif %}
+                        except Exception as error:
+                            if probe["input"].get("expectError"):
+                                sentry_sdk.capture_exception(error)
+                                continue
+                            raise
 {% endblock %}

@@ -10,6 +10,7 @@ const client = Sentry.instrumentAnthropicAiClient(new Anthropic({
 
 {% block probe %}
           for (const request of probe.input.calls) {
+            await runAssessmentCall(probe, request, async () => {
             if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
             const system = request.messages.find((message) => message.role === "system")?.content;
             const messages = request.messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role, content: message.content }));
@@ -21,8 +22,9 @@ const client = Sentry.instrumentAnthropicAiClient(new Anthropic({
                 await client.messages.create({ model: request.model, max_tokens: 1024, system, messages });
               }
             } catch (error) {
-              if (probe.input.expectError) { Sentry.captureException(error); continue; }
+              if (probe.input.expectError) { Sentry.captureException(error); return; }
               throw error;
             }
+            });
           }
 {% endblock %}

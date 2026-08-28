@@ -2,6 +2,7 @@
 
 {% block probe %}
           for (const request of probe.input.calls) {
+            await runAssessmentCall(probe, request, async () => {
             if (request.conversationId && typeof Sentry.setConversationId === "function") Sentry.setConversationId(request.conversationId);
             const inputTokens = Math.max(1, Math.ceil(request.messages.reduce((total, message) => total + message.content.length, 0) / 4));
             const originalMessages = JSON.stringify(request.messages);
@@ -47,6 +48,7 @@
                   else toolSpan.setAttribute("gen_ai.tool.call.result", JSON.stringify(definition.result));
                 });
               }
+            });
             });
           }
 {% endblock %}

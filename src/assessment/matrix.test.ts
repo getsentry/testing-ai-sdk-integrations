@@ -25,6 +25,18 @@ test("one assessment program runs equivalent calls in streaming and blocking mod
 	const rendered = renderAssessmentProgram(target, variant);
 	assert.match(rendered.contents, /"streaming":\s*true/);
 	assert.match(rendered.contents, /"streaming":\s*false/);
+	assert.match(
+		rendered.contents,
+		/"assessmentCallId":\s*"llm\.baseline:blocking:0"/,
+	);
+	assert.match(
+		rendered.contents,
+		/"assessmentCallMode":\s*"streaming"/,
+	);
+	assert.match(
+		rendered.contents,
+		/await runAssessmentCall\(probe, request, async \(\) =>/,
+	);
 	assert.deepEqual(rendered.probeCallModes["llm.baseline"], [
 		"blocking",
 		"streaming",
