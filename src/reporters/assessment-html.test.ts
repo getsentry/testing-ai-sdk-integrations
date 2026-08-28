@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -141,6 +141,43 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 		const output = await writeAssessmentHtml(assessment, directory);
 		assert.match(await readFile(output, "utf8"), /10\.42\.0/);
 		assert.deepEqual(assessment, before);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("embeds the executed program source in the dashboard", async () => {
+	const assessment = report();
+	const variant = assessment.targets[0]?.variants[0];
+	assert.ok(variant);
+	const directory = await mkdtemp(
+		path.join(os.tmpdir(), "assessment-html-source-"),
+	);
+	try {
+		const programPath = path.join(directory, "assessment.js");
+		await writeFile(
+			programPath,
+			`import * as Sentry from "@sentry/node";
+const probes = [
+  { "id": "hidden probe definition" }
+];
+async function runAssessment() {
+  console.log("<actual request>");
+}
+`,
+			"utf8",
+		);
+		variant.generatedProgramPath = programPath;
+		const output = await writeAssessmentHtml(assessment, directory);
+		const html = await readFile(output, "utf8");
+		assert.match(html, /executed code/);
+		assert.match(html, /class="copy-source"/);
+		assert.match(html, /class="hljs language-javascript"/);
+		assert.match(html, /hljs-keyword/);
+		assert.match(html, /&lt;actual request&gt;/);
+		assert.match(html, /runAssessment/);
+		assert.doesNotMatch(html, /hidden probe definition/);
+		assert.doesNotMatch(html, /<actual request>/);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}
