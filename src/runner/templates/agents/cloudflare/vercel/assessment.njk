@@ -1,5 +1,13 @@
 {% extends "base.cloudflare.assessment.njk" %}
 
+{% block sentry_import %}
+{% if apiStyle == "v7" %}
+import * as Sentry from "@sentry/cloudflare/nodejs_compat";
+{% else %}
+import * as Sentry from "@sentry/cloudflare";
+{% endif %}
+{% endblock %}
+
 {% block sentry_integrations %}
       Sentry.vercelAIIntegration(),
 {% endblock %}

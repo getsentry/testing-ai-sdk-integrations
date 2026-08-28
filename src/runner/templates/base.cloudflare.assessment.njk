@@ -1,5 +1,7 @@
 // Generated Sentry AI assessment worker. Do not edit.
+{% block sentry_import %}
 import * as Sentry from "@sentry/cloudflare";
+{% endblock %}
 
 const EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ ";
 const probes = {{ probes | tojson }};
