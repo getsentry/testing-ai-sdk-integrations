@@ -2,7 +2,7 @@
 
 {% block dynamic_imports %}
       const { default: OpenAI } = await import("openai");
-      const client = Sentry.instrumentOpenAiClient(new OpenAI({ apiKey: env.OPENAI_API_KEY }));
+      const client = Sentry.instrumentOpenAiClient(new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https://openrouter.ai/api/v1" }));
       const apiStyle = {{ apiStyle | tojson }};
 {% endblock %}
 
