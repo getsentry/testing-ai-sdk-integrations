@@ -33,7 +33,7 @@
       }
     }
   },
-  "sentryVersions": ["latest"],
+  "sentryVersions": ["10"],
   "options": {
     "agentStyle": ["function", "class"],
     "provider": [

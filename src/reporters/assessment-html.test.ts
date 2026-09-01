@@ -129,7 +129,10 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 		html,
 		/href="#variant-node%2Fllm%2Fopenai%2Fframework%3Dlatest%2Fsentry%3Dlatest"/,
 	);
-	assert.match(html, /data-variant-link aria-label="Link to variant 1"/);
+	assert.match(
+		html,
+		/data-variant-link aria-label="Link to Sentry v10 variant 1"/,
+	);
 	assert.match(html, /function revealVariant/);
 	assert.match(html, /revealHash\(location\.hash\.slice\(1\)\)/);
 	assert.match(html, /function filteredTrendEntries/);

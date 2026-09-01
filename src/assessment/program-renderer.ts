@@ -50,6 +50,7 @@ export function renderAssessmentProgram(
 			{}),
 		...variant.identity.options,
 		baseTemplate: `base.${target.platform}.assessment.njk`,
+		platform: target.platform,
 		targetId: variant.targetId,
 		variantId: variant.id,
 		probes,

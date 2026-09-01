@@ -21,7 +21,7 @@
     }
   ],
   "versions": ["1.5.10"],
-  "sentryVersions": ["latest"],
+  "sentryVersions": ["10"],
   "options": {
     "provider": [
       "openai",

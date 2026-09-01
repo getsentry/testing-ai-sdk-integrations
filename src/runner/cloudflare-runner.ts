@@ -101,7 +101,7 @@ export class CloudflareRunner implements AssessmentRunner {
 					{
 						name: "sentry-ai-assessment",
 						main: path.basename(context.programPath),
-						compatibility_date: "2024-09-23",
+						compatibility_date: "2026-02-19",
 						compatibility_flags: ["nodejs_compat"],
 						vars: { SENTRY_DSN: context.sentryDsn },
 					},

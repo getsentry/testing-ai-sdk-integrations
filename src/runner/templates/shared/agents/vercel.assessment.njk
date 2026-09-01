@@ -53,7 +53,7 @@ const provider = createOpenAI({ apiKey: process.env.OPENROUTER_API_KEY, baseURL:
                 instructions: system,
                 tools,
                 stopWhen: stopAfterSteps(10),
-{% if apiStyle == "v7" %}
+{% if apiStyle == "v7" and platform != "nextjs" %}
                 telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
 {% else %}
                 experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
@@ -75,7 +75,7 @@ const provider = createOpenAI({ apiKey: process.env.OPENROUTER_API_KEY, baseURL:
                   prompt,
                   tools,
                   stopWhen: stopAfterSteps(10),
-{% if apiStyle == "v7" %}
+{% if apiStyle == "v7" and platform != "nextjs" %}
                   telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
 {% else %}
                   experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
@@ -91,7 +91,7 @@ const provider = createOpenAI({ apiKey: process.env.OPENROUTER_API_KEY, baseURL:
                   prompt,
                   tools,
                   stopWhen: stopAfterSteps(10),
-{% if apiStyle == "v7" %}
+{% if apiStyle == "v7" and platform != "nextjs" %}
                   telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
 {% else %}
                   experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },

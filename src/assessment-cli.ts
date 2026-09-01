@@ -26,6 +26,7 @@ import {
 import { SpanCollector } from "./span-collector/server.js";
 
 const DEFAULT_PARALLEL = 10;
+const MIN_EXPLICIT_PARALLEL = 20;
 
 const help = `Sentry AI SDK Assessments
 
@@ -47,7 +48,7 @@ Options:
   --sentry-python <path>       Use a local sentry-python checkout
   --sentry-javascript <path>   Use a local sentry-javascript checkout
   --quick                      Run one representative variant per target
-  --parallel, -j <N>           Run up to N variants in parallel (default: 10)
+  --parallel, -j <N>           Run variants in parallel (default: 10; explicit minimum: 20)
   --open                       Open the generated dashboard
   --verbose, -v               Show variant execution progress
   --help, -h                   Show this help
@@ -78,7 +79,7 @@ function parseParallel(value: string | undefined): number {
 	if (!Number.isInteger(parsed) || parsed < 1) {
 		throw new Error("--parallel must be a positive integer.");
 	}
-	return parsed;
+	return Math.max(parsed, MIN_EXPLICIT_PARALLEL);
 }
 
 function parseOptions(values: string[] | undefined): Record<string, string> {

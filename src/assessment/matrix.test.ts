@@ -29,10 +29,7 @@ test("one assessment program runs equivalent calls in streaming and blocking mod
 		rendered.contents,
 		/"assessmentCallId":\s*"llm\.baseline:blocking:0"/,
 	);
-	assert.match(
-		rendered.contents,
-		/"assessmentCallMode":\s*"streaming"/,
-	);
+	assert.match(rendered.contents, /"assessmentCallMode":\s*"streaming"/);
 	assert.match(
 		rendered.contents,
 		/await runAssessmentCall\(probe, request, async \(\) =>/,
@@ -93,4 +90,22 @@ test("version template options select the matching Vercel API", () => {
 	assert.match(v7, /isStepCount/);
 	assert.match(v7, /\n\s*telemetry:/);
 	assert.doesNotMatch(v7, /experimental_telemetry/);
+});
+
+test("Next.js always enables Vercel experimental telemetry", () => {
+	const vercelTarget: AssessmentTargetConfig = {
+		platform: "nextjs",
+		category: "agents",
+		framework: "vercel",
+		frameworkVersions: ["7.0.79"],
+		sentryVersions: ["10"],
+		streamingMode: "both",
+		options: { agentStyle: ["class"], provider: ["openai"] },
+		versionTemplateOptions: { "7.0.79": { apiStyle: "v7" } },
+	};
+	const [variant] = resolveVariants(vercelTarget);
+	const program = renderAssessmentProgram(vercelTarget, variant).contents;
+
+	assert.match(program, /experimental_telemetry/);
+	assert.doesNotMatch(program, /\n\s*telemetry:/);
 });
