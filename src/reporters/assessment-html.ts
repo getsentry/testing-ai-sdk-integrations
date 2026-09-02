@@ -373,6 +373,12 @@ function labelForKey(key: string): string {
 	return key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }
 
+function displayFrameworkVersion(assessment: VariantAssessment): string {
+	return (
+		assessment.resolvedFrameworkVersion ?? assessment.identity.frameworkVersion
+	);
+}
+
 function displaySentryVersion(assessment: VariantAssessment): string {
 	return assessment.resolvedSentryVersion ?? assessment.identity.sentryVersion;
 }
@@ -429,7 +435,11 @@ function variantMetadata(assessment: VariantAssessment): string {
 			: []),
 		...Object.entries(assessment.identity.options),
 		...(callModes ? [["calls", callModes] as const] : []),
-		["framework", assessment.identity.frameworkVersion],
+		["framework", displayFrameworkVersion(assessment)],
+		...(assessment.resolvedFrameworkVersion &&
+		assessment.resolvedFrameworkVersion !== assessment.identity.frameworkVersion
+			? [["requested framework", assessment.identity.frameworkVersion] as const]
+			: []),
 	];
 	return `<span class="variant-kvs">${pairs
 		.map(
@@ -468,9 +478,7 @@ function targetRow(
 ): string {
 	const rowId = `target-${index}`;
 	const frameworkVersions = [
-		...new Set(
-			target.variants.map((variant) => variant.identity.frameworkVersion),
-		),
+		...new Set(target.variants.map(displayFrameworkVersion)),
 	];
 	const sentryVersions = [
 		...new Set(target.variants.map(displaySentryVersion)),

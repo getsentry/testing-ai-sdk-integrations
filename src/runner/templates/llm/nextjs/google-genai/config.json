@@ -16,7 +16,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["2.19.0"],
+  "versions": ["2"],
   "sentryVersions": ["10"],
   "modelOverrides": {
     "request": "gemini-2.5-flash-lite",

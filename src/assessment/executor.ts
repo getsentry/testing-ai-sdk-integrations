@@ -1,7 +1,10 @@
 import path from "node:path";
 import { getProbeCatalog } from "./catalog.js";
 import { toAssessmentTargetConfig } from "./discovery.js";
-import { resolveInstalledSentryVersion } from "./installed-version.js";
+import {
+	resolveInstalledPackageVersion,
+	resolveInstalledSentryVersion,
+} from "./installed-version.js";
 import type { ResolvedVariant } from "./matrix.js";
 import { partitionSpansByProbe } from "./partition.js";
 import { writeAssessmentProgram } from "./program-files.js";
@@ -108,6 +111,7 @@ export class AssessmentExecutor {
 		let generatedProgramPath: string | undefined;
 		let logPath: string | undefined;
 		let spans: VariantAssessment["spans"] = [];
+		let resolvedFrameworkVersion: string | undefined;
 		let resolvedSentryVersion: string | undefined;
 
 		try {
@@ -137,6 +141,16 @@ export class AssessmentExecutor {
 			};
 			if (await runner.needsSetup(environmentContext)) {
 				await runner.setupEnvironment(environmentContext);
+			}
+			const frameworkPackage = executionFramework.dependencies.find(
+				(dependency) => dependency.version === "framework",
+			)?.package;
+			if (frameworkPackage) {
+				resolvedFrameworkVersion = await resolveInstalledPackageVersion(
+					workDir,
+					framework.platform,
+					frameworkPackage,
+				);
 			}
 			resolvedSentryVersion = await resolveInstalledSentryVersion(
 				workDir,
@@ -178,6 +192,7 @@ export class AssessmentExecutor {
 			probes,
 			spans,
 			runtimeFailures: failures,
+			resolvedFrameworkVersion,
 			resolvedSentryVersion,
 			generatedProgramPath,
 			logPath,

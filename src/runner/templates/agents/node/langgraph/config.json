@@ -23,7 +23,7 @@
       "version": "3"
     }
   ],
-  "versions": ["1.4.13"],
+  "versions": ["1"],
   "sentryVersions": ["10"],
   "options": {
     "provider": [

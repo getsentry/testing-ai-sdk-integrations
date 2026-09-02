@@ -47,6 +47,7 @@ jobs:
         run: |
           echo "js=$(npm view @sentry/node version)" >> "$GITHUB_OUTPUT"
           echo "python=$(python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/sentry-sdk/json"))["info"]["version"])')" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Cache assessment environments
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -54,7 +55,7 @@ jobs:
           path: |
             runs/**/node_modules
             runs/**/.venv
-          key: assessments-${{ runner.os }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
+          key: assessments-${{ runner.os }}-${{ steps.sentry-versions.outputs.date }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
 
       - name: Install dependencies and build
         run: |

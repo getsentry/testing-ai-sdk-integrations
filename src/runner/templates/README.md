@@ -69,14 +69,16 @@ Minimal `config.json`:
 
 Python configs may set `executionMode` to `sync`, `async`, or `both`. Options create framework-specific variant axes and may override model expectations.
 
+Use moving major-version selectors so scheduled assessments pick up the latest minor and patch releases without crossing a stable major. For example, use `"7"` for npm packages and `">=1,<2"` for Python packages. Keep synthetic `manual` adapter versions fixed.
+
 When framework versions need different companion packages or adapter APIs, keep them in one target and use version overrides:
 
 ```json
 {
-  "versions": ["6.0.0", "7.0.0"],
+  "versions": ["6", "7"],
   "versionOverrides": {
-    "6.0.0": {"templateOptions": {"apiStyle": "v6"}},
-    "7.0.0": {
+    "6": {"templateOptions": {"apiStyle": "v6"}},
+    "7": {
       "dependencies": {"example-provider": "4.0.0"},
       "templateOptions": {"apiStyle": "v7"}
     }

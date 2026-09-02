@@ -24,7 +24,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["latest"],
+  "versions": ["1"],
   "sentryVersions": ["10"],
   "options": {
     "provider": [

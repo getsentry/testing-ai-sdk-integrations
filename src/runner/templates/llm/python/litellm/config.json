@@ -13,7 +13,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["1.98.0"],
+  "versions": [">=1,<2"],
   "sentryVersions": ["latest"],
   "options": {
     "apiStyle": ["completion", "responses"],

@@ -117,6 +117,7 @@ export interface Finding {
 export interface VariantAssessment {
 	id: string;
 	identity: VariantIdentity;
+	resolvedFrameworkVersion?: string;
 	resolvedSentryVersion?: string;
 	completion: AssessmentCompletion;
 	health: AssessmentHealth;

@@ -16,7 +16,7 @@
       "version": "latest"
     }
   ],
-  "versions": ["1.2.11"],
+  "versions": [">=1,<2"],
   "sentryVersions": ["latest"],
   "options": {
     "provider": [

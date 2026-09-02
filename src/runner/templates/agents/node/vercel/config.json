@@ -16,14 +16,14 @@
       "version": "3.0.105"
     }
   ],
-  "versions": ["6.0.116", "7.0.79"],
+  "versions": ["6", "7"],
   "versionOverrides": {
-    "6.0.116": {
+    "6": {
       "templateOptions": {
         "apiStyle": "v6"
       }
     },
-    "7.0.79": {
+    "7": {
       "dependencies": {
         "@ai-sdk/openai": "4.0.47",
         "@ai-sdk/anthropic": "4.0.42"

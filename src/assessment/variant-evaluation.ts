@@ -33,6 +33,7 @@ export interface VariantEvaluationInput {
 	probes: ProbeResult[];
 	spans: VariantAssessment["spans"];
 	runtimeFailures: RuntimeFailure[];
+	resolvedFrameworkVersion?: string;
 	resolvedSentryVersion?: string;
 	generatedProgramPath?: string;
 	logPath?: string;
@@ -127,6 +128,7 @@ export function evaluateVariant(
 		{
 			id: input.variant.id,
 			identity: input.variant.identity,
+			resolvedFrameworkVersion: input.resolvedFrameworkVersion,
 			resolvedSentryVersion: input.resolvedSentryVersion,
 			probes: input.probes,
 			observations,

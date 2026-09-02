@@ -53,6 +53,7 @@ function report(): AssessmentReport {
 							sentryVersion: "latest",
 							options: {},
 						},
+						resolvedFrameworkVersion: "7.7.0",
 						resolvedSentryVersion: "10.42.0",
 						completion: "complete",
 						health: "healthy",
@@ -107,7 +108,9 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 	const assessment = report();
 	const before = structuredClone(assessment);
 	const html = renderAssessmentHtml(assessment);
+	assert.match(html, /7\.7\.0/);
 	assert.match(html, /10\.42\.0/);
+	assert.match(html, /requested framework/);
 	assert.match(html, /requested sentry/);
 	assert.match(html, /blocking \+ streaming/);
 	assert.match(html, /How scoring works/);

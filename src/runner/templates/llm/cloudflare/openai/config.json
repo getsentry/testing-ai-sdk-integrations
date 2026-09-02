@@ -11,6 +11,6 @@
       "version": "framework"
     }
   ],
-  "versions": ["7.7.0"],
+  "versions": ["7"],
   "sentryVersions": ["10"]
 }

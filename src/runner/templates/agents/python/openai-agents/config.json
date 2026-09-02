@@ -12,6 +12,6 @@
       "version": ">=3,<4"
     }
   ],
-  "versions": ["0.22.0"],
+  "versions": [">=0,<1"],
   "sentryVersions": ["latest"]
 }

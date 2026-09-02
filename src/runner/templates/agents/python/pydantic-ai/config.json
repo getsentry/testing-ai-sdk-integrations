@@ -9,7 +9,7 @@
       "version": "framework"
     }
   ],
-  "versions": ["2.35.1"],
+  "versions": [">=2,<3"],
   "sentryVersions": ["latest"],
   "options": {
     "modelSetup": [

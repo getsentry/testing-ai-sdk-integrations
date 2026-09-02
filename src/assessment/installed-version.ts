@@ -12,16 +12,17 @@ const sentryPackages: Partial<Record<AssessmentPlatform, string>> = {
   cloudflare: "@sentry/cloudflare",
 };
 
-export async function resolveInstalledSentryVersion(
+export async function resolveInstalledPackageVersion(
   workDir: string,
   platform: AssessmentPlatform,
+  packageName: string,
 ): Promise<string | undefined> {
   if (platform === "python") {
     try {
       const pythonPath = path.join(workDir, ".venv", "bin", "python");
       const { stdout } = await execFileAsync(pythonPath, [
         "-c",
-        "import importlib.metadata; print(importlib.metadata.version('sentry-sdk'))",
+        `import importlib.metadata; print(importlib.metadata.version(${JSON.stringify(packageName)}))`,
       ]);
       return stdout.trim() || undefined;
     } catch {
@@ -29,8 +30,6 @@ export async function resolveInstalledSentryVersion(
     }
   }
 
-  const packageName = sentryPackages[platform];
-  if (!packageName) return undefined;
   try {
     const packageJsonPath = path.join(
       workDir,
@@ -47,4 +46,15 @@ export async function resolveInstalledSentryVersion(
   } catch {
     return undefined;
   }
+}
+
+export async function resolveInstalledSentryVersion(
+  workDir: string,
+  platform: AssessmentPlatform,
+): Promise<string | undefined> {
+  const packageName =
+    platform === "python" ? "sentry-sdk" : sentryPackages[platform];
+  return packageName
+    ? resolveInstalledPackageVersion(workDir, platform, packageName)
+    : undefined;
 }
