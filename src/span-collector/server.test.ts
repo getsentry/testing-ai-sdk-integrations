@@ -13,7 +13,7 @@ async function postEnvelope(dsn: string, body: string): Promise<Response> {
 	});
 }
 
-test("collects and assigns Python transaction roots with ISO timestamps", async () => {
+test("collects and assigns Python transaction spans with ISO timestamps", async () => {
 	const collector = new SpanCollector();
 	await collector.start();
 	try {
@@ -36,7 +36,16 @@ test("collects and assigns Python transaction roots with ISO timestamps", async 
 				},
 				start_timestamp: "2026-08-27T05:35:38.442666Z",
 				timestamp: "2026-08-27T05:35:38.443051Z",
-				spans: [],
+				spans: [
+					{
+						span_id: "python-http",
+						trace_id: "python-trace",
+						parent_span_id: "python-root",
+						op: "http.client",
+						start_timestamp: "2026-08-27T05:35:38.442700Z",
+						timestamp: "2026-08-27T05:35:38.442900Z",
+					},
+				],
 			}),
 		].join("\n");
 		const transactionResponse = await postEnvelope(dsn, transaction);
@@ -78,12 +87,21 @@ test("collects and assigns Python transaction roots with ISO timestamps", async 
 			root?.timestamp,
 			Date.parse("2026-08-27T05:35:38.443051Z") / 1_000,
 		);
+		const http = spans.find((span) => span.span_id === "python-http");
+		assert.equal(
+			http?.start_timestamp,
+			Date.parse("2026-08-27T05:35:38.442700Z") / 1_000,
+		);
+		assert.equal(
+			http?.timestamp,
+			Date.parse("2026-08-27T05:35:38.442900Z") / 1_000,
+		);
 		assert.deepEqual(
 			partitionSpansByProbe(spans)
 				.byProbe.get("llm.baseline")
 				?.map((span) => span.span_id)
 				.sort((left, right) => left.localeCompare(right)),
-			["python-child", "python-root"],
+			["python-child", "python-http", "python-root"],
 		);
 	} finally {
 		await collector.stop();

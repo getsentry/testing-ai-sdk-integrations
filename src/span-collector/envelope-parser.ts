@@ -29,6 +29,36 @@ function parseTimestamp(value: unknown): number | undefined {
 	return Number.isFinite(milliseconds) ? milliseconds / 1_000 : undefined;
 }
 
+function legacySpanToCapturedSpan(value: unknown): CapturedSpan | undefined {
+	if (!isRecord(value)) return undefined;
+	const startTimestamp = parseTimestamp(value.start_timestamp);
+	const endTimestamp = parseTimestamp(value.timestamp);
+	if (
+		typeof value.span_id !== "string" ||
+		typeof value.trace_id !== "string" ||
+		startTimestamp === undefined ||
+		endTimestamp === undefined
+	) {
+		return undefined;
+	}
+	return {
+		...value,
+		span_id: value.span_id,
+		trace_id: value.trace_id,
+		parent_span_id:
+			typeof value.parent_span_id === "string"
+				? value.parent_span_id
+				: undefined,
+		op: typeof value.op === "string" ? value.op : "",
+		description:
+			typeof value.description === "string" ? value.description : undefined,
+		start_timestamp: startTimestamp,
+		timestamp: endTimestamp,
+		data: isRecord(value.data) ? value.data : {},
+		tags: isRecord(value.tags) ? value.tags : undefined,
+	};
+}
+
 function v2SpanToCapturedSpan(value: unknown): CapturedSpan | undefined {
 	if (!isRecord(value)) return undefined;
 	const data: Record<string, unknown> = {};
@@ -69,7 +99,8 @@ function v2SpanToCapturedSpan(value: unknown): CapturedSpan | undefined {
 function embeddedTransactionSpan(
 	body: Record<string, unknown>,
 ): CapturedSpan | undefined {
-	if (typeof body.span_id === "string") return body as unknown as CapturedSpan;
+	const directSpan = legacySpanToCapturedSpan(body);
+	if (directSpan) return directSpan;
 	if (!isRecord(body.contexts) || !isRecord(body.contexts.trace))
 		return undefined;
 	const trace = body.contexts.trace;
@@ -125,8 +156,9 @@ function parseItem(headerValue: unknown, bodyValue: unknown): CapturedSpan[] {
 	}
 	const spans: CapturedSpan[] = [];
 	if (Array.isArray(bodyValue.spans)) {
-		for (const span of bodyValue.spans) {
-			if (isRecord(span)) spans.push(span as unknown as CapturedSpan);
+		for (const value of bodyValue.spans) {
+			const span = legacySpanToCapturedSpan(value);
+			if (span) spans.push(span);
 		}
 	}
 	const transaction = embeddedTransactionSpan(bodyValue);

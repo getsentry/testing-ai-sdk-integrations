@@ -46,6 +46,27 @@ test("one assessment program runs equivalent calls in streaming and blocking mod
 	assert.equal((baseline.match(/"streaming": true/g) ?? []).length, 1);
 });
 
+test("request model overrides preserve the intentional provider error", () => {
+	const overrideTarget: AssessmentTargetConfig = {
+		...target,
+		modelOverrides: { request: "provider-valid-model" },
+	};
+	const [variant] = resolveVariants(overrideTarget);
+	const rendered = renderAssessmentProgram(overrideTarget, variant);
+	const baseline = rendered.contents.match(
+		/"id": "llm\.baseline"[\s\S]*?(?="id": "llm\.multi_turn")/,
+	)?.[0];
+	const providerError = rendered.contents.match(
+		/"id": "llm\.provider_error"[\s\S]*?(?="id": "llm\.conversation")/,
+	)?.[0];
+
+	assert.ok(baseline);
+	assert.match(baseline, /"model": "provider-valid-model"/);
+	assert.ok(providerError);
+	assert.match(providerError, /"model": "sentry-assessment-invalid-model"/);
+	assert.doesNotMatch(providerError, /"model": "provider-valid-model"/);
+});
+
 test("framework versions can override companion dependency versions", () => {
 	const dependencies = resolveFrameworkDependencies(
 		{

@@ -36,7 +36,9 @@ export function renderAssessmentProgram(
 		const calls = modes.flatMap((mode) =>
 			input.calls.map((call, callIndex) => ({
 				...call,
-				model: variant.modelOverrides.request ?? call.model,
+				model: input.expectError
+					? call.model
+					: (variant.modelOverrides.request ?? call.model),
 				streaming: mode === "streaming",
 				assessmentCallId: `${probe.id}:${mode}:${callIndex}`,
 				assessmentCallMode: mode,
