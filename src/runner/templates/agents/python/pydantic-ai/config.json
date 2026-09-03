@@ -3,6 +3,7 @@
   "platform": "python",
   "executionMode": "async",
   "minimumPlatformVersion": "3.10",
+  "executionTimeoutMs": 300000,
   "dependencies": [
     {
       "package": "pydantic-ai",

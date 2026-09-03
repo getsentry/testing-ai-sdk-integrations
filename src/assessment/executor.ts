@@ -132,7 +132,9 @@ export class AssessmentExecutor {
 				sentryDsn: this.collector.getDsn(variant.id),
 				programPath: generated.programPath,
 				logPath: generated.logPath,
-				timeoutMs: framework.platform === "cloudflare" ? 300_000 : 120_000,
+				timeoutMs:
+					framework.executionTimeoutMs ??
+					(framework.platform === "cloudflare" ? 300_000 : 120_000),
 			};
 			const runner = this.runnerFor(framework.platform);
 			const environmentContext = {

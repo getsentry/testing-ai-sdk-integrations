@@ -90,6 +90,13 @@ function hasStreamingMode(value: unknown): boolean {
 	);
 }
 
+function hasExecutionTimeout(value: unknown): boolean {
+	return (
+		value === undefined ||
+		(typeof value === "number" && Number.isInteger(value) && value > 0)
+	);
+}
+
 export function parseFrameworkConfig(
 	value: unknown,
 	expectedPlatform: AssessmentPlatform,
@@ -123,6 +130,9 @@ export function parseFrameworkConfig(
 	}
 	if (!hasValidOptions(value.options)) {
 		throw new Error("options must contain non-empty option arrays");
+	}
+	if (!hasExecutionTimeout(value.executionTimeoutMs)) {
+		throw new Error("executionTimeoutMs must be a positive integer");
 	}
 	return value as unknown as FrameworkConfig;
 }

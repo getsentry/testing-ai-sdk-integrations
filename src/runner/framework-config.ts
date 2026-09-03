@@ -51,6 +51,9 @@ export interface FrameworkConfig {
 
 	/** Minimum runtime version, such as Python 3.10. */
 	minimumPlatformVersion?: string;
+
+	/** Maximum assessment program runtime in milliseconds. */
+	executionTimeoutMs?: number;
 }
 
 export interface FrameworkDependency {

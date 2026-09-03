@@ -67,7 +67,7 @@ Minimal `config.json`:
 }
 ```
 
-Python configs may set `executionMode` to `sync`, `async`, or `both`. Options create framework-specific variant axes and may override model expectations.
+Python configs may set `executionMode` to `sync`, `async`, or `both`. Options create framework-specific variant axes and may override model expectations. Targets that reliably need more than the default 120 seconds may set `executionTimeoutMs`.
 
 Use moving major-version selectors so scheduled assessments pick up the latest minor and patch releases without crossing a stable major. For example, use `"7"` for npm packages and `">=1,<2"` for Python packages. Keep synthetic `manual` adapter versions fixed.
 

@@ -46,4 +46,19 @@ test("rejects malformed config values before matrix resolution", () => {
 			),
 		/platform must match directory/,
 	);
+	assert.throws(
+		() =>
+			parseFrameworkConfig(
+				{
+					name: "openai",
+					platform: "node",
+					dependencies: [],
+					versions: ["latest"],
+					sentryVersions: ["latest"],
+					executionTimeoutMs: 0,
+				},
+				"node",
+			),
+		/executionTimeoutMs/,
+	);
 });
