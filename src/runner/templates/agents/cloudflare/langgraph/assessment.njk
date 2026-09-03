@@ -6,7 +6,11 @@
 {% else %}
       const { ChatOpenAI } = await import("@langchain/openai");
 {% endif %}
-      const { createReactAgent } = await import("@langchain/langgraph/prebuilt");
+      const { createReactAgent: originalCreateReactAgent } = await import("@langchain/langgraph/prebuilt");
+      const createReactAgent = Sentry.instrumentCreateReactAgent(originalCreateReactAgent, {
+        recordInputs: true,
+        recordOutputs: true,
+      });
       const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core/messages");
       const { tool } = await import("@langchain/core/tools");
       const { z } = await import("zod");

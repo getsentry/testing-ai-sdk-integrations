@@ -113,6 +113,29 @@ test("version template options select the matching Vercel API", () => {
 	assert.doesNotMatch(v7, /experimental_telemetry/);
 });
 
+test("Cloudflare LangGraph uses explicit edge instrumentation", () => {
+	const langGraphTarget: AssessmentTargetConfig = {
+		platform: "cloudflare",
+		category: "agents",
+		framework: "langgraph",
+		frameworkVersions: ["1"],
+		sentryVersions: ["10"],
+		streamingMode: "both",
+		options: { provider: ["openai"] },
+	};
+	const [variant] = resolveVariants(langGraphTarget);
+	const program = renderAssessmentProgram(langGraphTarget, variant).contents;
+
+	assert.match(
+		program,
+		/const \{ createReactAgent: originalCreateReactAgent \} = await import/,
+	);
+	assert.match(
+		program,
+		/Sentry\.instrumentCreateReactAgent\(originalCreateReactAgent, \{[\s\S]*?recordInputs: true,[\s\S]*?recordOutputs: true/,
+	);
+});
+
 test("Next.js always enables Vercel experimental telemetry", () => {
 	const vercelTarget: AssessmentTargetConfig = {
 		platform: "nextjs",
