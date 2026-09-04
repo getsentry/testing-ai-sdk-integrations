@@ -53,6 +53,7 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
+            runs/**/package.json
             runs/**/node_modules
             runs/**/.venv
           key: assessments-${{ runner.os }}-${{ steps.sentry-versions.outputs.date }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}

@@ -21,6 +21,7 @@ export class JavaScriptRunner implements AssessmentRunner {
 	async needsSetup(context: AssessmentEnvironmentContext): Promise<boolean> {
 		const nodeModulesPath = path.join(context.workDir, "node_modules");
 		try {
+			await access(path.join(context.workDir, "package.json"));
 			await access(nodeModulesPath);
 			for (const dependency of context.framework.dependencies) {
 				await access(path.join(nodeModulesPath, dependency.package));
