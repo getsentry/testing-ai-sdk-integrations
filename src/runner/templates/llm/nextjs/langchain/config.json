@@ -5,15 +5,15 @@
   "dependencies": [
     {
       "package": "@langchain/core",
-      "version": "latest"
+      "version": "framework"
     },
     {
       "package": "@langchain/openai",
-      "version": "latest"
+      "version": "1"
     },
     {
       "package": "@langchain/anthropic",
-      "version": "latest"
+      "version": "1"
     },
     {
       "package": "@sentry/nextjs",

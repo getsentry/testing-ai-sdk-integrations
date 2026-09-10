@@ -9,15 +9,15 @@
     },
     {
       "package": "@langchain/openai",
-      "version": "1.5.10"
+      "version": "1"
     },
     {
       "package": "@langchain/anthropic",
-      "version": "1.5.8"
+      "version": "1"
     },
     {
       "package": "@langchain/core",
-      "version": "1.2.9"
+      "version": "1"
     }
   ],
   "versions": ["1"],
