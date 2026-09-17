@@ -8,18 +8,20 @@ export interface GeneratedAssessmentProgram {
 	programPath: string;
 	logPath: string;
 	probeCallModes: Record<string, Array<"blocking" | "streaming">>;
+	environmentDirectory: string;
 }
 
-/** Write programs under a stable variant-oriented path, never a scenario name. */
+/** Keep dependency environments stable while giving executed programs attempt-specific paths. */
 export async function writeAssessmentProgram(
 	target: AssessmentTargetConfig,
 	variant: ResolvedVariant,
 	options: {
 		runsDirectory?: string;
 		probeIds?: ReadonlySet<string>;
+		attemptPath?: string[];
 	} = {},
 ): Promise<GeneratedAssessmentProgram> {
-	const variantDirectory = path.join(
+	const variantDirectory = path.resolve(
 		options.runsDirectory ?? path.join(process.cwd(), "runs"),
 		target.platform,
 		target.category,
@@ -34,8 +36,18 @@ export async function writeAssessmentProgram(
 		options.probeIds,
 	);
 	const extension = getFileExtension(target.platform);
-	const programPath = path.join(variantDirectory, `assessment.${extension}`);
-	const logPath = path.join(variantDirectory, "assessment.log");
+	const programDirectory = path.join(
+		variantDirectory,
+		...(options.attemptPath ?? []),
+	);
+	await mkdir(programDirectory, { recursive: true });
+	const programPath = path.join(programDirectory, `assessment.${extension}`);
+	const logPath = path.join(programDirectory, "assessment.log");
 	await writeFile(programPath, contents, "utf8");
-	return { programPath, logPath, probeCallModes };
+	return {
+		programPath,
+		logPath,
+		probeCallModes,
+		environmentDirectory: variantDirectory,
+	};
 }

@@ -40,7 +40,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
     {% endif %}
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                sentry_sdk.capture_exception(error)
+                                capture_expected_error(error)
                                 continue
                             raise
 {% endblock %}

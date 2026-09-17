@@ -2,15 +2,24 @@
 # Generated Sentry AI assessment program. Do not edit.
 import asyncio
 from contextlib import contextmanager
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
+import math
 import os
+import uuid
 import sentry_sdk
 {% block imports %}{% endblock %}
 
 EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ "
+EVENT_SESSION = uuid.uuid4().hex
+EVENT_SEQUENCE = 0
 
 
 def emit(event):
+    global EVENT_SEQUENCE
+    event = {"timestamp": datetime.now(timezone.utc).isoformat(), **event, "eventId": f"{EVENT_SESSION}:{EVENT_SEQUENCE}"}
+    EVENT_SEQUENCE += 1
     print(f"{EVENT_PREFIX}{json.dumps(event)}", flush=True)
 
 
@@ -28,17 +37,7 @@ sentry_sdk.init(
 PROBES = json.loads(r'''{{ probes | tojson }}''')
 
 
-@contextmanager
-def assessment_call(probe, request):
-    call_id = request.get("assessmentCallId")
-    call_mode = request.get("assessmentCallMode")
-    if not isinstance(call_id, str) or not isinstance(call_mode, str):
-        raise RuntimeError(f"Assessment call metadata is missing for {probe['id']}.")
-    with sentry_sdk.start_span(op="test.assessment.call", name=call_id) as span:
-        span.set_data("test.probe.id", probe["id"])
-        span.set_data("test.call.id", call_id)
-        span.set_data("test.call.mode", call_mode)
-        yield
+{% include "shared/runtime.python.njk" %}
 
 
 def flush_sentry(probe_id=None):
@@ -87,12 +86,7 @@ async def run_assessment():
 {% endblock %}
             emit({"type": "probe_finished", "probeId": probe["id"], "status": "completed"})
         except Exception as error:
-            failure = {
-                "kind": "provider",
-                "message": str(error),
-                "probeId": probe["id"],
-                "stopsVariant": probe["stopsVariantOnFailure"],
-            }
+            failure = LAST_CALL_FAILURE or describe_failure(error, probe["id"])
             emit({"type": "probe_failed", "probeId": probe["id"], "status": "failed", "failure": failure})
             if failure["stopsVariant"]:
                 blocked = True

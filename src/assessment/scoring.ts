@@ -117,6 +117,13 @@ function activeDomains(
 	assessment: ScoreVariantInput,
 	category: AssessmentCategory,
 ): Set<ScoreDomain> {
+	if (assessment.probes.some((probe) => probe.calls)) {
+		return new Set(
+			assessment.observations
+				.filter((item) => item.state !== "blocked")
+				.map((item) => domainForCapability(item.capability)),
+		);
+	}
 	const domains = new Set<ScoreDomain>(["capture", "core", "conventions"]);
 	const probeIds = assessment.probes.map((probe) => probe.probeId);
 
@@ -245,6 +252,11 @@ function executionRatio(probes: readonly ProbeResult[]): number {
  */
 export function scoreVariant(assessment: ScoreVariantInput): number {
 	const quality = qualityScore(assessment);
+	if (assessment.probes.some((probe) => probe.calls)) {
+		return assessment.observations.some((item) => item.state !== "blocked")
+			? quality
+			: 0;
+	}
 	if (assessment.completion === "complete") return quality;
 
 	const started = assessment.probes.some(

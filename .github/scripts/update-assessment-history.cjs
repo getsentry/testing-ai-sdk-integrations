@@ -2,7 +2,11 @@
 const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 
-const HISTORY_SCHEMA_VERSION = "3";
+const {
+	reportPath: archiveReportPath,
+	retainedReportPath,
+} = require("./report-path.cjs");
+const HISTORY_SCHEMA_VERSION = "4";
 const [, , reportPath, historyPath] = process.argv;
 
 if (!reportPath || !historyPath) {
@@ -55,8 +59,14 @@ function snapshotVariant(variant) {
 	return {
 		id: variant.id,
 		identity: variant.identity,
-		score: variant.score,
+		score: variant.telemetryScore === null ? null : variant.score,
 		completion: variant.completion,
+		executionHealth: variant.executionHealth,
+		coverage: variant.coverage,
+		runtimeFailures: variant.runtimeFailures,
+		modelBehavior: variant.modelBehavior,
+		resolvedFrameworkVersion: variant.resolvedFrameworkVersion,
+		resolvedSentryVersion: variant.resolvedSentryVersion,
 		health: variant.health,
 		findings: countFindings(variant.findings),
 		findingIds: variant.findings.map((finding) => finding.findingId).sort(),
@@ -68,7 +78,7 @@ function snapshotTarget(target) {
 	return {
 		id: target.id,
 		identity: target.identity,
-		score: target.score,
+		score: target.telemetryScore === null ? null : target.score,
 		completion: target.completion,
 		health: target.health,
 		findings: countFindings(target.findings),
@@ -90,9 +100,8 @@ try {
 		);
 	}
 
-	// Older test history and earlier assessment-history drafts are intentionally
-	// discarded because their scores are not comparable with this series.
-	let history = {
+	// Retain prior scoring versions for auditability; charts filter comparable entries.
+	const history = {
 		schemaVersion: HISTORY_SCHEMA_VERSION,
 		scoringVersion: report.scoringVersion,
 		entries: [],
@@ -100,11 +109,26 @@ try {
 	if (fs.existsSync(historyPath)) {
 		const existing = readJson(historyPath);
 		if (
-			existing.schemaVersion === HISTORY_SCHEMA_VERSION &&
-			existing.scoringVersion === report.scoringVersion &&
+			(existing.schemaVersion === "3" ||
+				existing.schemaVersion === HISTORY_SCHEMA_VERSION) &&
 			Array.isArray(existing.entries)
 		) {
-			history = existing;
+			history.entries = existing.entries.map((item) =>
+				(item.reportPath && item.reportPath !== `reports/${item.date}`) ||
+				item.date !== report.generatedAt.slice(0, 10)
+					? item
+					: {
+							...item,
+							reportPath: archiveReportPath({
+								generatedAt: item.generatedAt || `${item.date}T00:00:00Z`,
+								runId: item.runId || "legacy",
+								runAttempt: item.runAttempt || "1",
+								executionId: item.id || item.generatedAt || item.date,
+							}),
+							migrateFrom: retainedReportPath(item),
+							reportJsonFile: "assessment.json.gz",
+						},
+			);
 		}
 	}
 
@@ -113,9 +137,18 @@ try {
 		.flatMap((integration) => integration.variants.map((variant) => variant.id))
 		.sort();
 	const entry = {
+		id: report.executionId || report.generatedAt,
+		runId: report.runId || process.env.GITHUB_RUN_ID || null,
+		runAttempt: report.runAttempt || process.env.GITHUB_RUN_ATTEMPT || null,
+		reportPath: archiveReportPath(report),
+		reportJsonFile: "assessment.json.gz",
+		comparisonEligible:
+			report.summary.incomplete === 0 && report.summary.telemetryScore !== null,
+		execution: report.summary.execution,
+		coverage: report.summary.coverage,
 		date: report.generatedAt.slice(0, 10),
 		generatedAt: report.generatedAt,
-		commitSha: process.env.GITHUB_SHA || null,
+		commitSha: report.commitSha || process.env.GITHUB_SHA || null,
 		reportSchemaVersion: report.schemaVersion,
 		scoringVersion: report.scoringVersion,
 		matrixFingerprint: createHash("sha256")
@@ -125,15 +158,21 @@ try {
 		durationMs: report.durationMs,
 		targets: report.summary.targets,
 		variants: report.summary.variants,
-		score: report.summary.score,
+		score: report.summary.telemetryScore === null ? null : report.summary.score,
 		findings: report.summary.findings,
 		integrations,
 	};
 
-	const index = history.entries.findIndex((item) => item.date === entry.date);
+	const index = history.entries.findIndex(
+		(item) => (item.id || item.generatedAt) === entry.id,
+	);
 	if (index >= 0) history.entries[index] = entry;
 	else history.entries.push(entry);
-	history.entries.sort((left, right) => left.date.localeCompare(right.date));
+	history.entries.sort((left, right) =>
+		(left.generatedAt || left.date).localeCompare(
+			right.generatedAt || right.date,
+		),
+	);
 
 	fs.writeFileSync(
 		historyPath,

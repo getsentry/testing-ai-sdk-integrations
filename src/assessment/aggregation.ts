@@ -1,4 +1,5 @@
 import { deriveCompletion, deriveHealth, worseHealth } from "./health.js";
+import { coverage } from "./call-evidence.js";
 import { averageScore, classifyScore, scoreVariant } from "./scoring.js";
 import type {
 	AssessmentCategory,
@@ -26,7 +27,7 @@ function mergeOccurrences(
 ): FindingOccurrence[] {
 	const byLocation = new Map<string, FindingOccurrence>();
 	for (const occurrence of occurrences) {
-		const key = `${occurrence.variantId}\u0000${occurrence.probeId}`;
+		const key = `${occurrence.variantId}\u0000${occurrence.probeId}\u0000${occurrence.attemptId ?? ""}`;
 		const current = byLocation.get(key);
 		if (current) {
 			current.observationIds = [
@@ -92,6 +93,17 @@ export function finalizeVariant(
 		health,
 		score,
 		rating: classifyScore(score, completion),
+		executionHealth:
+			completion === "incomplete"
+				? "failed"
+				: variant.runtimeFailures.some((failure) => failure.recovered)
+					? "recovered"
+					: "healthy",
+		telemetryScore: variant.observations.some(
+			(item) => item.state !== "blocked",
+		)
+			? score
+			: null,
 	};
 }
 
@@ -125,7 +137,12 @@ export function aggregateTarget(
 	)
 		? "incomplete"
 		: "complete";
-	const score = averageScore(variants.map((variant) => variant.score));
+	const scored = variants.filter((variant) => variant.telemetryScore !== null);
+	const score = scored.length
+		? averageScore(
+				scored.map((variant) => variant.telemetryScore ?? variant.score),
+			)
+		: 0;
 	return {
 		id: `${identity.platform}/${identity.category}/${identity.framework}`,
 		identity,
@@ -139,6 +156,7 @@ export function aggregateTarget(
 		score,
 		rating: classifyScore(score, completion),
 		capabilitySummary: summarizeCapabilities(variants),
+		telemetryScore: scored.length ? score : null,
 	};
 }
 
@@ -159,6 +177,21 @@ export function summarizeReport(
 		},
 		health: { healthy: 0, healthy_with_notes: 0, degraded: 0, broken: 0 },
 		findings: { critical: 0, major: 0, minor: 0, info: 0 },
+		execution: { healthy: 0, recovered: 0, failed: 0 },
+		coverage: coverage(
+			targets.flatMap((target) =>
+				target.variants.flatMap((variant) => variant.probes),
+			),
+		),
+		modelBehavior: targets.reduce(
+			(total, target) =>
+				total +
+				target.variants.reduce(
+					(sum, variant) => sum + (variant.modelBehavior?.length ?? 0),
+					0,
+				),
+			0,
+		),
 	};
 	for (const target of targets) {
 		summary.health[target.health]++;
@@ -166,13 +199,21 @@ export function summarizeReport(
 			summary.variants++;
 			summary[variant.completion]++;
 			summary.ratings[variant.rating]++;
+			summary.execution![
+				variant.executionHealth ??
+					(variant.completion === "incomplete" ? "failed" : "healthy")
+			]++;
 		}
 		for (const finding of target.findings) {
 			summary.findings[finding.severity]++;
 		}
 	}
 	// Give every integration equal influence, regardless of its variant count.
-	summary.score = averageScore(targets.map((target) => target.score));
+	const scored = targets.filter((target) => target.telemetryScore !== null);
+	summary.score = scored.length
+		? averageScore(scored.map((target) => target.score))
+		: 0;
+	summary.telemetryScore = scored.length ? summary.score : null;
 	return summary;
 }
 
@@ -184,7 +225,10 @@ export function createReport(
 	const orderedTargets = [...targets].sort((a, b) => a.id.localeCompare(b.id));
 	return {
 		schemaVersion: "2",
-		scoringVersion: "3",
+		scoringVersion: "4",
+		runId: process.env.GITHUB_RUN_ID,
+		runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+		commitSha: process.env.GITHUB_SHA,
 		generatedAt,
 		durationMs,
 		targets: orderedTargets,

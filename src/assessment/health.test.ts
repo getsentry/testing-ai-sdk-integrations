@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { deriveCompletion } from "./health.js";
 
-test("only variant-stopping failures make execution incomplete", () => {
+test("unrecovered failures make execution incomplete even when later probes continue", () => {
 	assert.equal(deriveCompletion([]), "complete");
 	assert.equal(
 		deriveCompletion([
@@ -12,7 +12,7 @@ test("only variant-stopping failures make execution incomplete", () => {
 				stopsVariant: false,
 			},
 		]),
-		"complete",
+		"incomplete",
 	);
 	assert.equal(
 		deriveCompletion([

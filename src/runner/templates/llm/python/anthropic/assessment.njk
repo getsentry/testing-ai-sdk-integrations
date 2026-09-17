@@ -37,7 +37,7 @@ client = {% if isAsync %}AsyncAnthropic{% else %}Anthropic{% endif %}(
     {% endif %}
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                sentry_sdk.capture_exception(error)
+                                capture_expected_error(error)
                                 continue
                             raise
 {% endblock %}

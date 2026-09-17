@@ -15,6 +15,7 @@ jobs:
   assess-pr:
     name: Assess PR
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout PR
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -37,13 +38,15 @@ jobs:
         run: |
           echo "js=$(npm view @sentry/node version)" >> "$GITHUB_OUTPUT"
           echo "python=$(python3 -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/sentry-sdk/json"))["info"]["version"])')" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Cache assessment environments
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
+            runs/**/package.json
             runs/**/node_modules
             runs/**/.venv
-          key: assessments-${{ runner.os }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
+          key: assessments-${{ runner.os }}-${{ steps.sentry-versions.outputs.date }}-js-${{ steps.sentry-versions.outputs.js }}-python-${{ steps.sentry-versions.outputs.python }}-${{ hashFiles('src/runner/templates/**/config.json') }}
       - name: Install dependencies and build
         run: |
           npm ci
@@ -51,16 +54,65 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
       - name: Run assessments
+        id: assess
         continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-        run: npm test -- run --parallel 12
+        run: npm test -- run --parallel 6 --endpoint-limit openrouter=2 --endpoint-limit google=2
       - name: Upload PR assessment
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: assessment-pr
-          path: test-results/assessment-report-*.json
-          if-no-files-found: error
-          retention-days: 1
+          name: assessment-pr-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: test-results/assessment-report-*
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Upload PR execution evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: assessment-pr-logs-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            runs/**/executions/**/assessment.*
+            runs/**/executions/**/setup.log
+            runs/**/executions/**/dependencies.json
+            runs/**/executions/**/attempt.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Compare observed telemetry with main
+        if: always() && (steps.assess.outcome == 'success' || steps.assess.outcome == 'failure')
+        env:
+          PAGES_OWNER: ${{ github.repository_owner }}
+          PAGES_REPOSITORY: ${{ github.event.repository.name }}
+        run: |
+          report=$(find test-results -maxdepth 1 -name 'assessment-report-*.json' -type f -print | sort | tail -1)
+          test -n "$report"
+          if ! curl -fsS --retry 2 --max-time 30 "https://${PAGES_OWNER}.github.io/${PAGES_REPOSITORY}/assessment.json" -o baseline.json; then
+            echo '::warning::No published baseline is available. Review the assessment artifacts; telemetry regression comparison was not performed.'
+            echo '## Assessment comparison unavailable' >> "$GITHUB_STEP_SUMMARY"
+            echo 'No published baseline. Review the native report and execution evidence.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node .github/scripts/compare-assessments.cjs baseline.json "$report" comparison.md
+          cat comparison.md >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '^COMPARABLE=false$' comparison.env; then
+            echo '::warning::No comparable assessment evidence. Missing coverage is not a passing telemetry result.'
+          fi
+          if grep -q '^HAS_EXECUTION_FAILURES=true$' comparison.env; then
+            echo '::warning::Execution failures are recorded separately from instrumentation regressions. Review the execution evidence.'
+          fi
+          if grep -q '^HAS_REGRESSIONS=true$' comparison.env; then
+            exit 1
+          fi
+      - name: Upload comparison
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: assessment-comparison-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            comparison.md
+            comparison.env
+          if-no-files-found: ignore
+          retention-days: 90

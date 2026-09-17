@@ -56,7 +56,7 @@ function modelObservation(
 		variantId,
 		expected,
 		actual,
-		evidence: actual === undefined ? [] : evidence(span, attribute, actual),
+		evidence: evidence(span, attribute, actual),
 	};
 }
 

@@ -19,7 +19,7 @@
                       await client.messages.create({ model: request.model, max_tokens: 1024, system, messages });
                     }
                   } catch (error) {
-                    if (probe.input.expectError) { Sentry.captureException(error); return; }
+                    if (probe.input.expectError) { captureExpectedError(error); return; }
                     throw error;
                   }
                   });

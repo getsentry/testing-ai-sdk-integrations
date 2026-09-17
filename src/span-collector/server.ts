@@ -20,6 +20,7 @@ export class SpanCollector {
 	private port: number = 0;
 	private host: string = "127.0.0.1";
 	private projectIdToRunId: Map<number, string> = new Map();
+	private readonly runIdToProjectId = new Map<string, number>();
 
 	constructor(port: number = 0) {
 		this.port = port; // 0 = random available port
@@ -163,16 +164,9 @@ export class SpanCollector {
 	 * The runId is encoded in the project ID field (using a hash to make it numeric)
 	 */
 	getDsn(runId: string): string {
-		// Generate a numeric project ID from runId
-		// Use a simple hash to convert runId to a number
-		let hash = 0;
-		for (let i = 0; i < runId.length; i++) {
-			hash = (hash << 5) - hash + runId.charCodeAt(i);
-			hash = hash & hash; // Convert to 32-bit integer
-		}
-		const projectId = Math.abs(hash);
-
-		// Store mapping of projectId -> runId for later lookup
+		const projectId =
+			this.runIdToProjectId.get(runId) ?? this.runIdToProjectId.size + 1;
+		this.runIdToProjectId.set(runId, projectId);
 		this.projectIdToRunId.set(projectId, runId);
 
 		return `http://public@${this.host}:${this.port}/${projectId}`;

@@ -25,8 +25,16 @@ import {
 } from "./runner/framework-discovery.js";
 import { SpanCollector } from "./span-collector/server.js";
 
-const DEFAULT_PARALLEL = 10;
-const MIN_EXPLICIT_PARALLEL = 20;
+import {
+	createEndpointScheduler,
+	DEFAULT_PARALLEL,
+	endpointLimits,
+	positiveInteger,
+} from "./assessment/execution-policy.js";
+import {
+	DEFAULT_PROBE_TIMEOUT_MS,
+	SDK_RETRY_POLICY,
+} from "./assessment/retry.js";
 
 const help = `Sentry AI SDK Assessments
 
@@ -48,7 +56,10 @@ Options:
   --sentry-python <path>       Use a local sentry-python checkout
   --sentry-javascript <path>   Use a local sentry-javascript checkout
   --quick                      Run one representative variant per target
-  --parallel, -j <N>           Run variants in parallel (default: 10; explicit minimum: 20)
+  --parallel, -j <N>           Run variants in parallel (default: 6)
+  --endpoint-limit <name=N>    Limit openrouter or google probe processes (default: 2 each)
+  --probe-timeout <seconds>    Override the per-probe process deadline (default: 180; Cloudflare/Pydantic: 300)
+  --retries <0|1>              Retry eligible probe failures once (default: 1)
   --open                       Open the generated dashboard
   --verbose, -v               Show variant execution progress
   --help, -h                   Show this help
@@ -68,6 +79,9 @@ interface CliOptions {
 	sentryJavaScriptPath?: string;
 	quick: boolean;
 	parallel: number;
+	endpointLimits: Record<string, number>;
+	probeTimeoutMs?: number;
+	retries: 0 | 1;
 	open: boolean;
 	verbose: boolean;
 	help: boolean;
@@ -75,11 +89,7 @@ interface CliOptions {
 
 function parseParallel(value: string | undefined): number {
 	if (!value) return DEFAULT_PARALLEL;
-	const parsed = Number.parseInt(value.replace(/^=/, ""), 10);
-	if (!Number.isInteger(parsed) || parsed < 1) {
-		throw new Error("--parallel must be a positive integer.");
-	}
-	return Math.max(parsed, MIN_EXPLICIT_PARALLEL);
+	return positiveInteger(value, "--parallel");
 }
 
 function parseOptions(values: string[] | undefined): Record<string, string> {
@@ -166,6 +176,9 @@ function parseCommand(): CliOptions {
 			"sentry-javascript": { type: "string" },
 			quick: { type: "boolean", default: false },
 			parallel: { type: "string", short: "j" },
+			"endpoint-limit": { type: "string", multiple: true },
+			"probe-timeout": { type: "string" },
+			retries: { type: "string", default: "1" },
 			open: { type: "boolean", default: false },
 			verbose: { type: "boolean", short: "v", default: false },
 			help: { type: "boolean", short: "h", default: false },
@@ -173,6 +186,8 @@ function parseCommand(): CliOptions {
 		allowPositionals: true,
 	});
 
+	if (values.retries !== "0" && values.retries !== "1")
+		throw new Error("--retries must be 0 or 1.");
 	const requestedCommand = positionals[0] ?? "run";
 	const command = requestedCommand === "setup" ? "render" : requestedCommand;
 	if (command !== "list" && command !== "render" && command !== "run") {
@@ -191,6 +206,11 @@ function parseCommand(): CliOptions {
 		sentryJavaScriptPath: values["sentry-javascript"],
 		quick: values.quick,
 		parallel: parseParallel(values.parallel),
+		endpointLimits: endpointLimits(values["endpoint-limit"]),
+		probeTimeoutMs: values["probe-timeout"]
+			? positiveInteger(values["probe-timeout"], "--probe-timeout") * 1000
+			: undefined,
+		retries: values.retries === "0" ? 0 : 1,
 		open: values.open,
 		verbose: values.verbose,
 		help: values.help,
@@ -367,7 +387,11 @@ async function main() {
 	const collector = new SpanCollector();
 	await collector.start();
 	try {
-		const executor = new AssessmentExecutor(collector);
+		const executor = new AssessmentExecutor(collector, {
+			probeTimeoutMs: options.probeTimeoutMs,
+			retries: options.retries,
+			schedule: createEndpointScheduler(options.endpointLimits),
+		});
 		const tasks = work.flatMap(({ framework, variants }) =>
 			variants.map((variant) => ({ framework, variant })),
 		);
@@ -407,16 +431,25 @@ async function main() {
 			),
 		);
 		const report = createReport(targets, Date.now() - startedAt);
-		const htmlPath = await writeAssessmentHtml(report);
+		report.executionId = executor.executionId;
+		report.executionPolicy = {
+			parallel: options.parallel,
+			endpointLimits: options.endpointLimits,
+			defaultProbeTimeoutMs: DEFAULT_PROBE_TIMEOUT_MS,
+			probeTimeoutMs: options.probeTimeoutMs,
+			retries: options.retries,
+			sdkRetries: SDK_RETRY_POLICY,
+		};
 		const reportPath = await writeAssessmentReport(report);
+		const htmlPath = await writeAssessmentHtml(report);
 		console.log(`Assessment report: ${reportPath}`);
 		console.log(`Assessment dashboard: ${htmlPath}`);
-		const integrationScore = Math.round(
-			targets.reduce((total, target) => total + target.score, 0) /
-				targets.length,
-		);
+		const score =
+			report.summary.telemetryScore === null
+				? "not assessed"
+				: `${report.summary.score}/100`;
 		console.log(
-			`Overview: ${integrationScore}/100 · ${targets.length} integrations · ${report.summary.incomplete} incomplete variants`,
+			`Overview: ${score} telemetry · ${targets.length} integrations · ${report.summary.incomplete} incomplete variants · ${report.summary.execution?.recovered ?? 0} recovered variants`,
 		);
 		if (options.open) openReport(htmlPath);
 		if (report.summary.incomplete > 0) process.exitCode = 1;

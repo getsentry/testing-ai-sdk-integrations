@@ -2,11 +2,21 @@
 
 {% block dynamic_imports %}
 from openai import AsyncOpenAI
-from agents import Agent, Runner, set_default_openai_client
+from agents import Agent, FunctionTool, Runner, set_default_openai_client
 set_default_openai_client(
     AsyncOpenAI(api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1"),
     use_for_tracing=False,
 )
+
+
+def assessment_openai_tool(definition):
+    async def invoke(_context, arguments_json):
+        return execute_assessment_tool(definition, json.loads(arguments_json))
+    return FunctionTool(
+        name=definition["name"], description=definition["description"],
+        params_json_schema=definition["parameters"], on_invoke_tool=invoke,
+        strict_json_schema=False,
+    )
 {% endblock %}
 
 {% block probe %}
@@ -14,13 +24,20 @@ set_default_openai_client(
                     with assessment_call(probe, request):
                         if request.get("conversationId"):
                             sentry_sdk.ai.set_conversation_id(request["conversationId"])
-                        prompt = "\n".join(message["content"] for message in request["messages"])
+                        instructions = next((message["content"] for message in request["messages"] if message["role"] == "system"), "Respond briefly.")
+                        messages = [message for message in request["messages"] if message["role"] != "system"]
                         try:
-                            agent = Agent(name="assessment-agent", instructions="Respond briefly.", model=request["model"])
-                            await Runner.run(agent, input=prompt)
+                            tools = [assessment_openai_tool(definition) for definition in probe["input"].get("tools", [])]
+                            agent = Agent(name="assessment-agent", instructions=instructions, model=request["model"], tools=tools)
+                            if request.get("streaming"):
+                                response = Runner.run_streamed(agent, input=messages)
+                                async for _event in response.stream_events():
+                                    pass
+                            else:
+                                await Runner.run(agent, input=messages)
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                sentry_sdk.capture_exception(error)
+                                capture_expected_error(error)
                                 continue
                             raise
 {% endblock %}

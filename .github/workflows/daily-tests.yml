@@ -18,6 +18,7 @@ jobs:
   assess-and-deploy:
     name: Assess integrations and deploy report
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -72,24 +73,21 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_GENAI_API_KEY: ${{ secrets.GOOGLE_GENAI_API_KEY }}
-        run: npm test -- run --parallel 12
+        run: npm test -- run --parallel 6 --endpoint-limit openrouter=2 --endpoint-limit google=2
 
       - name: Prepare assessment site
         run: |
           report_json=$(find test-results -maxdepth 1 -name 'assessment-report-*.json' -type f -print | sort | tail -1)
           report_html=$(find test-results -maxdepth 1 -name 'assessment-report-*.html' -type f -print | sort | tail -1)
           test -n "$report_json" && test -n "$report_html"
-          today=$(date -u +%Y-%m-%d)
-          mkdir -p "_site/reports/$today"
-          cp "$report_html" _site/index.html
-          cp "$report_html" "_site/reports/$today/index.html"
-          cp "$report_json" "_site/reports/$today/assessment.json"
+          node .github/scripts/prepare-assessment-site.cjs "$report_json" "$report_html" _site
           echo "REPORT_JSON=$report_json" >> "$GITHUB_ENV"
 
       - name: Upload assessment artifacts
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: assessment-report-${{ github.run_id }}
+          name: assessment-report-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: test-results/assessment-report-*
           retention-days: 90
 
@@ -97,25 +95,39 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: assessment-logs-${{ github.run_id }}
-          path: runs/**/assessment.log
+          name: assessment-logs-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            runs/**/executions/**/assessment.*
+            runs/**/executions/**/setup.log
+            runs/**/executions/**/dependencies.json
+            runs/**/executions/**/attempt.json
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 90
 
       - name: Fetch existing assessment history
-        continue-on-error: true
         env:
           PAGES_OWNER: ${{ github.repository_owner }}
           PAGES_REPOSITORY: ${{ github.event.repository.name }}
         run: |
           pages_url="https://${PAGES_OWNER}.github.io/${PAGES_REPOSITORY}"
-          curl -sSf "$pages_url/history.json" -o history.json 2>/dev/null || echo '{"schemaVersion":"3","scoringVersion":"3","entries":[]}' > history.json
+          status=$(curl -sS --retry 3 --retry-all-errors --max-time 60 -w '%{http_code}' "$pages_url/history.json" -o history.json)
+          case "$status" in
+            200) ;;
+            404)
+              site_status=$(curl -sS --retry 3 --max-time 60 -w '%{http_code}' "$pages_url/" -o /dev/null)
+              if [[ "$site_status" != 404 ]]; then
+                echo '::error::The existing site has no readable history. Refusing to replace its archive.'
+                exit 1
+              fi
+              echo '{"schemaVersion":"4","scoringVersion":"4","entries":[]}' > history.json
+              ;;
+            *) echo "::error::Could not preserve assessment history (HTTP $status)."; exit 1 ;;
+          esac
 
       - name: Update assessment history
         run: node .github/scripts/update-assessment-history.cjs "$REPORT_JSON" history.json
 
       - name: Fetch existing dated reports
-        continue-on-error: true
         env:
           PAGES_OWNER: ${{ github.repository_owner }}
           PAGES_REPOSITORY: ${{ github.event.repository.name }}

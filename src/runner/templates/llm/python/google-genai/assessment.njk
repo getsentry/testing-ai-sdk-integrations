@@ -33,7 +33,7 @@ client = genai.Client(api_key=os.environ["GOOGLE_GENAI_API_KEY"])
     {% endif %}
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                sentry_sdk.capture_exception(error)
+                                capture_expected_error(error)
                                 continue
                             raise
 {% endblock %}

@@ -38,6 +38,7 @@
                 }
               });
               for (const definition of probe.input.tools ?? []) {
+                await runAssessmentTool(definition, definition.arguments, async () => {
                 await Sentry.startSpan({ op: "gen_ai.execute_tool", name: `execute_tool ${definition.name}` }, (toolSpan) => {
                   toolSpan.setAttribute("gen_ai.operation.name", "execute_tool");
                   toolSpan.setAttribute("gen_ai.agent.name", agentName);
@@ -47,6 +48,9 @@
                   if (definition.error) toolSpan.setStatus("internal_error");
                   else toolSpan.setAttribute("gen_ai.tool.call.result", JSON.stringify(definition.result));
                 });
+                if (definition.error) throw new Error(definition.error);
+                return definition.result;
+                }).catch((error) => { if (!definition.error) throw error; });
               }
             });
             });

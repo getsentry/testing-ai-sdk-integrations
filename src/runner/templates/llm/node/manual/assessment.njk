@@ -38,6 +38,7 @@
                 }
               },
             );
+            if (probe.input.expectError) recordExpectedError(Object.assign(new Error("AssessmentProviderError: invalid model"), { status: 400 }));
             });
           }
 {% endblock %}

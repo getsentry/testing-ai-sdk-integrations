@@ -1,8 +1,10 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { access, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { allocatePort } from "./port-allocator.js";
+import { stopProcessTree } from "./process.js";
 import type {
 	AssessmentEnvironmentContext,
 	AssessmentExecutionContext,
@@ -21,6 +23,7 @@ export class CloudflareRunner implements AssessmentRunner {
 	async needsSetup(context: AssessmentEnvironmentContext): Promise<boolean> {
 		const nodeModulesPath = path.join(context.workDir, "node_modules");
 		try {
+			await access(path.join(context.workDir, "package.json"));
 			await access(nodeModulesPath);
 			for (const dependency of context.framework.dependencies) {
 				await access(path.join(nodeModulesPath, dependency.package));
@@ -39,6 +42,7 @@ export class CloudflareRunner implements AssessmentRunner {
 			"utf8",
 		);
 		await execFileAsync("npm", ["install", "--no-save"], {
+			timeout: 300_000,
 			cwd: workDir,
 			env: { ...process.env, npm_config_loglevel: "error" },
 		});
@@ -78,7 +82,14 @@ export class CloudflareRunner implements AssessmentRunner {
 	async executeAssessmentProgram(
 		context: AssessmentExecutionContext,
 	): Promise<AssessmentExecutionResult> {
-		const devVarsPath = path.join(context.workDir, ".dev.vars");
+		const startedAt = Date.now();
+		const runtimeDir = path.dirname(context.programPath);
+		const devVarsPath = path.join(runtimeDir, ".dev.vars");
+		const log = createWriteStream(context.logPath);
+		let logError: Error | undefined;
+		log.on("error", (error) => {
+			logError = error;
+		});
 		let processHandle: ChildProcess | undefined;
 		let stdout = "";
 		let stderr = "";
@@ -94,7 +105,7 @@ export class CloudflareRunner implements AssessmentRunner {
 				].join("\n"),
 				{ encoding: "utf8", mode: 0o600 },
 			);
-			const configPath = path.join(context.workDir, "wrangler.assessment.json");
+			const configPath = path.join(runtimeDir, "wrangler.assessment.json");
 			await writeFile(
 				configPath,
 				`${JSON.stringify(
@@ -123,9 +134,14 @@ export class CloudflareRunner implements AssessmentRunner {
 				const timeout = setTimeout(
 					() =>
 						finish(() =>
-							reject(new Error("Wrangler did not start within 30 seconds.")),
+							reject(
+								Object.assign(
+									new Error("Wrangler exceeded its startup deadline."),
+									{ name: "TimeoutError" },
+								),
+							),
 						),
-					30_000,
+					Math.min(30_000, context.timeoutMs),
 				);
 				processHandle = spawn(
 					"npx",
@@ -140,7 +156,7 @@ export class CloudflareRunner implements AssessmentRunner {
 						"0",
 					],
 					{
-						cwd: context.workDir,
+						cwd: runtimeDir,
 						env: {
 							...process.env,
 							SENTRY_DSN: context.sentryDsn,
@@ -152,28 +168,36 @@ export class CloudflareRunner implements AssessmentRunner {
 				const inspect = (text: string) => {
 					if (/Ready on (https?:\/\/[^\s]+)/.test(text)) finish(resolve);
 				};
-				processHandle.stdout?.on("data", (data: Buffer) => {
-					const text = data.toString();
+				processHandle.stdout?.setEncoding("utf8");
+				processHandle.stderr?.setEncoding("utf8");
+				processHandle.stdout?.on("data", (text: string) => {
 					stdout += text;
-					inspect(text);
+					log.write(text);
+					inspect(stdout);
 				});
-				processHandle.stderr?.on("data", (data: Buffer) => {
-					const text = data.toString();
+				processHandle.stderr?.on("data", (text: string) => {
 					stderr += text;
-					inspect(text);
+					log.write(text);
+					inspect(stderr);
 				});
 				processHandle.on("error", (error) => finish(() => reject(error)));
 				processHandle.on("exit", (code) => {
 					if (code !== null && code !== 0) {
 						finish(() =>
-							reject(new Error(`Wrangler exited with code ${code}.`)),
+							reject(
+								new Error(
+									`Wrangler exited with code ${code}.${/EADDRINUSE|Address already in use/i.test(stderr) ? " Address already in use (EADDRINUSE)." : ""}`,
+								),
+							),
 						);
 					}
 				});
 			});
 
 			const response = await fetch(`http://localhost:${port}/`, {
-				signal: AbortSignal.timeout(context.timeoutMs),
+				signal: AbortSignal.timeout(
+					Math.max(1, context.timeoutMs - (Date.now() - startedAt)),
+				),
 			});
 			const responseText = await response.text();
 			stdout += `\n${responseText}\n`;
@@ -181,17 +205,13 @@ export class CloudflareRunner implements AssessmentRunner {
 				throw new Error(`Assessment worker returned HTTP ${response.status}.`);
 			}
 			await new Promise((resolve) => setTimeout(resolve, 1_000));
+			if (logError) throw logError;
 			result = { stdout, stderr, timedOut: false };
 		} catch (error) {
 			result = { ...executionFailure(error), stdout, stderr };
 		} finally {
-			if (processHandle?.pid) {
-				try {
-					process.kill(-processHandle.pid, "SIGTERM");
-				} catch {
-					processHandle.kill("SIGTERM");
-				}
-			}
+			if (processHandle) await stopProcessTree(processHandle);
+			await new Promise<void>((resolve) => log.end(resolve));
 			await rm(devVarsPath, { force: true });
 		}
 		await writeFile(context.logPath, executionLog(context, result), "utf8");

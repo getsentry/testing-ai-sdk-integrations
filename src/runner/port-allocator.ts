@@ -6,13 +6,14 @@
  * actually free before handing it out.
  */
 
-import * as net from "net";
+import * as net from "node:net";
 
-let nextPort = 10000 + Math.floor(Math.random() * 40000);
+// Stay below the ephemeral outbound port ranges used by Linux and macOS.
+let nextPort = 10000 + Math.floor(Math.random() * 10000);
 
 /**
  * Check whether a port is available by briefly binding to it.
- * Binds on both IPv4 and IPv6 loopback to match what most servers do.
+ * Checks IPv4 availability; Wrangler startup recovery handles binding races.
  */
 function isPortFree(port: number): Promise<boolean> {
 	return new Promise((resolve) => {

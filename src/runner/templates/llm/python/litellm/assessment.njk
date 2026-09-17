@@ -68,7 +68,7 @@ MODEL_PREFIX = "openrouter/anthropic" if {{ provider | tojson }} == "anthropic" 
     {% endif %}
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                sentry_sdk.capture_exception(error)
+                                capture_expected_error(error)
                                 continue
                             raise
                         finally:

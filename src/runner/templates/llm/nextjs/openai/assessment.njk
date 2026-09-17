@@ -41,7 +41,7 @@ const apiStyle = {{ apiStyle | tojson }};
               }
             } catch (error) {
               if (probe.input.expectError) {
-                Sentry.captureException(error);
+                captureExpectedError(error);
                 return;
               }
               throw error;

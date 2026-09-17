@@ -6,24 +6,6 @@ import * as Sentry from "@sentry/cloudflare";
 const EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ ";
 const probes = {{ probes | tojson }};
 
-async function runAssessmentCall(probe, request, callback) {
-  if (typeof request.assessmentCallId !== "string" || typeof request.assessmentCallMode !== "string") {
-    throw new Error(`Assessment call metadata is missing for ${probe.id}.`);
-  }
-  return Sentry.startSpan(
-    {
-      name: request.assessmentCallId,
-      op: "test.assessment.call",
-      attributes: {
-        "test.probe.id": probe.id,
-        "test.call.id": request.assessmentCallId,
-        "test.call.mode": request.assessmentCallMode,
-      },
-    },
-    callback,
-  );
-}
-
 export default Sentry.withSentry(
   (env) => ({
     dsn: env.SENTRY_DSN,
@@ -37,11 +19,14 @@ export default Sentry.withSentry(
   {
     async fetch(_request, env) {
       const eventLines = [];
+      const eventSession = Math.random().toString(36).slice(2);
+      let eventSequence = 0;
       const emit = (event) => {
-        const line = `${EVENT_PREFIX}${JSON.stringify(event)}`;
+        const line = `${EVENT_PREFIX}${JSON.stringify({ timestamp: new Date().toISOString(), ...event, eventId: `${eventSession}:${eventSequence++}` })}`;
         eventLines.push(line);
         console.log(line);
       };
+{% include "shared/runtime.javascript.njk" %}
       const flushSentry = async (probeId) => {
         let message;
         try {
@@ -86,13 +71,7 @@ export default Sentry.withSentry(
             );
             emit({ type: "probe_finished", probeId: probe.id, status: "completed", timestamp: new Date().toISOString() });
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            const failure = {
-              kind: "provider",
-              message,
-              probeId: probe.id,
-              stopsVariant: Boolean(probe.stopsVariantOnFailure),
-            };
+            const failure = lastCallFailure ?? describeFailure(error, probe.id);
             emit({ type: "probe_failed", probeId: probe.id, status: "failed", failure, timestamp: new Date().toISOString() });
             if (failure.stopsVariant) blocked = true;
           } finally {

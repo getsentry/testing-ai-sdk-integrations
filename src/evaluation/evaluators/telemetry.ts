@@ -56,7 +56,7 @@ export function evaluateProbeTelemetry(
 	) {
 		observations.push(...evaluateTools(probe, variantId, spans, input));
 	}
-	if (probe.probeId.endsWith("provider_error")) {
+	if (probe.probeId.endsWith("provider_error") && input.expectError) {
 		observations.push(...evaluateProviderError(probe, variantId, spans));
 	}
 	if (probe.probeId.endsWith("conversation")) {
