@@ -73,7 +73,7 @@ API_STYLE = {{ apiStyle | tojson }}
     {% endif %}
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                capture_expected_error(error)
+                                sentry_sdk.capture_exception(error)
                                 continue
                             raise
 {% endblock %}

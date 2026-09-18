@@ -2,31 +2,6 @@ import type { ProbeStatus, RuntimeFailure } from "./types.js";
 
 export const ASSESSMENT_EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ ";
 
-interface CallEvent {
-	type: "call_started" | "call_finished";
-	probeId: string;
-	callId: string;
-	mode: "blocking" | "streaming";
-	timestamp: string;
-	status?: "succeeded" | "failed";
-	expectedError?: boolean;
-	failure?: RuntimeFailure;
-}
-
-interface ToolEvent {
-	type: "tool_started" | "tool_finished";
-	probeId: string;
-	callId: string;
-	id: string;
-	name: string;
-	toolCallId?: string;
-	arguments?: unknown;
-	result?: unknown;
-	error?: string;
-	status?: "succeeded" | "failed";
-	timestamp: string;
-}
-
 interface ProbeLifecycleEvent {
 	type: "probe_started" | "probe_finished" | "probe_failed" | "probe_blocked";
 	probeId: string;
@@ -37,8 +12,6 @@ interface ProbeLifecycleEvent {
 
 type HarnessEvent =
 	| ProbeLifecycleEvent
-	| CallEvent
-	| ToolEvent
 	| { type: "assessment_finished"; timestamp?: string }
 	| { type: "runtime_failure"; failure: RuntimeFailure; timestamp?: string };
 
@@ -58,7 +31,6 @@ const runtimeFailureKinds = new Set<RuntimeFailure["kind"]>([
 	"collector",
 	"flush",
 	"protocol",
-	"harness",
 ]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -99,17 +71,6 @@ function parseFailure(value: unknown): RuntimeFailure | undefined {
 		kind: value.kind,
 		message: value.message,
 		probeId: typeof value.probeId === "string" ? value.probeId : undefined,
-		...(typeof value.callId === "string" ? { callId: value.callId } : {}),
-		...(typeof value.statusCode === "number" &&
-		Number.isInteger(value.statusCode)
-			? { statusCode: value.statusCode }
-			: {}),
-		...(typeof value.code === "string" ? { code: value.code } : {}),
-		...(typeof value.retryAfterMs === "number" &&
-		Number.isFinite(value.retryAfterMs) &&
-		value.retryAfterMs >= 0
-			? { retryAfterMs: value.retryAfterMs }
-			: {}),
 		stopsVariant: value.stopsVariant,
 	};
 }
@@ -146,77 +107,6 @@ function parseProbeEvent(
 	};
 }
 
-function parseCallEvent(value: Record<string, unknown>): CallEvent | undefined {
-	if (
-		typeof value.probeId !== "string" ||
-		typeof value.callId !== "string" ||
-		typeof value.timestamp !== "string" ||
-		!Number.isFinite(Date.parse(value.timestamp))
-	)
-		return undefined;
-	if (value.mode !== "blocking" && value.mode !== "streaming") return undefined;
-	if (value.type !== "call_started" && value.type !== "call_finished")
-		return undefined;
-	if (
-		value.type === "call_finished" &&
-		value.status !== "succeeded" &&
-		value.status !== "failed"
-	)
-		return undefined;
-	const failure =
-		value.failure === undefined ? undefined : parseFailure(value.failure);
-	if (value.failure !== undefined && !failure) return undefined;
-	if (value.status === "failed" && !failure) return undefined;
-	if (value.status === "succeeded" && (failure || value.expectedError === true))
-		return undefined;
-	return {
-		type: value.type,
-		probeId: value.probeId,
-		callId: value.callId,
-		mode: value.mode,
-		timestamp: value.timestamp,
-		status: value.status as CallEvent["status"],
-		expectedError: value.expectedError === true,
-		failure,
-	};
-}
-
-function parseToolEvent(value: Record<string, unknown>): ToolEvent | undefined {
-	if (value.type !== "tool_started" && value.type !== "tool_finished")
-		return undefined;
-	if (
-		typeof value.probeId !== "string" ||
-		typeof value.callId !== "string" ||
-		typeof value.id !== "string" ||
-		typeof value.name !== "string" ||
-		typeof value.timestamp !== "string" ||
-		!Number.isFinite(Date.parse(value.timestamp))
-	)
-		return undefined;
-	if (value.type === "tool_started" && !("arguments" in value))
-		return undefined;
-	if (
-		value.type === "tool_finished" &&
-		value.status !== "succeeded" &&
-		value.status !== "failed"
-	)
-		return undefined;
-	return {
-		type: value.type,
-		probeId: value.probeId,
-		callId: value.callId,
-		id: value.id,
-		name: value.name,
-		toolCallId:
-			typeof value.toolCallId === "string" ? value.toolCallId : undefined,
-		arguments: value.arguments,
-		result: value.result,
-		error: typeof value.error === "string" ? value.error : undefined,
-		status: value.status as ToolEvent["status"],
-		timestamp: value.timestamp,
-	};
-}
-
 function parseEvent(value: unknown): HarnessEvent | undefined {
 	if (!isObject(value) || typeof value.type !== "string") return undefined;
 	const timestamp =
@@ -228,10 +118,6 @@ function parseEvent(value: unknown): HarnessEvent | undefined {
 		const failure = parseFailure(value.failure);
 		return failure ? { type: value.type, failure, timestamp } : undefined;
 	}
-	if (value.type === "call_started" || value.type === "call_finished")
-		return parseCallEvent(value);
-	if (value.type === "tool_started" || value.type === "tool_finished")
-		return parseToolEvent(value);
 	return parseProbeEvent(value, timestamp);
 }
 
@@ -242,27 +128,15 @@ function parseEvent(value: unknown): HarnessEvent | undefined {
 export function parseHarnessEvents(output: string): ParsedHarnessEvents {
 	const events: HarnessEvent[] = [];
 	const failures: RuntimeFailure[] = [];
-	const seen = new Map<string, string>();
 	for (const [index, line] of output.split(/\r?\n/).entries()) {
 		const prefixIndex = line.indexOf(ASSESSMENT_EVENT_PREFIX);
 		if (prefixIndex === -1) {
 			continue;
 		}
 		try {
-			const json = line.slice(prefixIndex + ASSESSMENT_EVENT_PREFIX.length);
-			const value: unknown = JSON.parse(json);
-			if (isObject(value) && typeof value.eventId === "string") {
-				const previous = seen.get(value.eventId);
-				if (previous === json) continue;
-				if (previous !== undefined) {
-					failures.push(
-						protocolFailure(`Conflicting assessment event ${value.eventId}.`),
-					);
-					continue;
-				}
-				seen.set(value.eventId, json);
-			}
-			const event = parseEvent(value);
+			const event = parseEvent(
+				JSON.parse(line.slice(prefixIndex + ASSESSMENT_EVENT_PREFIX.length)),
+			);
 			if (!event) {
 				failures.push(
 					protocolFailure(

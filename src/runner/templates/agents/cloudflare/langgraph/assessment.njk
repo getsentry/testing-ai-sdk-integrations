@@ -13,15 +13,16 @@
       });
       const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core/messages");
       const { tool } = await import("@langchain/core/tools");
+      const { z } = await import("zod");
 {% endblock %}
 
 {% block probe %}
                 const tools = (probe.input.tools ?? []).map((definition) => tool(
-                  async (args) => runAssessmentTool(definition, args, async () => {
-                    if (definition.error) throw new AssessmentToolError(definition.error);
+                  async () => {
+                    if (definition.error) throw new Error(definition.error);
                     return definition.result;
-                  }),
-                  { name: definition.name, description: definition.description, schema: definition.parameters },
+                  },
+                  { name: definition.name, description: definition.description, schema: z.object({}).passthrough() },
                 ));
                 for (const request of probe.input.calls) {
                   await runAssessmentCall(probe, request, async () => {
@@ -34,15 +35,9 @@
 {% endif %}
                   try {
                     const agent = createReactAgent({ llm, tools, name: "assessment-agent" });
-                    if (request.streaming) {
-                      for await (const _chunk of await agent.stream({ messages })) {
-                        // Drain all graph updates before ending the assessment call.
-                      }
-                    } else {
-                      await agent.invoke({ messages });
-                    }
+                    await agent.invoke({ messages });
                   } catch (error) {
-                    if (probe.input.expectError) { captureExpectedError(error); return; }
+                    if (probe.input.expectError) { Sentry.captureException(error); return; }
                     throw error;
                   }
                   });

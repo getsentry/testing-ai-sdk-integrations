@@ -34,7 +34,7 @@ const client = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
               }
             } catch (error) {
               if (probe.input.expectError) {
-                captureExpectedError(error);
+                Sentry.captureException(error);
                 return;
               }
               throw error;

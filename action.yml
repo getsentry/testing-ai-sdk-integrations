@@ -30,19 +30,7 @@ inputs:
   parallel:
     description: "Maximum number of variants to assess concurrently"
     required: false
-    default: "6"
-  openrouter-parallel:
-    description: "Maximum concurrent probe processes using OpenRouter"
-    default: "2"
-  google-parallel:
-    description: "Maximum concurrent probe processes using Google"
-    default: "2"
-  probe-timeout:
-    description: "Per-probe deadline in seconds; empty uses framework defaults"
-    default: ""
-  retries:
-    description: "Eligible probe retries: 0 or 1"
-    default: "1"
+    default: "10"
   sentry-python-path:
     description: "Path to a local sentry-python checkout for editable installation"
     required: false
@@ -55,7 +43,7 @@ inputs:
     description: "OpenAI API key"
     required: true
   openrouter-api-key:
-    description: "OpenRouter API key used by OpenAI- and Anthropic-compatible endpoints"
+    description: "OpenRouter API key used through the Anthropic-compatible endpoint"
     required: true
   google-genai-api-key:
     description: "Google GenAI API key"
@@ -73,9 +61,6 @@ outputs:
   complete:
     description: "Number of complete variants"
     value: ${{ steps.run-assessments.outputs.complete }}
-  recovered:
-    description: "Number of variants that recovered on retry; earlier evidence is retained"
-    value: ${{ steps.run-assessments.outputs.recovered }}
   incomplete:
     description: "Number of incomplete variants"
     value: ${{ steps.run-assessments.outputs.incomplete }}
@@ -131,10 +116,6 @@ runs:
         INPUT_OPTION: ${{ inputs.option }}
         INPUT_QUICK: ${{ inputs.quick }}
         INPUT_PARALLEL: ${{ inputs.parallel }}
-        INPUT_OPENROUTER_PARALLEL: ${{ inputs.openrouter-parallel }}
-        INPUT_GOOGLE_PARALLEL: ${{ inputs.google-parallel }}
-        INPUT_PROBE_TIMEOUT: ${{ inputs.probe-timeout }}
-        INPUT_RETRIES: ${{ inputs.retries }}
         INPUT_SENTRY_PYTHON_PATH: ${{ inputs.sentry-python-path }}
         INPUT_SENTRY_JAVASCRIPT_PATH: ${{ inputs.sentry-javascript-path }}
         OPENAI_API_KEY: ${{ inputs.openai-api-key }}
@@ -142,8 +123,7 @@ runs:
         GOOGLE_GENAI_API_KEY: ${{ inputs.google-genai-api-key }}
       run: |
         set +e
-        args=(run --parallel "$INPUT_PARALLEL" --endpoint-limit "openrouter=$INPUT_OPENROUTER_PARALLEL" --endpoint-limit "google=$INPUT_GOOGLE_PARALLEL" --retries "$INPUT_RETRIES")
-        [[ -n "$INPUT_PROBE_TIMEOUT" ]] && args+=(--probe-timeout "$INPUT_PROBE_TIMEOUT")
+        args=(run --parallel "$INPUT_PARALLEL")
         [[ -n "$INPUT_PLATFORM" ]] && args+=(--platform "$INPUT_PLATFORM")
         [[ -n "$INPUT_FRAMEWORK" ]] && args+=(--framework "$INPUT_FRAMEWORK")
         [[ -n "$INPUT_CATEGORY" ]] && args+=(--category "$INPUT_CATEGORY")
@@ -152,13 +132,11 @@ runs:
         [[ -n "$INPUT_SENTRY_PYTHON_PATH" ]] && args+=(--sentry-python "$INPUT_SENTRY_PYTHON_PATH")
         [[ -n "$INPUT_SENTRY_JAVASCRIPT_PATH" ]] && args+=(--sentry-javascript "$INPUT_SENTRY_JAVASCRIPT_PATH")
 
-        started_marker=$(mktemp)
         npm test -- "${args[@]}"
         exit_code=$?
         set -e
 
-        report=$(find test-results -maxdepth 1 -name 'assessment-report-*.json' -type f -newer "$started_marker" -print | sort | tail -1)
-        rm -f "$started_marker"
+        report=$(find test-results -maxdepth 1 -name 'assessment-report-*.json' -type f -print | sort | tail -1)
         if [[ -z "$report" ]]; then
           echo "Assessment execution did not produce a native JSON report." >&2
           exit 1
@@ -166,8 +144,6 @@ runs:
 
         absolute_report="${{ github.action_path }}/$report"
         echo "report-path=$absolute_report" >> "$GITHUB_OUTPUT"
-        echo "execution-id=$(jq -r '.executionId' "$report")" >> "$GITHUB_OUTPUT"
-        echo "recovered=$(jq -r '.summary.execution.recovered // 0' "$report")" >> "$GITHUB_OUTPUT"
         echo "targets=$(jq -r '.summary.targets' "$report")" >> "$GITHUB_OUTPUT"
         echo "variants=$(jq -r '.summary.variants' "$report")" >> "$GITHUB_OUTPUT"
         echo "complete=$(jq -r '.summary.complete' "$report")" >> "$GITHUB_OUTPUT"
@@ -190,23 +166,9 @@ runs:
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: assessment-results-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ steps.run-assessments.outputs.execution-id }}
+        name: assessment-results
         path: ${{ github.action_path }}/test-results/assessment-report-*
         if-no-files-found: warn
-        retention-days: 90
-
-    - name: Upload execution evidence
-      if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-      with:
-        name: assessment-evidence-${{ github.run_id }}-attempt-${{ github.run_attempt }}-${{ steps.run-assessments.outputs.execution-id }}
-        path: |
-          ${{ github.action_path }}/runs/**/executions/**/assessment.*
-          ${{ github.action_path }}/runs/**/executions/**/setup.log
-          ${{ github.action_path }}/runs/**/executions/**/dependencies.json
-          ${{ github.action_path }}/runs/**/executions/**/attempt.json
-        if-no-files-found: warn
-        retention-days: 90
 
     - name: Create or update assessment issue
       if: always()
@@ -214,7 +176,6 @@ runs:
       uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
       env:
         REPORT_PATH: ${{ steps.run-assessments.outputs.report-path }}
-        ACTION_PATH: ${{ github.action_path }}
       with:
         script: |
           const fs = require('fs');
@@ -223,9 +184,7 @@ runs:
 
           const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
           const { summary } = report;
-          const { confirmedFailures } = require(`${process.env.ACTION_PATH}/.github/scripts/execution-health.cjs`);
-          const reproduced = report.targets.flatMap(target => target.variants).some(variant => confirmedFailures(variant).length > 0);
-          if (!reproduced && summary.findings.critical === 0 && summary.findings.major === 0) return;
+          if (summary.incomplete === 0 && summary.findings.critical === 0 && summary.findings.major === 0) return;
 
           const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
           const incomplete = report.targets
@@ -239,8 +198,6 @@ runs:
             '',
             `**Generated:** ${report.generatedAt}`,
             `**Workflow run:** ${runUrl}`,
-            `**Execution health:** ${summary.execution?.healthy ?? 0} clean, ${summary.execution?.recovered ?? 0} recovered, ${summary.incomplete} incomplete.`,
-            'Execution failures are separate from telemetry findings. First-attempt failures alone do not trigger this issue.',
             '',
             '| Targets | Variants | Complete | Incomplete | Critical | Major | Minor | Info |',
             '| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',

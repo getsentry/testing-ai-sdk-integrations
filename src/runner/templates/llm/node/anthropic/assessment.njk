@@ -39,7 +39,7 @@ const client = new Anthropic({
               }
             } catch (error) {
               if (probe.input.expectError) {
-                captureExpectedError(error);
+                Sentry.captureException(error);
                 return;
               }
               throw error;

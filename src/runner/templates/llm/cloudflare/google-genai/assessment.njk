@@ -20,7 +20,7 @@
                       await client.models.generateContent({ model: request.model, contents, config });
                     }
                   } catch (error) {
-                    if (probe.input.expectError) { captureExpectedError(error); return; }
+                    if (probe.input.expectError) { Sentry.captureException(error); return; }
                     throw error;
                   }
                   });

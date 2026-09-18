@@ -19,12 +19,12 @@ let agentRegistrationIndex = 0;
             createTool({
               id: definition.name,
               description: definition.description,
-              inputSchema: z.fromJSONSchema(definition.parameters),
+              inputSchema: z.object({}).passthrough(),
               outputSchema: z.object({ result: z.unknown() }),
-              execute: async (args) => runAssessmentTool(definition, args, async () => {
-                if (definition.error) throw new AssessmentToolError(definition.error);
+              execute: async () => {
+                if (definition.error) throw new Error(definition.error);
                 return { result: definition.result };
-              }),
+              },
             }),
           ]));
           for (const request of probe.input.calls) {
@@ -37,12 +37,14 @@ let agentRegistrationIndex = 0;
               mastra.addAgent?.(agent, `assessment-agent-${agentRegistrationIndex++}`);
               if (request.streaming) {
                 const response = await agent.stream(messages, { maxSteps: 10 });
-                await consumeAssessmentStream(response.fullStream);
+                for await (const _chunk of response.textStream) {
+                  // Consume the response to complete the instrumented operation.
+                }
               } else {
                 await agent.generate(messages, { maxSteps: 10 });
               }
             } catch (error) {
-              if (probe.input.expectError) { captureExpectedError(error); return; }
+              if (probe.input.expectError) { Sentry.captureException(error); return; }
               throw error;
             }
             });

@@ -57,14 +57,6 @@ export interface Evidence {
 	description?: string;
 }
 
-export type FailureCategory =
-	| "provider"
-	| "setup"
-	| "harness"
-	| "telemetry"
-	| "unknown";
-export type ExecutionHealth = "healthy" | "recovered" | "failed";
-
 export interface RuntimeFailure {
 	kind:
 		| "setup"
@@ -75,81 +67,10 @@ export interface RuntimeFailure {
 		| "provider"
 		| "collector"
 		| "flush"
-		| "protocol"
-		| "harness";
+		| "protocol";
 	message: string;
 	probeId?: string;
-	callId?: string;
-	attemptId?: string;
 	stopsVariant: boolean;
-	category?: FailureCategory;
-	statusCode?: number;
-	code?: string;
-	retryAfterMs?: number;
-	recovered?: boolean;
-	secondary?: boolean;
-}
-
-export interface ToolExecution {
-	id: string;
-	name: string;
-	toolCallId?: string;
-	arguments: unknown;
-	result?: unknown;
-	error?: string;
-	status: "running" | "succeeded" | "failed" | "cancelled";
-	startedAt: string;
-	finishedAt?: string;
-}
-
-export interface CallResult {
-	callId: string;
-	mode: "blocking" | "streaming";
-	status: "not_executed" | "running" | "succeeded" | "failed" | "cancelled";
-	startedAt?: string;
-	finishedAt?: string;
-	durationMs?: number;
-	expectedError?: boolean;
-	error?: RuntimeFailure;
-	tools: ToolExecution[];
-}
-
-export interface ModelBehavior {
-	probeId: string;
-	callId: string;
-	attemptId?: string;
-	toolName?: string;
-	kind: "arguments_differ" | "tool_not_called" | "expected_error_not_raised";
-	actual?: unknown;
-	expected?: unknown;
-}
-
-export interface ProbeAttempt {
-	id: string;
-	probe: ProbeResult;
-	number: number;
-	startedAt: string;
-	finishedAt: string;
-	durationMs: number;
-	deadlineMs: number;
-	runtimeFailures: RuntimeFailure[];
-	retryReason?:
-		| "transient_provider"
-		| "diagnostic_timeout"
-		| "diagnostic_flush"
-		| "port_collision";
-	retryDelayMs?: number;
-	programPath: string;
-	logPath: string;
-}
-
-export interface ExecutionCoverage {
-	planned: number;
-	succeeded: number;
-	expectedErrors: number;
-	failed: number;
-	cancelled: number;
-	notExecuted: number;
 }
 
 export interface ProbeResult {
@@ -162,8 +83,6 @@ export interface ProbeResult {
 	callModes: Array<"blocking" | "streaming">;
 	traceIds: string[];
 	spanIds: string[];
-	calls?: CallResult[];
-	telemetryComplete?: boolean;
 }
 
 export interface Observation {
@@ -172,7 +91,6 @@ export interface Observation {
 	state: CapabilityState;
 	probeId: string;
 	variantId: string;
-	attemptId?: string;
 	source?: "modern" | "legacy";
 	expected?: unknown;
 	actual?: unknown;
@@ -181,7 +99,6 @@ export interface Observation {
 
 export interface FindingOccurrence {
 	variantId: string;
-	attemptId?: string;
 	probeId: string;
 	observationIds: string[];
 	evidence: Evidence[];
@@ -213,13 +130,6 @@ export interface VariantAssessment {
 	spans: CapturedSpan[];
 	generatedProgramPath?: string;
 	logPath?: string;
-	attempts?: ProbeAttempt[];
-	executionHealth?: ExecutionHealth;
-	coverage?: ExecutionCoverage;
-	modelBehavior?: ModelBehavior[];
-	endpoint?: string;
-	dependencySnapshotPath?: string;
-	telemetryScore?: number | null;
 }
 
 export interface TargetAssessment {
@@ -232,7 +142,6 @@ export interface TargetAssessment {
 	variants: VariantAssessment[];
 	findings: Finding[];
 	capabilitySummary: Record<string, CapabilityState>;
-	telemetryScore?: number | null;
 }
 
 export interface AssessmentSummary {
@@ -244,27 +153,11 @@ export interface AssessmentSummary {
 	ratings: Record<AssessmentRating, number>;
 	health: Record<AssessmentHealth, number>;
 	findings: Record<FindingSeverity, number>;
-	execution?: Record<ExecutionHealth, number>;
-	coverage?: ExecutionCoverage;
-	modelBehavior?: number;
-	telemetryScore?: number | null;
 }
 
 export interface AssessmentReport {
 	schemaVersion: "2";
-	scoringVersion: "2" | "3" | "4";
-	executionId?: string;
-	runId?: string;
-	runAttempt?: string;
-	commitSha?: string;
-	executionPolicy?: {
-		parallel: number;
-		endpointLimits: Record<string, number>;
-		defaultProbeTimeoutMs: number;
-		probeTimeoutMs?: number;
-		retries: number;
-		sdkRetries: string;
-	};
+	scoringVersion: "2" | "3";
 	generatedAt: string;
 	durationMs: number;
 	targets: TargetAssessment[];

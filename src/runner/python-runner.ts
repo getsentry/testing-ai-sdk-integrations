@@ -8,9 +8,12 @@ import type {
 	AssessmentExecutionResult,
 	AssessmentRunner,
 } from "./execution.js";
-import { executionLog, resolveDependencyVersion } from "./execution.js";
-
-import { executeProcess } from "./process.js";
+import {
+	assessmentEnvironment,
+	executionFailure,
+	executionLog,
+	resolveDependencyVersion,
+} from "./execution.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,10 +41,7 @@ export class PythonRunner implements AssessmentRunner {
 		context: AssessmentEnvironmentContext,
 	): Promise<void> {
 		await this.writePyprojectToml(context);
-		await execFileAsync("uv", ["sync"], {
-			cwd: context.workDir,
-			timeout: 300_000,
-		});
+		await execFileAsync("uv", ["sync"], { cwd: context.workDir });
 		await this.installLocalSentrySdk(context);
 	}
 
@@ -91,11 +91,21 @@ ${dependencies.map((dependency) => `    ${JSON.stringify(dependency)},`).join("\
 		context: AssessmentExecutionContext,
 	): Promise<AssessmentExecutionResult> {
 		const pythonPath = path.join(context.workDir, ".venv", "bin", "python");
-		const result = await executeProcess(
-			pythonPath,
-			[context.programPath],
-			context,
-		);
+		let result: AssessmentExecutionResult;
+		try {
+			const execution = await execFileAsync(pythonPath, [context.programPath], {
+				cwd: context.workDir,
+				env: assessmentEnvironment(context),
+				timeout: context.timeoutMs,
+			});
+			result = {
+				stdout: execution.stdout,
+				stderr: execution.stderr,
+				timedOut: false,
+			};
+		} catch (error) {
+			result = executionFailure(error);
+		}
 		await writeFile(context.logPath, executionLog(context, result), "utf8");
 		return result;
 	}

@@ -70,27 +70,9 @@ test("target scores average their capped variant scores", () => {
 	assert.equal(aggregated.score, 83);
 });
 
-test("unassessed telemetry is excluded from averages without hiding execution failure", () => {
-	const unknown = {
-		...variant("unknown", 0),
-		telemetryScore: null,
-		completion: "incomplete" as const,
-	};
-	const target = aggregateTarget(
-		{ platform: "node", category: "llm", framework: "integration" },
-		[unknown, variant("measured", 100)],
-	);
-	assert.equal(target.score, 100);
-	assert.equal(target.completion, "incomplete");
-	assert.equal(createReport([target], 1).summary.incomplete, 1);
-	const unassessed = aggregateTarget(target.identity, [unknown]);
-	assert.equal(unassessed.telemetryScore, null);
-	assert.equal(createReport([unassessed], 1).summary.telemetryScore, null);
-});
-
 test("reports identify the scoring contract", () => {
 	const report = createReport([target("integration", 100, [100])], 25);
 
 	assert.equal(report.schemaVersion, "2");
-	assert.equal(report.scoringVersion, "4");
+	assert.equal(report.scoringVersion, "3");
 });

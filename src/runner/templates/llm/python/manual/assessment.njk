@@ -35,8 +35,4 @@
                             )
                             if probe["input"].get("expectError"):
                                 ai_span.set_data("error.type", "AssessmentProviderError")
-                        if probe["input"].get("expectError"):
-                            expected_error = ValueError("AssessmentProviderError: invalid model")
-                            expected_error.status_code = 400
-                            record_expected_error(expected_error)
 {% endblock %}

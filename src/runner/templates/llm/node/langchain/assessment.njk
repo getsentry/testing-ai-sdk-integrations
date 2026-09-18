@@ -45,7 +45,7 @@ const { AIMessage, HumanMessage, SystemMessage } = await import("@langchain/core
               }
             } catch (error) {
               if (probe.input.expectError) {
-                captureExpectedError(error);
+                Sentry.captureException(error);
                 return;
               }
               throw error;

@@ -3,19 +3,10 @@
 {% block dynamic_imports %}
 os.environ["OPENAI_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
 os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
-from pydantic_ai import Agent, Tool
+from pydantic_ai import Agent
 {% if modelSetup == "fallback" %}
 from pydantic_ai.models.fallback import FallbackModel
 {% endif %}
-
-
-def assessment_pydantic_tool(definition):
-    def execute(**arguments):
-        return execute_assessment_tool(definition, arguments)
-    return Tool.from_schema(
-        function=execute, name=definition["name"], description=definition["description"],
-        json_schema=definition["parameters"],
-    )
 {% endblock %}
 
 {% block probe %}
@@ -26,20 +17,15 @@ def assessment_pydantic_tool(definition):
                         system = next((message["content"] for message in request["messages"] if message["role"] == "system"), "Respond briefly.")
                         prompt = request["messages"][-1]["content"]
                         try:
-                            tools = [assessment_pydantic_tool(definition) for definition in probe["input"].get("tools", [])]
     {% if modelSetup == "fallback" %}
-                            agent = Agent(FallbackModel("openai:gpt-4o-mini-bad-model-name", "openai:gpt-5-nano"), system_prompt=system, name="assessment-agent", tools=tools)
+                            agent = Agent(FallbackModel("openai:gpt-4o-mini-bad-model-name", "openai:gpt-5-nano"), system_prompt=system, name="assessment-agent")
     {% else %}
-                            agent = Agent(f"openai:{request['model']}", system_prompt=system, name="assessment-agent", tools=tools)
+                            agent = Agent(f"openai:{request['model']}", system_prompt=system, name="assessment-agent")
     {% endif %}
-                            if request.get("streaming"):
-                                async with agent.run_stream(prompt) as response:
-                                    await response.get_output()
-                            else:
-                                await agent.run(prompt)
+                            await agent.run(prompt)
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                capture_expected_error(error)
+                                sentry_sdk.capture_exception(error)
                                 continue
                             raise
 {% endblock %}

@@ -2,9 +2,7 @@
 import * as Sentry from "@sentry/node";
 
 const EVENT_PREFIX = "@@SENTRY_ASSESSMENT@@ ";
-const eventSession = Math.random().toString(36).slice(2);
-let eventSequence = 0;
-const emit = (event) => console.log(`${EVENT_PREFIX}${JSON.stringify({ timestamp: new Date().toISOString(), ...event, eventId: `${eventSession}:${eventSequence++}` })}`);
+const emit = (event) => console.log(`${EVENT_PREFIX}${JSON.stringify(event)}`);
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -17,7 +15,23 @@ Sentry.init({
 
 const probes = {{ probes | tojson }};
 
-{% include "shared/runtime.javascript.njk" %}
+async function runAssessmentCall(probe, request, callback) {
+  if (typeof request.assessmentCallId !== "string" || typeof request.assessmentCallMode !== "string") {
+    throw new Error(`Assessment call metadata is missing for ${probe.id}.`);
+  }
+  return Sentry.startSpan(
+    {
+      name: request.assessmentCallId,
+      op: "test.assessment.call",
+      attributes: {
+        "test.probe.id": probe.id,
+        "test.call.id": request.assessmentCallId,
+        "test.call.mode": request.assessmentCallMode,
+      },
+    },
+    callback,
+  );
+}
 
 async function flushSentry(probeId) {
   let message;
@@ -62,7 +76,13 @@ async function runAssessment() {
       );
       emit({ type: "probe_finished", probeId: probe.id, status: "completed", timestamp: new Date().toISOString() });
     } catch (error) {
-      const failure = lastCallFailure ?? describeFailure(error, probe.id);
+      const message = error instanceof Error ? error.message : String(error);
+      const failure = {
+        kind: "provider",
+        message,
+        probeId: probe.id,
+        stopsVariant: Boolean(probe.stopsVariantOnFailure),
+      };
       emit({ type: "probe_failed", probeId: probe.id, status: "failed", failure, timestamp: new Date().toISOString() });
       if (failure.stopsVariant) blocked = true;
     } finally {

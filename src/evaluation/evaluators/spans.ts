@@ -50,17 +50,6 @@ function callAncestor(
 	return undefined;
 }
 
-export function spansForCall(
-	spans: readonly CapturedSpan[],
-	callId: string,
-): CapturedSpan[] {
-	const byId = new Map(spans.map((span) => [spanKey(span), span]));
-	return spans.filter((span) => {
-		const ancestor = callAncestor(span, byId);
-		return ancestor !== undefined && assessmentCallId(ancestor) === callId;
-	});
-}
-
 function cardinalityObservation(
 	probe: ProbeResult,
 	variantId: string,

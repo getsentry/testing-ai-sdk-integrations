@@ -8,9 +8,12 @@ import type {
 	AssessmentExecutionResult,
 	AssessmentRunner,
 } from "./execution.js";
-import { executionLog, resolveDependencyVersion } from "./execution.js";
-
-import { executeProcess } from "./process.js";
+import {
+	assessmentEnvironment,
+	executionFailure,
+	executionLog,
+	resolveDependencyVersion,
+} from "./execution.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -37,7 +40,6 @@ export class JavaScriptRunner implements AssessmentRunner {
 			"utf8",
 		);
 		await execFileAsync("npm", ["install", "--no-save"], {
-			timeout: 300_000,
 			cwd: workDir,
 			env: { ...process.env, npm_config_loglevel: "error" },
 		});
@@ -86,11 +88,21 @@ export class JavaScriptRunner implements AssessmentRunner {
 	async executeAssessmentProgram(
 		context: AssessmentExecutionContext,
 	): Promise<AssessmentExecutionResult> {
-		const result = await executeProcess(
-			process.execPath,
-			[context.programPath],
-			context,
-		);
+		let result: AssessmentExecutionResult;
+		try {
+			const execution = await execFileAsync("node", [context.programPath], {
+				cwd: context.workDir,
+				env: assessmentEnvironment(context),
+				timeout: context.timeoutMs,
+			});
+			result = {
+				stdout: execution.stdout,
+				stderr: execution.stderr,
+				timedOut: false,
+			};
+		} catch (error) {
+			result = executionFailure(error);
+		}
 		await writeFile(context.logPath, executionLog(context, result), "utf8");
 		return result;
 	}

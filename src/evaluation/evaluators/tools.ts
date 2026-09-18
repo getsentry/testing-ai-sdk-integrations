@@ -2,7 +2,6 @@ import type {
 	CapturedSpan,
 	Observation,
 	ProbeResult,
-	ToolExecution,
 } from "../../assessment/types.js";
 import type { AgentToolInput } from "../../probes/inputs.js";
 import {
@@ -150,9 +149,7 @@ function argumentState(
 function toolExecutionObservations(
 	probe: ProbeResult,
 	variantId: string,
-	tool: Pick<AgentToolInput, "name" | "result" | "error"> & {
-		arguments: unknown;
-	},
+	tool: AgentToolInput,
 	toolSpan?: CapturedSpan,
 ): Observation[] {
 	const execution = observation(
@@ -209,73 +206,6 @@ function toolExecutionObservations(
 	return observations;
 }
 
-function matchToolSpan(
-	execution: ToolExecution,
-	available: CapturedSpan[],
-): CapturedSpan | undefined {
-	let index = execution.toolCallId
-		? available.findIndex(
-				(span) =>
-					span.data?.["gen_ai.tool.name"] === execution.name &&
-					span.data?.["gen_ai.tool.call.id"] === execution.toolCallId,
-			)
-		: -1;
-	if (index < 0)
-		index = available.findIndex(
-			(span) =>
-				span.data?.["gen_ai.tool.name"] === execution.name &&
-				(!execution.toolCallId ||
-					span.data?.["gen_ai.tool.call.id"] === undefined),
-		);
-	return index < 0 ? undefined : available.splice(index, 1)[0];
-}
-
-function recordedToolObservations(
-	probe: ProbeResult,
-	variantId: string,
-	spans: readonly CapturedSpan[],
-): Observation[] {
-	const available = spans
-		.filter(isToolSpan)
-		.sort((left, right) => left.start_timestamp - right.start_timestamp);
-	const observations = (probe.calls ?? []).flatMap((call) =>
-		call.tools.flatMap((execution) => {
-			const span = matchToolSpan(execution, available);
-			const expected = {
-				name: execution.name,
-				arguments: execution.arguments,
-				...(execution.status === "succeeded"
-					? { result: execution.result }
-					: {}),
-				...(execution.status === "failed"
-					? { error: execution.error || "Tool execution failed" }
-					: {}),
-			};
-			return toolExecutionObservations(probe, variantId, expected, span).map(
-				(item) => ({
-					...item,
-					observationId: `${item.observationId}:${execution.id}`,
-				}),
-			);
-		}),
-	);
-	observations.push(
-		...available.map((span) =>
-			observation(
-				"tools.execution",
-				"malformed",
-				probe,
-				variantId,
-				span,
-				"gen_ai.tool.name",
-				span.data?.["gen_ai.tool.name"],
-				"An independently recorded tool execution",
-			),
-		),
-	);
-	return observations;
-}
-
 export function evaluateTools(
 	probe: ProbeResult,
 	variantId: string,
@@ -285,14 +215,6 @@ export function evaluateTools(
 	if (!("tools" in input) || !input.tools?.length) return [];
 	const toolSpans = spans.filter(isToolSpan);
 	const clientSpans = spans.filter(isClientSpan);
-	if (probe.calls) {
-		return [
-			...input.tools.flatMap((tool) =>
-				definitionObservations(probe, variantId, clientSpans, tool),
-			),
-			...recordedToolObservations(probe, variantId, spans),
-		];
-	}
 	return input.tools.flatMap((tool) => {
 		const toolSpan = toolSpans.find(
 			(span) => span.data?.["gen_ai.tool.name"] === tool.name,

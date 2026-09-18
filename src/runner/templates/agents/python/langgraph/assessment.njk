@@ -8,16 +8,6 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 {% endif %}
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_core.tools import StructuredTool
-
-
-def assessment_langgraph_tool(definition):
-    def execute(**arguments):
-        return execute_assessment_tool(definition, arguments)
-    return StructuredTool.from_function(
-        func=execute, name=definition["name"], description=definition["description"],
-        args_schema=definition["parameters"], infer_schema=False,
-    )
 {% endblock %}
 
 {% block probe %}
@@ -35,24 +25,15 @@ def assessment_langgraph_tool(definition):
                         llm = ChatOpenAI(model=request["model"], api_key=os.environ["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
     {% endif %}
                         try:
-                            tools = [assessment_langgraph_tool(definition) for definition in probe["input"].get("tools", [])]
-                            agent = create_react_agent(llm, tools=tools)
+                            agent = create_react_agent(llm, tools=[])
     {% if isAsync %}
-                            if request.get("streaming"):
-                                async for _chunk in agent.astream({"messages": messages}):
-                                    pass
-                            else:
-                                await agent.ainvoke({"messages": messages})
+                            await agent.ainvoke({"messages": messages})
     {% else %}
-                            if request.get("streaming"):
-                                for _chunk in agent.stream({"messages": messages}):
-                                    pass
-                            else:
-                                agent.invoke({"messages": messages})
+                            agent.invoke({"messages": messages})
     {% endif %}
                         except Exception as error:
                             if probe["input"].get("expectError"):
-                                capture_expected_error(error)
+                                sentry_sdk.capture_exception(error)
                                 continue
                             raise
 {% endblock %}

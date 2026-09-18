@@ -174,14 +174,7 @@ const definitions: Record<string, FindingDefinition> = {
 		severity: "major",
 		title: "Tool call arguments do not match",
 		description:
-			"The captured tool call arguments differ from the arguments actually supplied to the tool.",
-	},
-	"tools.execution.malformed": {
-		id: "tools.execution.malformed",
-		severity: "major",
-		title: "Tool span has no matching execution",
-		description:
-			"The captured tool span could not be matched to an independently recorded tool execution.",
+			"The captured tool call arguments differ from the assessment input.",
 	},
 	"tools.execution.missing": {
 		id: "tools.execution.missing",
@@ -215,7 +208,7 @@ const definitions: Record<string, FindingDefinition> = {
 		severity: "critical",
 		title: "Provider error is not captured",
 		description:
-			"An observed provider failure did not produce error telemetry.",
+			"The intentional provider failure did not produce error telemetry.",
 	},
 	"conversation.id.missing": {
 		id: "conversation.id.missing",
@@ -348,7 +341,6 @@ export function findingFromObservation(
 				occurrences: [
 					{
 						variantId: observation.variantId,
-						attemptId: observation.attemptId,
 						probeId: observation.probeId,
 						observationIds: [observation.observationId],
 						evidence: observation.evidence,

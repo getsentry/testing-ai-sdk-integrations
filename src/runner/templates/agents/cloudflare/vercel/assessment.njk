@@ -45,10 +45,10 @@ const provider = createOpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https:
             tool({
               description: definition.description,
               inputSchema: jsonSchema(definition.parameters),
-              execute: async (args, options) => runAssessmentTool(definition, args, async () => {
-                if (definition.error) throw new AssessmentToolError(definition.error);
+              execute: async () => {
+                if (definition.error) throw new Error(definition.error);
                 return definition.result;
-              }, options?.toolCallId),
+              },
             }),
           ]));
           for (const request of probe.input.calls) {
@@ -73,7 +73,9 @@ const provider = createOpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https:
               });
               if (request.streaming) {
                 const response = await agent.stream({ prompt });
-                await consumeAssessmentStream(response.fullStream);
+                for await (const _chunk of response.textStream) {
+                  // Consume the response to complete the instrumented operation.
+                }
               } else {
                 await agent.generate({ prompt });
               }
@@ -91,7 +93,9 @@ const provider = createOpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https:
                   experimental_telemetry: { isEnabled: true, functionId: probe.id, recordInputs: true, recordOutputs: true },
 {% endif %}
                 });
-                await consumeAssessmentStream(response.fullStream);
+                for await (const _chunk of response.textStream) {
+                  // Consume the response to complete the instrumented operation.
+                }
               } else {
                 await generateText({
                   model: provider(request.model),
@@ -109,7 +113,7 @@ const provider = createOpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: "https:
 {% endif %}
             } catch (error) {
               if (probe.input.expectError) {
-                captureExpectedError(error);
+                Sentry.captureException(error);
                 return;
               }
               throw error;

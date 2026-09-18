@@ -1,76 +1,31 @@
-import { randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CloudflareRunner } from "../runner/cloudflare-runner.js";
-import { snapshotDependencies } from "../runner/dependency-snapshot.js";
-import type { AssessmentRunner } from "../runner/execution.js";
-import {
-	resolveFrameworkDependencies,
-	type ResolvedFramework,
-} from "../runner/framework-config.js";
-import type { DiscoveredFramework } from "../runner/framework-discovery.js";
-import { JavaScriptRunner } from "../runner/javascript-runner.js";
-import { PythonRunner } from "../runner/python-runner.js";
-import type { SpanCollector } from "../span-collector/server.js";
-import { plannedCalls } from "./call-evidence.js";
 import { getProbeCatalog } from "./catalog.js";
 import { toAssessmentTargetConfig } from "./discovery.js";
 import {
 	resolveInstalledPackageVersion,
 	resolveInstalledSentryVersion,
 } from "./installed-version.js";
-import type { AssessmentTargetConfig, ResolvedVariant } from "./matrix.js";
-import { executeProbe } from "./probe-execution.js";
+import type { ResolvedVariant } from "./matrix.js";
+import { partitionSpansByProbe } from "./partition.js";
 import { writeAssessmentProgram } from "./program-files.js";
-import {
-	classifyFailure,
-	DEFAULT_PROBE_TIMEOUT_MS,
-	retryDelay,
-	retryReason,
-} from "./retry.js";
+import { parseHarnessEvents } from "./protocol.js";
+import { reconcileExecution } from "./reconciliation.js";
 import type {
-	CapturedSpan,
-	ProbeAttempt,
 	ProbeResult,
 	RuntimeFailure,
 	VariantAssessment,
 } from "./types.js";
 import { evaluateVariant } from "./variant-evaluation.js";
-
-export interface ExecutorOptions {
-	executionId?: string;
-	runsDirectory?: string;
-	probeTimeoutMs?: number;
-	retries?: 0 | 1;
-	schedule?: <T>(endpoint: string, work: () => Promise<T>) => Promise<T>;
-	runner?: AssessmentRunner;
-	snapshotDependencies?: typeof snapshotDependencies;
-	sleep?: (ms: number) => Promise<void>;
-}
-
-export function assessmentEndpoint(
-	framework: Pick<DiscoveredFramework, "name">,
-): string {
-	if (framework.name === "manual") return "none";
-	if (framework.name === "google-genai") return "google";
-	if (
-		[
-			"openai",
-			"anthropic",
-			"langchain",
-			"langgraph",
-			"litellm",
-			"vercel",
-			"mastra",
-			"openai-agents",
-			"pydantic-ai",
-		].includes(framework.name)
-	)
-		return "openrouter";
-	throw new Error(
-		`No assessment endpoint is configured for ${framework.name}.`,
-	);
-}
+import { CloudflareRunner } from "../runner/cloudflare-runner.js";
+import { JavaScriptRunner } from "../runner/javascript-runner.js";
+import { PythonRunner } from "../runner/python-runner.js";
+import type { AssessmentRunner } from "../runner/execution.js";
+import type { DiscoveredFramework } from "../runner/framework-discovery.js";
+import {
+	resolveFrameworkDependencies,
+	type ResolvedFramework,
+} from "../runner/framework-config.js";
+import type { SpanCollector } from "../span-collector/server.js";
 
 function runnerFramework(
 	framework: DiscoveredFramework,
@@ -93,207 +48,146 @@ function initialProbes(
 	framework: DiscoveredFramework,
 	probeIds?: ReadonlySet<string>,
 ): ProbeResult[] {
-	const callModes: ProbeResult["callModes"] =
-		framework.streamingMode === "blocking"
-			? ["blocking"]
-			: framework.streamingMode === "streaming"
-				? ["streaming"]
-				: ["blocking", "streaming"];
-	return getProbeCatalog(framework.category)
-		.filter((probe) => !probeIds || probeIds.has(probe.id))
-		.map((definition) => {
-			const probe: ProbeResult = {
-				probeId: definition.id,
-				status: "pending",
-				callModes,
-				traceIds: [],
-				spanIds: [],
-			};
-			probe.calls = plannedCalls(framework.category, probe);
-			return probe;
-		});
+	return getProbeCatalog(framework.category as "llm" | "agents").flatMap(
+		(probe) => {
+			if (probeIds && !probeIds.has(probe.id)) return [];
+			return [
+				{
+					probeId: probe.id,
+					status: "pending",
+					callModes: [],
+					traceIds: [],
+					spanIds: [],
+				},
+			];
+		},
+	);
 }
 
+function runtimeFailure(
+	kind: RuntimeFailure["kind"],
+	message: string,
+	stopsVariant = true,
+): RuntimeFailure {
+	return { kind, message, stopsVariant };
+}
+
+function isRuntimeFailure(error: unknown): error is RuntimeFailure {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"kind" in error &&
+		"message" in error &&
+		"stopsVariant" in error &&
+		typeof error.kind === "string" &&
+		typeof error.message === "string" &&
+		typeof error.stopsVariant === "boolean"
+	);
+}
+
+/** Executes a rendered assessment and converts runtime evidence to a variant assessment. */
 export class AssessmentExecutor {
-	readonly executionId: string;
 	private readonly cloudflareRunner = new CloudflareRunner();
 	private readonly javascriptRunner = new JavaScriptRunner();
 	private readonly pythonRunner = new PythonRunner();
 
-	constructor(
-		private readonly collector: Pick<
-			SpanCollector,
-			"registerRun" | "getDsn" | "getSpans" | "getFailures"
-		>,
-		private readonly options: ExecutorOptions = {},
-	) {
-		this.executionId = options.executionId ?? randomUUID();
-	}
+	constructor(private readonly collector: SpanCollector) {}
 
 	private runnerFor(
 		platform: DiscoveredFramework["platform"],
 	): AssessmentRunner {
-		if (this.options.runner) return this.options.runner;
 		if (platform === "cloudflare") return this.cloudflareRunner;
 		if (platform === "python") return this.pythonRunner;
 		return this.javascriptRunner;
 	}
 
-	private async runProbe(
-		target: AssessmentTargetConfig,
-		variant: ResolvedVariant,
-		initial: ProbeResult,
-		runner: AssessmentRunner,
-		endpoint: string,
-		deadlineMs: number,
-	): Promise<{ attempts: ProbeAttempt[]; spans: CapturedSpan[] }> {
-		const attempts: ProbeAttempt[] = [];
-		const spans: CapturedSpan[] = [];
-		let reason: ProbeAttempt["retryReason"];
-		let delay: number | undefined;
-		for (let number = 1; number <= 1 + (this.options.retries ?? 1); number++) {
-			const work = () =>
-				executeProbe({
-					target,
-					variant,
-					initial,
-					runner,
-					collector: this.collector,
-					executionId: this.executionId,
-					number,
-					deadlineMs,
-					retryReason: reason,
-					retryDelayMs: delay,
-					runsDirectory: this.options.runsDirectory,
-				});
-			const result = this.options.schedule
-				? await this.options.schedule(endpoint, work)
-				: await work();
-			attempts.push(result.attempt);
-			spans.push(...result.spans);
-			const failures = result.attempt.runtimeFailures;
-			console.log(
-				`  ${variant.id} / ${initial.probeId} / attempt ${number}: ${failures.length ? "failed" : "completed"} (${result.attempt.durationMs} ms)`,
-			);
-			if (!failures.length) {
-				for (const previous of attempts.slice(0, -1))
-					for (const failure of previous.runtimeFailures)
-						failure.recovered = true;
-				break;
-			}
-			reason = retryReason(failures);
-			delay = retryDelay(failures);
-			if (
-				!reason ||
-				delay === undefined ||
-				number > (this.options.retries ?? 1)
-			)
-				break;
-			console.log(
-				`  Retrying ${initial.probeId}: ${reason}; waiting ${delay} ms.`,
-			);
-			await (
-				this.options.sleep ??
-				((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
-			)(delay);
-		}
-		return { attempts, spans };
-	}
-
 	async execute(
 		framework: DiscoveredFramework,
 		variant: ResolvedVariant,
-		selection: { probeIds?: ReadonlySet<string> } = {},
+		options: { probeIds?: ReadonlySet<string> } = {},
 	): Promise<VariantAssessment> {
-		const probes = initialProbes(framework, selection.probeIds);
+		const probes = initialProbes(framework, options.probeIds);
 		const failures: RuntimeFailure[] = [];
-		const attempts: ProbeAttempt[] = [];
-		const spans: CapturedSpan[] = [];
 		let generatedProgramPath: string | undefined;
 		let logPath: string | undefined;
+		let spans: VariantAssessment["spans"] = [];
 		let resolvedFrameworkVersion: string | undefined;
 		let resolvedSentryVersion: string | undefined;
-		let dependencySnapshotPath: string | undefined;
-		let endpoint: string | undefined;
-		let phase: RuntimeFailure["kind"] = "render";
+
 		try {
 			const target = toAssessmentTargetConfig(framework);
 			const generated = await writeAssessmentProgram(target, variant, {
-				probeIds: selection.probeIds,
-				runsDirectory: this.options.runsDirectory,
-				attemptPath: ["executions", encodeURIComponent(this.executionId)],
+				probeIds: options.probeIds,
 			});
 			generatedProgramPath = generated.programPath;
+			logPath = generated.logPath;
 			for (const probe of probes) {
 				probe.callModes = generated.probeCallModes[probe.probeId] ?? [];
-				probe.calls = plannedCalls(framework.category, probe);
 			}
-			const directory = path.dirname(generated.programPath);
-			logPath = path.join(directory, "setup.log");
-			phase = "setup";
-			endpoint = assessmentEndpoint(framework);
-			const runner = this.runnerFor(framework.platform);
+			const workDir = path.dirname(generated.programPath);
 			const executionFramework = runnerFramework(framework, variant);
-			const environment = {
-				workDir: generated.environmentDirectory,
+
+			const executionContext = {
+				workDir,
+				sentryDsn: this.collector.getDsn(variant.id),
+				programPath: generated.programPath,
+				logPath: generated.logPath,
+				timeoutMs:
+					framework.executionTimeoutMs ??
+					(framework.platform === "cloudflare" ? 300_000 : 120_000),
+			};
+			const runner = this.runnerFor(framework.platform);
+			const environmentContext = {
+				workDir,
 				framework: executionFramework,
 			};
-			if (await runner.needsSetup(environment))
-				await runner.setupEnvironment(environment);
+			if (await runner.needsSetup(environmentContext)) {
+				await runner.setupEnvironment(environmentContext);
+			}
 			const frameworkPackage = executionFramework.dependencies.find(
 				(dependency) => dependency.version === "framework",
 			)?.package;
-			if (frameworkPackage)
+			if (frameworkPackage) {
 				resolvedFrameworkVersion = await resolveInstalledPackageVersion(
-					environment.workDir,
+					workDir,
 					framework.platform,
 					frameworkPackage,
 				);
+			}
 			resolvedSentryVersion = await resolveInstalledSentryVersion(
-				environment.workDir,
+				workDir,
 				framework.platform,
 			);
-			dependencySnapshotPath = await (
-				this.options.snapshotDependencies ?? snapshotDependencies
-			)(environment, directory);
-			await writeFile(
-				logPath,
-				"Assessment environment ready. See dependencies.json for installed versions.\n",
+			this.collector.registerRun(variant.id);
+			const execution = await runner.executeAssessmentProgram(executionContext);
+			const protocol = parseHarnessEvents(
+				`${execution.stdout}\n${execution.stderr}`,
 			);
-			phase = "harness";
-			const deadlineMs =
-				this.options.probeTimeoutMs ??
-				framework.executionTimeoutMs ??
-				(framework.platform === "cloudflare"
-					? 300_000
-					: DEFAULT_PROBE_TIMEOUT_MS);
-			for (const [index, initial] of probes.entries()) {
-				const result = await this.runProbe(
-					target,
-					variant,
-					initial,
-					runner,
-					endpoint,
-					deadlineMs,
-				);
-				attempts.push(...result.attempts);
-				spans.push(...result.spans);
-				const latest = result.attempts.at(-1);
-				if (latest) probes[index] = latest.probe;
+			failures.push(...reconcileExecution(probes, execution, protocol));
+
+			await new Promise((resolve) => setTimeout(resolve, 250));
+			spans = this.collector.getSpans(variant.id);
+			const collectorFailures = this.collector.getFailures(variant.id);
+			failures.push(...collectorFailures);
+			const partition = partitionSpansByProbe(spans);
+			for (const probe of probes) {
+				const probeSpans = partition.byProbe.get(probe.probeId) ?? [];
+				probe.spanIds = probeSpans.map((span) => span.span_id);
+				probe.traceIds = [...new Set(probeSpans.map((span) => span.trace_id))];
 			}
 		} catch (error) {
-			const failure = classifyFailure({
-				kind: phase,
-				message: error instanceof Error ? error.message : String(error),
-				stopsVariant: true,
-			});
-			failures.push(failure);
-			if (logPath)
-				await writeFile(logPath, `${failure.kind}: ${failure.message}\n`).catch(
-					() => undefined,
+			if (isRuntimeFailure(error)) {
+				failures.push(error);
+			} else {
+				failures.push(
+					runtimeFailure(
+						generatedProgramPath ? "setup" : "render",
+						error instanceof Error ? error.message : String(error),
+					),
 				);
+			}
 		}
-		failures.push(...attempts.flatMap((attempt) => attempt.runtimeFailures));
+
 		return evaluateVariant({
 			variant,
 			category: framework.category,
@@ -304,9 +198,6 @@ export class AssessmentExecutor {
 			resolvedSentryVersion,
 			generatedProgramPath,
 			logPath,
-			attempts,
-			endpoint,
-			dependencySnapshotPath,
 		});
 	}
 }
