@@ -113,8 +113,12 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 	assert.match(html, /requested framework/);
 	assert.match(html, /requested sentry/);
 	assert.match(html, /blocking \+ streaming/);
+	assert.match(html, /class="score-explanation-caret" aria-hidden="true">›/);
 	assert.match(html, /How scoring works/);
-	assert.match(html, /Higher is better/);
+	assert.doesNotMatch(html, /Higher is better/);
+	assert.doesNotMatch(html, /score-help/);
+	assert.doesNotMatch(html, /Execution health/);
+	assert.doesNotMatch(html, /Retained report attempts/);
 	assert.match(html, /Repeated spans add evidence, not points/);
 	assert.match(html, /85-100/);
 	assert.match(html, /0-69/);
@@ -139,6 +143,8 @@ test("HTML reporting is pure and displays requested and resolved versions", asyn
 	assert.match(html, /function revealVariant/);
 	assert.match(html, /revealHash\(location\.hash\.slice\(1\)\)/);
 	assert.match(html, /function filteredTrendEntries/);
+	assert.match(html, /id="trend-tooltip" class="trend-tooltip"/);
+	assert.match(html, /dot\.addEventListener\('mouseenter'/);
 	assert.match(html, /renderDashboardTrend\(allMatches,filtering\)/);
 	assert.deepEqual(assessment, before);
 

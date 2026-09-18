@@ -92,7 +92,7 @@ try {
 
 	// Older test history and earlier assessment-history drafts are intentionally
 	// discarded because their scores are not comparable with this series.
-	let history = {
+	const history = {
 		schemaVersion: HISTORY_SCHEMA_VERSION,
 		scoringVersion: report.scoringVersion,
 		entries: [],
@@ -100,11 +100,18 @@ try {
 	if (fs.existsSync(historyPath)) {
 		const existing = readJson(historyPath);
 		if (
-			existing.schemaVersion === HISTORY_SCHEMA_VERSION &&
-			existing.scoringVersion === report.scoringVersion &&
+			(existing.schemaVersion === HISTORY_SCHEMA_VERSION ||
+				existing.schemaVersion === "4") &&
 			Array.isArray(existing.entries)
 		) {
-			history = existing;
+			const comparableEntries = existing.entries.filter(
+				(entry) => entry.scoringVersion === report.scoringVersion,
+			);
+			history.entries = [
+				...new Map(
+					comparableEntries.map((entry) => [entry.date, entry]),
+				).values(),
+			];
 		}
 	}
 
