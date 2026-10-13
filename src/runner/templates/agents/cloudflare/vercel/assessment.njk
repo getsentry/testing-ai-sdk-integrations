@@ -1,9 +1,5 @@
 {% extends "base.cloudflare.assessment.njk" %}
 
-{% block sentry_import %}
-import * as Sentry from "@sentry/cloudflare/nodejs_compat";
-{% endblock %}
-
 {% block sentry_integrations %}
       Sentry.vercelAIIntegration(),
 {% endblock %}
