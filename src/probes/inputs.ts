@@ -41,7 +41,7 @@ const llmProbeInputs: Record<string, LlmProbeInput> = {
 	"llm.baseline": {
 		calls: [
 			{
-				model: "gpt-5-nano",
+				model: "gpt-6-luna",
 				messages: [
 					{ role: "system", content: assistant },
 					{ role: "user", content: capitalQuestion },
