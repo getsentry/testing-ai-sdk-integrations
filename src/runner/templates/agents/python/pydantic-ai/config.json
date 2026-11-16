@@ -20,7 +20,7 @@
         "overrides": {
           "modelOverrides": {
             "request": "fallback:gpt-4o-mini-bad-model-name,gpt-5-nano",
-            "response": "gpt-5-nano*"
+            "response": "openai/gpt-5-nano*"
           }
         }
       }
