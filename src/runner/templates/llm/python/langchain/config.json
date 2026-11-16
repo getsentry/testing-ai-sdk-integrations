@@ -31,7 +31,7 @@
         "overrides": {
           "modelOverrides": {
             "request": "claude-haiku-4-5",
-            "response": "claude-haiku-4-5*"
+            "response": "anthropic/claude-haiku-4.5*"
           }
         }
       }

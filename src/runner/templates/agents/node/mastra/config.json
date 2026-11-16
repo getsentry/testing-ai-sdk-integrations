@@ -7,10 +7,6 @@
       "version": "framework"
     },
     {
-      "package": "@mastra/sentry",
-      "version": "1.2.13"
-    },
-    {
       "package": "@mastra/observability",
       "version": "1.17.3"
     }

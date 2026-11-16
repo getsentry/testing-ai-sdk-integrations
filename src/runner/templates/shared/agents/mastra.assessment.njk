@@ -3,13 +3,9 @@
 {% block dynamic_imports %}
 const { Agent } = await import("@mastra/core/agent");
 const { Mastra } = await import("@mastra/core");
-const { Observability } = await import("@mastra/observability");
-const { SentryExporter } = await import("@mastra/sentry");
 const { createTool } = await import("@mastra/core/tools");
 const { z } = await import("zod");
-const mastra = new Mastra({
-  observability: new Observability({ configs: { sentry: { serviceName: "assessment-mastra", exporters: [new SentryExporter({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0 })] } } }),
-});
+const mastra = new Mastra();
 let agentRegistrationIndex = 0;
 {% endblock %}
 
