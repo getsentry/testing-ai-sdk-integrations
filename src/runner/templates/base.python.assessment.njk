@@ -18,8 +18,7 @@ def emit(event):
 sentry_sdk.init(
     dsn=os.environ.get("SENTRY_DSN"),
     traces_sample_rate=1.0,
-    send_default_pii=True,
-    stream_gen_ai_spans=True,
+    data_collection={"gen_ai": {"inputs": True, "outputs": True}},
 )
 {% endblock %}
 
@@ -34,10 +33,10 @@ def assessment_call(probe, request):
     call_mode = request.get("assessmentCallMode")
     if not isinstance(call_id, str) or not isinstance(call_mode, str):
         raise RuntimeError(f"Assessment call metadata is missing for {probe['id']}.")
-    with sentry_sdk.start_span(op="test.assessment.call", name=call_id) as span:
-        span.set_data("test.probe.id", probe["id"])
-        span.set_data("test.call.id", call_id)
-        span.set_data("test.call.mode", call_mode)
+    with sentry_sdk.start_span(name=call_id, attributes={"sentry.op": "test.assessment.call"}) as span:
+        span.set_attribute("test.probe.id", probe["id"])
+        span.set_attribute("test.call.id", call_id)
+        span.set_attribute("test.call.mode", call_mode)
         yield
 
 
@@ -78,10 +77,10 @@ async def run_assessment():
 
         emit({"type": "probe_started", "probeId": probe["id"]})
         try:
-            with sentry_sdk.start_transaction(op="test.assessment", name=probe["id"]) as span:
-                span.set_data("test.assessment.id", "{{ targetId }}")
-                span.set_data("test.variant.id", "{{ variantId }}")
-                span.set_data("test.probe.id", probe["id"])
+            with sentry_sdk.start_span(name=probe["id"], attributes={"sentry.op": "test.assessment"}) as span:
+                span.set_attribute("test.assessment.id", "{{ targetId }}")
+                span.set_attribute("test.variant.id", "{{ variantId }}")
+                span.set_attribute("test.probe.id", probe["id"])
 {% block probe %}
                 raise RuntimeError("Assessment adapter does not implement this probe")
 {% endblock %}

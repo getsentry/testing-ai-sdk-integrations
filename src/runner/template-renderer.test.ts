@@ -19,7 +19,7 @@ test("renders LiteLLM with its explicit Sentry integration", () => {
 	assert.ok(integrationImport < program.indexOf("sentry_sdk.init("));
 	assert.match(
 		program,
-		/integrations=\[LiteLLMIntegration\(include_prompts=True\)\]/,
+		/integrations=\[LiteLLMIntegration\(\)\]/,
 	);
 	assert.match(program, /disabled_integrations=\[OpenAIIntegration\(\)\]/);
 	assert.match(program, /finally:\n\s+await asyncio\.sleep\(0\.1\)/);

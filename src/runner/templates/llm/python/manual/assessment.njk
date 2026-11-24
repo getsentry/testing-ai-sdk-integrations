@@ -21,18 +21,18 @@
                                 }
                                 for message in request["messages"]
                             ])
-                        with sentry_sdk.start_span(op="gen_ai.chat", name=f"chat {request['model']}") as ai_span:
-                            ai_span.set_data("gen_ai.operation.name", "chat")
-                            ai_span.set_data("gen_ai.request.model", request["model"])
-                            ai_span.set_data("gen_ai.response.model", request["model"])
-                            ai_span.set_data("gen_ai.usage.input_tokens", input_tokens)
-                            ai_span.set_data("gen_ai.usage.output_tokens", 16)
-                            ai_span.set_data("gen_ai.usage.total_tokens", input_tokens + 16)
-                            ai_span.set_data("gen_ai.input.messages", captured_messages)
-                            ai_span.set_data(
+                        with sentry_sdk.start_span(name=f"chat {request['model']}", attributes={"sentry.op": "gen_ai.chat"}) as ai_span:
+                            ai_span.set_attribute("gen_ai.operation.name", "chat")
+                            ai_span.set_attribute("gen_ai.request.model", request["model"])
+                            ai_span.set_attribute("gen_ai.response.model", request["model"])
+                            ai_span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
+                            ai_span.set_attribute("gen_ai.usage.output_tokens", 16)
+                            ai_span.set_attribute("gen_ai.usage.total_tokens", input_tokens + 16)
+                            ai_span.set_attribute("gen_ai.input.messages", captured_messages)
+                            ai_span.set_attribute(
                                 "gen_ai.output.messages",
                                 json.dumps([{"role": "assistant", "content": "Assessment response"}]),
                             )
                             if probe["input"].get("expectError"):
-                                ai_span.set_data("error.type", "AssessmentProviderError")
+                                ai_span.set_attribute("error.type", "AssessmentProviderError")
 {% endblock %}
