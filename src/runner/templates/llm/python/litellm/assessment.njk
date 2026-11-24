@@ -10,9 +10,8 @@ from sentry_sdk.integrations.openai import OpenAIIntegration
 sentry_sdk.init(
     dsn=os.environ.get("SENTRY_DSN"),
     traces_sample_rate=1.0,
-    send_default_pii=True,
-    stream_gen_ai_spans=True,
-    integrations=[LiteLLMIntegration(include_prompts=True)],
+    data_collection={"gen_ai": {"inputs": True, "outputs": True}},
+    integrations=[LiteLLMIntegration()],
     disabled_integrations=[OpenAIIntegration()],
 )
 {% endblock %}
